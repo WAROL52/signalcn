@@ -20,12 +20,10 @@ Il n'y a pas de package npm runtime à installer.
 
 ## Installation
 
-Remplacez `<owner>` par le propriétaire GitHub du dépôt.
-
 ### TypeScript
 
 ```bash
-pnpm dlx shadcn@latest add <owner>/signalcn/signals
+pnpm dlx shadcn@latest add WAROL52/signalcn/signals
 ```
 
 Installe uniquement :
@@ -37,7 +35,7 @@ signals.ts
 ### Tests TypeScript
 
 ```bash
-pnpm dlx shadcn@latest add <owner>/signalcn/signals-test
+pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test
 ```
 
 Installe uniquement :
@@ -49,7 +47,7 @@ signals.test.ts
 ### JavaScript généré
 
 ```bash
-pnpm dlx shadcn@latest add <owner>/signalcn/signals-js
+pnpm dlx shadcn@latest add WAROL52/signalcn/signals-js
 ```
 
 Installe uniquement :
@@ -61,7 +59,7 @@ signals.js
 ### Tests JavaScript générés
 
 ```bash
-pnpm dlx shadcn@latest add <owner>/signalcn/signals-test-js
+pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test-js
 ```
 
 Installe uniquement :
@@ -73,7 +71,7 @@ signals.test.js
 ### JavaScript minifié
 
 ```bash
-pnpm dlx shadcn@latest add <owner>/signalcn/signals-min
+pnpm dlx shadcn@latest add WAROL52/signalcn/signals-min
 ```
 
 Installe uniquement :
@@ -85,7 +83,7 @@ signals.min.js
 ### Tests JavaScript minifiés
 
 ```bash
-pnpm dlx shadcn@latest add <owner>/signalcn/signals-test-min
+pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test-min
 ```
 
 Installe uniquement :
