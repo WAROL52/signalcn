@@ -20,77 +20,14 @@ Il n'y a pas de package npm runtime à installer.
 
 ## Installation
 
-### TypeScript
-
-```bash
-pnpm dlx shadcn@latest add WAROL52/signalcn/signals
-```
-
-Installe uniquement :
-
-```text
-signals.ts
-```
-
-### Tests TypeScript
-
-```bash
-pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test
-```
-
-Installe uniquement :
-
-```text
-signals.test.ts
-```
-
-### JavaScript généré
-
-```bash
-pnpm dlx shadcn@latest add WAROL52/signalcn/signals-js
-```
-
-Installe uniquement :
-
-```text
-signals.js
-```
-
-### Tests JavaScript générés
-
-```bash
-pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test-js
-```
-
-Installe uniquement :
-
-```text
-signals.test.js
-```
-
-### JavaScript minifié
-
-```bash
-pnpm dlx shadcn@latest add WAROL52/signalcn/signals-min
-```
-
-Installe uniquement :
-
-```text
-signals.min.js
-```
-
-### Tests JavaScript minifiés
-
-```bash
-pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test-min
-```
-
-Installe uniquement :
-
-```text
-signals.test.min.js
-```
+| Artefact | Fichier installé | npm | pnpm | bun |
+| --- | --- | --- | --- | --- |
+| TypeScript | `signals.ts` | `npx shadcn@latest add WAROL52/signalcn/signals` | `pnpm dlx shadcn@latest add WAROL52/signalcn/signals` | `bunx --bun shadcn@latest add WAROL52/signalcn/signals` |
+| Tests TypeScript | `signals.test.ts` | `npx shadcn@latest add WAROL52/signalcn/signals-test` | `pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test` | `bunx --bun shadcn@latest add WAROL52/signalcn/signals-test` |
+| JavaScript généré | `signals.js` | `npx shadcn@latest add WAROL52/signalcn/signals-js` | `pnpm dlx shadcn@latest add WAROL52/signalcn/signals-js` | `bunx --bun shadcn@latest add WAROL52/signalcn/signals-js` |
+| Tests JavaScript générés | `signals.test.js` | `npx shadcn@latest add WAROL52/signalcn/signals-test-js` | `pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test-js` | `bunx --bun shadcn@latest add WAROL52/signalcn/signals-test-js` |
+| JavaScript minifié | `signals.min.js` | `npx shadcn@latest add WAROL52/signalcn/signals-min` | `pnpm dlx shadcn@latest add WAROL52/signalcn/signals-min` | `bunx --bun shadcn@latest add WAROL52/signalcn/signals-min` |
+| Tests JavaScript minifiés | `signals.test.min.js` | `npx shadcn@latest add WAROL52/signalcn/signals-test-min` | `pnpm dlx shadcn@latest add WAROL52/signalcn/signals-test-min` | `bunx --bun shadcn@latest add WAROL52/signalcn/signals-test-min` |
 
 Chaque item est indépendant. L'installation de l'un n'installe pas les cinq autres.
 
