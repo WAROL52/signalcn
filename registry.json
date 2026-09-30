@@ -1,0 +1,19 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "signalcn",
+  "homepage": "https://github.com/WAROL52/signalcn",
+  "items": [
+    {
+      "name": "signals",
+      "type": "registry:file",
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "~/signals.ts",
+          "type": "registry:file",
+          "target": "~/signals.ts"
+        }
+      ]
+    }
+  ]
+}

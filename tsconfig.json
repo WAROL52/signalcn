@@ -1,0 +1,10 @@
+{
+  // Une seule source de vérité pour les options du compilateur. La config qui ÉMET est celle du
+  // dossier de l'item ; celle-ci ne fait que l'exécuter sans écrire, pour le typecheck.
+  // Neuf options dupliquées entre les deux étaient une occasion de diverger.
+  "extends": "./registry/default/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["registry/default/**/*.ts"]
+}

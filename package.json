@@ -1,0 +1,28 @@
+{
+  "name": "signalcn",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "description": "Moteur de signaux réactifs agnostique des frameworks, distribué comme code source.",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --test-reporter=tap registry/default/signals.test.ts",
+    "harnais": "node scripts/harnais.mjs",
+    "build": "node scripts/build.mjs",
+    "verifier-build": "node scripts/verifier-build.mjs",
+    "verifier-derive": "node scripts/verifier-derive.mjs",
+    "verifier-installation": "node scripts/verifier-installation.mjs",
+    "porte": "npm run typecheck && npm run harnais && npm run test && npm run build && npm run verifier-build && npm run verifier-derive"
+  },
+  "devDependencies": {
+    "@preact/signals-core": "1.14.4",
+    "@types/node": "24.3.0",
+    "esbuild": "0.25.9",
+    "typescript": "5.9.2",
+    "shadcn": "2.10.0"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
