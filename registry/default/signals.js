@@ -709,10 +709,18 @@ export class Effect {
             cleanupDependency(this);
             currentObserver = precedentObservateur;
             // Relâcher `RUNNING` ICI, et nulle part ailleurs. Le drainage le fait aussi pour le nœud
-            // qu'il traite, mais un premier run_Create-declenché hors drainage ne repasse jamais par là :
+            // qu'il traite, mais un premier run_Create-déclenché hors drainage ne repasse jamais par là :
             // sans ce relâchement, `RUNNING` restait posé pour toujours, et `_dispose()` différait vers
             // une fermeture qui ne reviendrait jamais — donc le cleanup ne tournait plus jamais.
-            this._flags &= ~(RUNNING | NOTIFIED);
+            //
+            // `NOTIFIED` n'est PAS relâché ici, et c'est `#35`. Le drainage pose ce drapeau en fin de
+            // drainage, PAS dans le run : au moment où l'effet a fini, il est encore notifié de ce qu'il
+            // vient d'écrire. Effacer ce drapeau ici effaçait cette mémoire, et l'effet se notifiait lui-même
+            // à l'écriture suivante — donc il se réempilait dans la file que le drainage venait de vider.
+            // Deux effets qui s'écrivent l'un l'autre refermaient alors la chaîne sur elle-même : la
+            // génération ne finissait plus, `batchIteration` ne montait plus, et le seuil de cycle
+            // n'arrivait jamais. La baseline `endEffect` ne relâche que `RUNNING` (`L847`).
+            this._flags &= ~RUNNING;
             if ((this._flags & DISPOSED) !== 0)
                 disposeSelf(this);
             // Refermer la portée que `_start` a ouvert. C'est ce qui borne le cycle d'auto-écriture ET ce

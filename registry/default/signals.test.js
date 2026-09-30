@@ -112,8 +112,6 @@ export const TICHETS = {
     batch: "#26",
     // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
     modele: "#28",
-    // Le ping-pong entre effets ne termine pas : un defaut du drainage, reproductible sans `batch`.
-    pingpong: "#35",
 };
 export const scenarios = [
     {
@@ -1581,6 +1579,56 @@ export const scenarios = [
             }
             log("batch ecrit par l effet : type", typePropre);
             log("batch ecrit par l effet : compte borne", runsPropre > 1 && runsPropre <= 500 ? "oui" : "non");
+            // `batch#24` et `batch#25` — le ping-pong entre DEUX et TROIS effets, chacun abonné à DEUX
+            // signaux et écrivant celui de l'autre. C'est la LECTURE CROISÉE qui rend la liste des
+            // dépendances à plus d'un élément, et donc ce qui fait que le drainage a une file à vider.
+            //
+            // Les COMPTES EXACTS (52/51, 35/35/34) ne sont pas affirmés : SPEC §15.2 refuse de figer
+            // le seuil, §21 le confirme. Ce qui se fige, c'est le CARACTÈRE — chaque effet tourne
+            // plusieurs fois, et une erreur sort. C'est ce que la divergence observée faisait échouer.
+            const formePingPong = (nb) => {
+                const signaux = Array.from({ length: nb }, () => api.signal(0));
+                const runs = new Array(nb).fill(0);
+                const armes = new Array(nb).fill(false);
+                for (let i = 0; i < nb; i++) {
+                    const idx = i;
+                    const mien = signaux[idx];
+                    if (mien === undefined)
+                        continue;
+                    const suivant = signaux[(idx + 1) % nb];
+                    api.effect(() => {
+                        // La LECTURE CROISÉE est ce qui compte : sans elle, chaque effet n'a qu'une seule
+                        // dépendance, et le ping-pong n'a rien à vider.
+                        mien.value;
+                        suivant?.value;
+                        runs[idx] = (runs[idx] ?? 0) + 1;
+                        if (armes[idx] && suivant !== undefined && (runs[idx] ?? 0) < PLAFOND)
+                            suivant.value++;
+                    });
+                }
+                for (let i = 0; i < nb; i++)
+                    armes[i] = true;
+                try {
+                    const premier = signaux[0];
+                    if (premier === undefined)
+                        return ["aucune", false];
+                    premier.value++;
+                }
+                catch (erreur) {
+                    return [erreur instanceof Error ? erreur.constructor.name : "autre", true];
+                }
+                return ["aucune", false];
+            };
+            // Le PLAFOND borne les écritures pour que le test TERMINE même sur un moteur qui ne
+            // détecte pas le cycle — un test qui pend n'est pas un test, c'est un minuteur. Un moteur
+            // sain s'arrête bien avant : 203 runs pour deux effets, 303 pour trois.
+            const PLAFOND = 500;
+            const [typePing, pingTourne] = formePingPong(2);
+            log("ping pong a 2 effets : type", typePing);
+            log("ping pong a 2 effets : tous ont tourne", pingTourne ? "oui" : "non");
+            const [typePing3, ping3Tourne] = formePingPong(3);
+            log("ping pong a 3 effets : type", typePing3);
+            log("ping pong a 3 effets : tous ont tourne", ping3Tourne ? "oui" : "non");
             log("batch cree dans le flush", JSON.stringify(journal));
             assert.deepEqual(log.entries, [
                 "cycle borne : runs 51",
@@ -1591,6 +1639,10 @@ export const scenarios = [
                 "apres une erreur : le compteur repart oui",
                 "batch ecrit par l effet : type Error",
                 "batch ecrit par l effet : compte borne oui",
+                "ping pong a 2 effets : type Error",
+                "ping pong a 2 effets : tous ont tourne oui",
+                "ping pong a 3 effets : type Error",
+                "ping pong a 3 effets : tous ont tourne oui",
                 'batch cree dans le flush ["avant:0","dans le batch de l effect","apres:0","avant:1","dans le batch de l effect","apres:1"]',
             ]);
         },
@@ -1955,8 +2007,8 @@ export const COUVERTURE = {
     "batch#21": "batch/revert-a-b-a",
     "batch#22": "batch/cycle-borne-et-non-borne",
     "batch#23": "batch/cycle-borne-et-non-borne",
-    "batch#24": TICHETS.pingpong,
-    "batch#25": TICHETS.pingpong,
+    "batch#24": "batch/cycle-borne-et-non-borne",
+    "batch#25": "batch/cycle-borne-et-non-borne",
     "batch#26": "batch/cycle-borne-et-non-borne",
     // `untracked#10` a `#11` et `#12` portent sur la portee de capture d'effets d'un modele : ils
     // ne sont atteignables qu'avec `createModel`, qui est #28. `untracked#13` est un usage INTERNE —
