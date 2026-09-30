@@ -28,6 +28,8 @@ const { porte, cloture: reporterCloture } = reporter()
 const baselineApi = {
   signal: baseline.signal,
   computed: baseline.computed,
+  effect: baseline.effect,
+  Effect: baseline.Effect,
   Signal: baseline.Signal,
   Computed: baseline.Computed,
 }

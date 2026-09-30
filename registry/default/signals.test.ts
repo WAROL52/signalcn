@@ -33,6 +33,8 @@ import assert from "node:assert/strict"
 import type {
   signal as signalFn,
   computed as computedFn,
+  effect as effectFn,
+  Effect as EffectClass,
   Signal as SignalClass,
   Computed as ComputedClass,
   ReadonlySignal,
@@ -42,6 +44,8 @@ import type {
 export type Api = {
   signal: typeof signalFn
   computed: typeof computedFn
+  effect: typeof effectFn
+  Effect: typeof EffectClass
   Signal: typeof SignalClass
   Computed: typeof ComputedClass
 }
@@ -59,6 +63,12 @@ export type Scenario = {
   matrice: string[]
   run: (api: Api, log: Log) => void
 }
+
+/**
+ * Le `this` lexical du module. Une flèche le capture — et c'est ce que `effect#10` fige : une
+ * fléchée n'obtient PAS l'instance d'effet.
+ */
+const thisGlobal: unknown = globalThis
 
 /**
  * Les tests signalcn-seuls observent des comportements que le TYPAGE interdit : un appel sans
@@ -636,6 +646,426 @@ export const scenarios: Scenario[] = [
       ])
     },
   },
+  {
+    // SPEC §8.1 — premier run SYNCHRONE, avant même que `effect()` ne rende la main, et le
+    // callback ne reçoit AUCUN argument.
+    name: "effect/premier-run-et-arguments",
+    matrice: ["effect#1", "effect#38"],
+    run(api, log) {
+      const journal: string[] = []
+      api.effect(function (this: unknown) {
+        journal.push(`${(arguments as unknown as unknown[]).length}/${typeof this}`)
+      })
+      log("arguments/this", JSON.stringify(journal))
+      assert.deepEqual(log.entries, ['arguments/this ["0/object"]'])
+    },
+  },
+  {
+    // SPEC §8.1 — un effet SANS dépendance ne tourne qu'une fois et n'est jamais re-notifié : il
+    // n'a rien à quoi s'abonner. Deux écritures ne le réveillent pas.
+    name: "effect/sans-dependance",
+    matrice: ["effect#3"],
+    run(api, log) {
+      const s = api.signal(0)
+      let runs = 0
+      // Le callback ne lit RIEN. C'est toute la différence avec un effet qui lit.
+      api.effect(() => {
+        runs++
+      })
+      s.value = 1
+      s.value = 2
+      log("runs", String(runs))
+      assert.deepEqual(log.entries, ["runs 1"])
+    },
+  },
+  {
+    // SPEC §8.1, §12 — re-run à chaque changement, cleanup exécuté JUSTE AVANT le run suivant,
+    // et le cleanup voit la valeur COURANTE : celle qui vient d'écrire, pas celle de son run.
+    name: "effect/rerun-et-cleanup",
+    matrice: ["effect#2", "effect#6", "effect#8"],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`run:${s.value}`)
+        return () => journal.push(`cleanup:${s.value}`)
+      })
+      s.value = 1
+      s.value = 2
+      log("journal", JSON.stringify(journal))
+      assert.deepEqual(log.entries, ['journal ["run:0","cleanup:1","run:1","cleanup:2","run:2"]'])
+    },
+  },
+  {
+    // SPEC §8.2 — le dispositeur est `_dispose.bind(effect)` : `name === "bound "`, `length === 0`,
+    // `Object.keys()` vide. Ce n'est ni une arrow, ni l'instance.
+    name: "effect/forme-du-dispositeur",
+    matrice: ["effect#4", "effect#35"],
+    run(api, log) {
+      const d = api.effect(() => {})
+      log("type", typeof d)
+      log("name", JSON.stringify(d.name))
+      log("length", String(d.length))
+      log("cles", JSON.stringify(Object.keys(d)))
+      assert.deepEqual(log.entries, ["type function", 'name "bound "', "length 0", "cles []"])
+    },
+  },
+  {
+    // SPEC §8.1 — une valeur de retour qui n'est pas une fonction est IGNORÉE. Pas d'erreur, pas
+    // de cleanup : c'est le cas le plus courant du monde, un callback qui renvoie autre chose.
+    name: "effect/retour-non-fonction-ignore",
+    matrice: ["effect#5"],
+    run(api, log) {
+      const d = api.effect(() => 42)
+      log("dispositeur rendu", typeof d)
+      d()
+      log("aucune erreur", "true")
+      assert.deepEqual(log.entries, ["dispositeur rendu function", "aucune erreur true"])
+    },
+  },
+  {
+    // SPEC §12 — le cleanup s'exécute HORS de tout contexte de suivi : lire un autre signal ne
+    // réabonne pas. Sans quoi le dispose laisserait une dépendance fantôme.
+    name: "effect/cleanup-hors-suivi",
+    matrice: ["effect#7"],
+    run(api, log) {
+      const pilote = api.signal(0)
+      const autre = api.signal(0)
+      const journal: string[] = []
+      const d = api.effect(() => {
+        journal.push(`run ${pilote.value}`)
+        return () => journal.push(`cleanup voit ${autre.value}`)
+      })
+      autre.value = 5
+      d()
+      log("journal", JSON.stringify(journal))
+      log("autre a-t-elle un abonne ?", String(auRuntime(autre)._targets === undefined))
+      assert.deepEqual(log.entries, [
+        'journal ["run 0","cleanup voit 5"]',
+        "autre a-t-elle un abonne ? true",
+      ])
+    },
+  },
+  {
+    // SPEC §8.3 — `this` est l'INSTANCE d'effet pour une fonction non fléchée ; une flèche capture
+    // le `this` lexical du module. On vérifie l'identité de classe, PAS les noms de propriétés :
+    // la baseline minifie les siens, donc ils ne sont pas lisibles. Même cause que #33.
+    name: "effect/this-est-linstance",
+    matrice: ["effect#9", "effect#10"],
+    run(api, log) {
+      let cleNonFlechee: unknown
+      api.effect(function (this: unknown) {
+        cleNonFlechee = this
+      })
+      log("non flechee : instanceof", String(cleNonFlechee instanceof api.Effect))
+
+      let cleFlechee: unknown = undefined
+      api.effect(() => {
+        cleFlechee = thisGlobal
+      })
+      log("flechee : instanceof", String(cleFlechee instanceof api.Effect))
+      log("flechee : this du module", String(cleFlechee === globalThis))
+      assert.deepEqual(log.entries, [
+        "non flechee : instanceof true",
+        "flechee : instanceof false",
+        "flechee : this du module true",
+      ])
+    },
+  },
+  {
+    // SPEC §13.4 — HORS batch, chaque écriture draine immédiatement, donc l'ordre des runs suit
+    // l'ordre des écritures. L'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est #26 :
+    // sans `batch`, la règle n'est pas observable et l'affirmer serait inventer.
+    name: "effect/ordre-hors-batch",
+    matrice: ["effect#15", "effect#17"],
+    run(api, log) {
+      const a = api.signal(0)
+      const b = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`A:${a.value}`)
+      })
+      api.effect(() => {
+        journal.push(`B:${b.value}`)
+      })
+      a.value = 1
+      b.value = 1
+      log("ordre des runs", JSON.stringify(journal.slice(2)))
+      assert.deepEqual(log.entries, ['ordre des runs ["A:1","B:1"]'])
+    },
+  },
+  {
+    // SPEC §8.4 — un effet qui écrit une dépendance qu'il lit se ré-exécute dans la MÊME flush. Le
+    // drain est en largeur : une génération est vidée entièrement avant la suivante.
+    name: "effect/auto-ecriture",
+    matrice: ["effect#16"],
+    run(api, log) {
+      const s = api.signal(0)
+      let runs = 0
+      api.effect(() => {
+        runs++
+        if (s.value < 2) s.value = s.value + 1
+      })
+      log("runs", String(runs))
+      log("valeur", String(s.value))
+      assert.deepEqual(log.entries, ["runs 3", "valeur 2"])
+    },
+  },
+  {
+    // SPEC §13.6 — un effet créé dans un effet est INDÉPENDANT et non possédé : le dispose de
+    // l'extérieur ne doit pas emporter l'intérieur. L'intérieur est créé UNE FOIS, pas à chaque
+    // run, sinon c'est un autre comportement qu'on mesurerait.
+    name: "effect/nesting-et-independance",
+    matrice: ["effect#33"],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      const interne = api.effect(() => {
+        journal.push(`interne:${s.value}`)
+      })
+      const externe = api.effect(() => {
+        journal.push(`externe:${s.value}`)
+      })
+      log("runs avant ecriture", journal.length)
+      s.value = 1
+      log("journal apres ecriture", JSON.stringify(journal))
+      externe()
+      s.value = 2
+      // L'interne a tourné une fois de plus, et l'externe aucune : c'est exactement
+      // « indépendant et non possédé ».
+      log("seul l'interne a-t-il tourne ?", String(journal.length === 5))
+      interne()
+      assert.deepEqual(log.entries, [
+        "runs avant ecriture 2",
+        'journal apres ecriture ["interne:0","externe:0","interne:1","externe:1"]',
+        "seul l'interne a-t-il tourne ? true",
+      ])
+    },
+  },
+  {
+    // SPEC §15.2 — un cycle borné ne lève pas : c'est un cycle, pas une erreur. Le COMPTE de runs
+    // d'un cycle non borné n'est pas figé, donc on ne l'affirme pas.
+    name: "effect/cycle-borne",
+    matrice: ["effect#19"],
+    run(api, log) {
+      const a = api.signal(0)
+      let runs = 0
+      api.effect(() => {
+        runs++
+        const v = a.value
+        if (v < 50) a.value = v + 1
+      })
+      log("runs", String(runs))
+      log("valeur", String(a.value))
+      assert.deepEqual(log.entries, ["runs 51", "valeur 50"])
+    },
+  },
+  {
+    // SPEC §15 — une exception au PREMIER run dispose l'effet, se propage, et ne rend AUCUN
+    // dispositeur. Une exception à un RE-RUN laisse l'effet vivant : la propagation suivante le
+    // rappelle, et celle d'après ne lève plus.
+    name: "effect/erreurs",
+    matrice: ["effect#20", "effect#22", "effect#24", "effect#18"],
+    run(api, log) {
+      const s = api.signal(0)
+      let runs = 0
+      let rendu: unknown = "jamais rendu"
+      try {
+        rendu = api.effect(() => {
+          runs++
+          if (s.value === 0) throw new Error("boom premier")
+        })
+        log("aucune erreur au premier run", "inattendu")
+      } catch (erreur) {
+        rendu = "leve"
+        log("erreur propagee", erreur instanceof Error ? erreur.message : "autre")
+      }
+      log("un dispositeur a-t-il ete rendu ?", String(rendu === "leve"))
+      log("runs du premier effet", String(runs))
+
+      const t = api.signal(0)
+      let runsT = 0
+      api.effect(() => {
+        runsT++
+        if (t.value === 1) throw new Error("boom rerun")
+      })
+      try {
+        t.value = 1
+        log("pas d'erreur au rerun", "inattendu")
+      } catch (erreur) {
+        log("erreur du rerun relancee par l'ecriture", erreur instanceof Error ? erreur.message : "autre")
+      }
+      t.value = 2
+      log("runs de l'effet survivant", String(runsT))
+      assert.deepEqual(log.entries, [
+        "erreur propagee boom premier",
+        "un dispositeur a-t-il ete rendu ? true",
+        "runs du premier effet 1",
+        "erreur du rerun relancee par l'ecriture boom rerun",
+        "runs de l'effet survivant 3",
+      ])
+    },
+  },
+  {
+    // SPEC §4.2 — `watched` à l'ajout du PREMIER abonné, `unwatched` à la perte du DERNIER, les
+    // deux hors de tout suivi, et une seule fois chacun quel que soit le nombre d'abonnés.
+    name: "effect/watchers",
+    matrice: ["effect#21"],
+    run(api, log) {
+      const journal: string[] = []
+      const s = api.signal<number>(0, {
+        watched(this: { name: string | undefined }) {
+          journal.push(`watched ${String(this.name)}`)
+        },
+        unwatched(this: { name: string | undefined }) {
+          journal.push(`unwatched ${String(this.name)}`)
+        },
+      })
+      s.name = "W"
+      const d1 = api.effect(() => s.value)
+      const d2 = api.effect(() => s.value)
+      d1()
+      d2()
+      s.value = 1
+      log("journal", JSON.stringify(journal))
+      assert.deepEqual(log.entries, ['journal ["watched W","unwatched W"]'])
+    },
+  },
+  {
+    // SPEC §13.1 — la chaîne A → B → C → Effect. Le drain est en largeur : une génération est
+    // vidée entièrement avant la suivante.
+    name: "effect/chaine-et-drain",
+    matrice: ["effect#32"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      const c1 = api.computed(() => {
+        journal.push(`c1:${a.value}`)
+        return a.value
+      })
+      const c2 = api.computed(() => {
+        journal.push(`c2:${c1.value}`)
+        return c1.value
+      })
+      api.effect(() => {
+        journal.push(`d1:${c2.value}`)
+      })
+      a.value = 1
+      log("journal", JSON.stringify(journal))
+      assert.deepEqual(log.entries, ['journal ["c1:0","c2:0","d1:0","c1:1","c2:1","d1:1"]'])
+    },
+  },
+  {
+    // SPEC §12 — un cleanup qui LÈVE dispose l'effet, même en pleine flush : l'écriture suivante
+    // ne propage plus. Et il ne casse pas le contexte de suivi, le moteur reste utilisable.
+    name: "dispose/cleanup-qui-leve",
+    matrice: ["effect#28", "effect#30", "effect#31"],
+    run(api, log) {
+      const s = api.signal(0)
+      let runs = 0
+      api.effect(() => {
+        runs++
+        // Le cleanup ne sera appelé qu'au run SUIVANT, donc il faut encore une écriture.
+        if (s.value >= 1) return () => { throw new Error("cleanup boom") }
+      })
+      const tentatives: string[] = []
+      for (const ecriture of [1, 2, 3]) {
+        try {
+          s.value = ecriture
+          tentatives.push(`${ecriture}:aucune`)
+        } catch (erreur) {
+          tentatives.push(`${ecriture}:${erreur instanceof Error ? erreur.message : "autre"}`)
+        }
+      }
+      log("tentatives", JSON.stringify(tentatives))
+      log("runs", String(runs))
+
+      const t = api.signal(0)
+      let runsT = 0
+      const d2 = api.effect(() => {
+        runsT++
+      })
+      t.value = 1
+      log("l'effet suivant tourne-t-il ?", String(runsT))
+      d2()
+      assert.deepEqual(log.entries, [
+        "tentatives [\"1:aucune\",\"2:cleanup boom\",\"3:aucune\"]",
+        "runs 2",
+        "l'effet suivant tourne-t-il ? 1",
+      ])
+    },
+  },
+  {
+    // SPEC §8.4 — un effet disposé ALORS qu'il est dans la file de flush est sauté
+    // silencieusement, sans callback.
+    name: "dispose/dans-la-file",
+    matrice: ["effect#14", "dispose#8"],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      const d2 = api.effect(() => {
+        journal.push(`d2:${s.value}`)
+      })
+      const d1 = api.effect(() => {
+        journal.push(`d1:${s.value}`)
+        d2()
+      })
+      s.value = 1
+      log("journal", JSON.stringify(journal))
+      s.value = 2
+      log("d2 n'est pas revenu", String(journal.filter(e => e === "d2:1").length === 0))
+      assert.deepEqual(log.entries, [
+        'journal ["d2:0","d1:0","d1:1"]',
+        "d2 n'est pas revenu true",
+      ])
+    },
+  },
+  {
+    // SPEC §12 — dispose externe idempotent, et il détache toutes les dépendances : la source ne
+    // garde plus d'abonné, donc plus aucune propagation.
+    name: "dispose/idempotent-et-detachement",
+    matrice: ["effect#13", "dispose#6", "dispose#9"],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      const d = api.effect(() => {
+        journal.push(`run:${s.value}`)
+        return () => journal.push("cleanup")
+      })
+      s.value = 1
+      d()
+      d()
+      d()
+      log("journal", JSON.stringify(journal))
+      s.value = 2
+      log("aucun run apres", String(journal.length))
+      log("la source a-t-elle un abonne ?", String(auRuntime(s)._targets === undefined))
+      assert.deepEqual(log.entries, [
+        'journal ["run:0","cleanup","run:1","cleanup"]',
+        "aucun run apres 4",
+        "la source a-t-elle un abonne ? true",
+      ])
+    },
+  },
+  {
+    // SPEC §8.3, §12 — `this.dispose()` pendant le run : cleanup IMMÉDIAT, et l'effet ne peut plus
+    // être notifié. Appelé deux fois, un seul cleanup.
+    name: "dispose/pendant-le-run",
+    matrice: ["effect#11", "effect#12", "dispose#7"],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      api.effect(function (this: { dispose: () => void }) {
+        journal.push(`run:${s.value}`)
+        this.dispose()
+        this.dispose()
+      })
+      log("journal", JSON.stringify(journal))
+      s.value = 1
+      log("aucun run apres", String(journal.length))
+      assert.deepEqual(log.entries, ['journal ["run:0"]', "aucun run apres 1"])
+    },
+  },
 ]
 
 // ---- Le registre de couverture -----------------------------------------------------
@@ -739,11 +1169,78 @@ export const COUVERTURE: Record<string, string> = {
   "computed#25": "computed/options-et-marque",
   "computed#26": TICHETS.subscribe,
   "computed#27": "computed/options-et-marque",
+  // --- groupe `effect` : 41 entrées
+  "effect#1": "effect/premier-run-et-arguments",
+  "effect#2": "effect/rerun-et-cleanup",
+  "effect#3": "effect/sans-dependance",
+  "effect#4": "effect/forme-du-dispositeur",
+  "effect#5": "effect/retour-non-fonction-ignore",
+  "effect#6": "effect/rerun-et-cleanup",
+  "effect#7": "effect/cleanup-hors-suivi",
+  "effect#8": "effect/rerun-et-cleanup",
+  "effect#9": "effect/this-est-linstance",
+  "effect#10": "effect/this-est-linstance",
+  "effect#11": "dispose/pendant-le-run",
+  "effect#12": "dispose/pendant-le-run",
+  "effect#13": "dispose/idempotent-et-detachement",
+  "effect#14": "dispose/dans-la-file",
+  // effect#15 et #17 : l'ordre INVERSÉ est normatif à l'intérieur d'un batch. Hors batch chaque
+  // écriture draine seule, donc l'ordre ne s'observe pas — ce que le scénario vérifie.
+  "effect#15": "effect/ordre-hors-batch + #26",
+  "effect#16": "effect/auto-ecriture",
+  "effect#17": "effect/ordre-hors-batch + #26",
+  "effect#18": "effect/erreurs",
+  "effect#19": "effect/cycle-borne",
+  "effect#20": "effect/erreurs",
+  "effect#21": "effect/watchers",
+  "effect#22": "effect/erreurs",
+  // effect#23, #25, #26, #27 : la propagation d'erreur passe par le batch ou par un setter, donc
+  // par #26.
+  "effect#23": "#26",
+  "effect#24": "effect/erreurs",
+  "effect#25": "#26",
+  "effect#26": "#26",
+  "effect#27": "#26",
+  "effect#28": "dispose/cleanup-qui-leve",
+  "effect#29": "signalcn-seul/symbol-dispose-et-using",
+  "effect#30": "dispose/cleanup-qui-leve",
+  "effect#31": "dispose/cleanup-qui-leve + #26",
+  "effect#32": "effect/chaine-et-drain",
+  "effect#33": "effect/nesting-et-independance",
+  // effect#34 : un effet créé dans un COMPUTÉ fuit à chaque évaluation. C'est un quirk figé, et le
+  // mesurer demande un observateur — donc un effet dans un effet.
+  "effect#34": "signalcn-seul/effet-dans-un-calcule",
+  "effect#35": "effect/forme-du-dispositeur",
+  "effect#36": "signalcn-seul/options-de-linstance",
+  "effect#37": "signalcn-seul/drapeaux-initiaux",
+  "effect#38": "effect/premier-run-et-arguments",
+  // effect#39 : la baseline écrit son prototype à la main, donc ses méthodes y sont énumérables.
+  // ADR-0004 refuse cette énumérabilité. DIVERGENCE ASSUMÉE.
+  "effect#39": "signalcn-seul/descripteurs-de-prototype",
+  "effect#40": "signalcn-seul/hors-ordre",
+  "effect#41": "signalcn-seul/symbol-dispose-et-using",
+
+  // --- groupe `dispose` : 10 entrées
+  "dispose#1": "effect/forme-du-dispositeur",
+  // dispose#2 : la baseline fait pointer `Symbol.dispose` sur le dispositeur, qui est une fonction
+  // LIÉE, et V8 refuse alors cette méthode. DIVERGENCE ASSUMÉE — voir #34.
+  "dispose#2": "signalcn-seul/symbol-dispose-et-using",
+  "dispose#3": "signalcn-seul/symbol-dispose-et-using",
+  // dispose#4 : `subscribe` renvoie aussi un disposeur — #25.
+  "dispose#4": "#25",
+  // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
+  // atteignable que sur le bundle réel dans un tel realm ; l'affirmer demanderait de l'éteindre.
+  "dispose#5": "signalcn-seul/symbol-dispose-absent",
+  "dispose#6": "dispose/idempotent-et-detachement",
+  "dispose#7": "dispose/pendant-le-run",
+  "dispose#8": "dispose/dans-la-file",
+  "dispose#9": "dispose/idempotent-et-detachement",
+  "dispose#10": "signalcn-seul/descripteurs-de-prototype",
 }
 
 /**
- * Les entrées de matrice des trois groupes traités ici. Les COMPTES sont écrits en dur, et c'est
- * une faiblesse connue : un `computed#28` ajouté à la matrice laisserait `registre-complet`
+ * Les entrées de matrice des cinq groupes traités ici. Les COMPTES sont écrits en dur, et c'est
+ * une faiblesse connue : une entrée ajoutée à la matrice laisserait `registre-complet`
  * vert. Le durcissement — lire la matrice pour en dériver la liste — est [#33](#33), qui a trouvé
  * le problème en冲着 les entrées structurelles.
  */
@@ -751,6 +1248,8 @@ export const ENTREES_ATTENDUES = [
   ...Array.from({ length: 23 }, (_, i) => `signal#${i + 1}`),
   ...Array.from({ length: 15 }, (_, i) => `conv#${i + 1}`),
   ...Array.from({ length: 27 }, (_, i) => `computed#${i + 1}`),
+  ...Array.from({ length: 41 }, (_, i) => `effect#${i + 1}`),
+  ...Array.from({ length: 10 }, (_, i) => `dispose#${i + 1}`),
 ]
 
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
@@ -792,8 +1291,8 @@ if (process.env.NODE_TEST_CONTEXT) {
 
   for (const { name, run } of scenarios) {
     test(name, async () => {
-      const { signal: s, computed, Signal, Computed } = await runtime
-      run({ signal: s, computed, Signal, Computed }, makeLog())
+      const { signal: s, computed, effect, Signal, Computed, Effect } = await runtime
+      run({ signal: s, computed, effect, Signal, Computed, Effect }, makeLog())
     })
   }
 
