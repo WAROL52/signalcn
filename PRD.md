@@ -81,7 +81,9 @@ Le cœur DOIT être utilisable dans un environnement JavaScript standard.
 
 Le runtime distribué DOIT avoir zéro dépendance externe.
 
-Les outils de développement tels que TypeScript, Vitest, les outils de couverture et de build/minification sont autorisés dans le dépôt mainteneur et ne doivent jamais devenir des dépendances runtime du code installé.
+Les outils de développement tels que TypeScript, l'outillage de build et de minification, et la bibliothèque de référence elle-même sont autorisés dans le dépôt mainteneur et ne doivent jamais devenir des dépendances runtime du code installé.
+
+**Aucune dépendance de test.** La suite s'exécute avec le module `node:test` de Node, et la couverture est produite par le relevé natif du runner. Le fichier `signals.test.ts` est un artefact distribuable : il doit fonctionner chez l'utilisateur sans qu'il ait quoi que ce soit à installer.
 
 ### 4.3 Compatibilité comportementale
 
@@ -113,7 +115,9 @@ signals.test.min.js
 
 ### 4.5 Un fichier = un registry item
 
-Chaque artefact distribuable est exposé comme un item shadcn indépendant. L'installation d'un item ne doit pas installer implicitement un autre item.
+Chaque artefact distribuable est exposé comme un item shadcn indépendant.
+
+L'installation d'un item n'installe implicitement aucun autre item. Un item de test déclare cependant, explicitement, une `registryDependencies` vers l'item d'implémentation correspondant : c'est une déclaration de l'utilisateur, pas une dépendance implicite du registry. Elle est nécessairement **pleinement qualifiée** (`WAROL52/signalcn/signals`) — un nom nu désignerait un autre registre et installerait silencieusement un homonyme.
 
 ### 4.6 Testabilité avant tout
 
@@ -122,11 +126,12 @@ Tout comportement public et toute branche interne pertinente doivent être testa
 La CI doit imposer :
 
 ```text
-Statements : 100 %
 Branches   : 100 %
 Functions  : 100 %
 Lines      : 100 %
 ```
+
+Trois métriques, pas quatre : le relevé natif de Node ne distingue pas les « statements » des lignes, et une ligne non couverte fait déjà échouer le seuil. La barrière réelle ne baisse pas.
 
 La couverture à 100 % est une barrière de qualité, pas une preuve suffisante de correction sémantique. Une suite de conformité comportementale est donc obligatoire en plus de la couverture.
 
@@ -156,7 +161,9 @@ Le produit initial doit fournir le cœur nécessaire pour émuler le comportemen
 - `effect()` ;
 - `batch()` ;
 - `untracked()` ;
-- les abstractions/types publics de signal pertinents ;
+- `action()` ;
+- `createModel()` ;
+- les classes exportées `Signal`, `Computed`, `Effect`, constructibles et utilisables ;
 - `peek()` ;
 - les subscriptions ;
 - cleanup et dispose des effects ;
@@ -164,8 +171,9 @@ Le produit initial doit fournir le cœur nécessaire pour émuler le comportemen
 - batching et batches imbriqués ;
 - évaluation lazy et invalidation ;
 - comportement des erreurs et cycles ;
-- options couvertes par la baseline ;
-- `createModel()` si retenu comme partie du contrat v1.
+- les options couvertes par la baseline.
+
+La surface publique est celle de la baseline, **sans réduction** : c'est la condition pour que `signals.ts` remplace `@preact/signals-core` sans modification du code appelant.
 
 Le contrat normatif exact est défini dans `SPEC.md`.
 
@@ -198,7 +206,11 @@ Le `registry.json` racine définit le catalogue. Les six items distribuables son
 | `signals-min` | `signals.min.js` | généré | Runtime JavaScript minifié |
 | `signals-test-min` | `signals.test.min.js` | généré | Tests JavaScript minifiés |
 
-Chaque item doit être installable séparément par la CLI shadcn.
+Les fichiers vivent dans `registry/default/`, et `registry.json` à la racine du dépôt.
+
+Chaque item doit être installable séparément par la CLI shadcn. Le distribution repose sur les adresses `owner/repo/item`, qui **n'existent pas avant `shadcn@4.10.0`** : c'est la version minimale supportée.
+
+Un item TypeScript est de type `registry:lib`, un item JavaScript de type `registry:file`. L'inversion produit un fichier `.js` contenant du TypeScript, non exécutable.
 
 ## 8. Pipeline de génération
 
@@ -220,6 +232,8 @@ signals.test.ts
 
 Aucun fichier généré ne doit être source de vérité.
 
+Les artefacts sont des **modules ES**, sans variante CommonJS ni variante globale. Un seul format à produire, tester et distribuer.
+
 ## 9. Critères de succès
 
 Le projet est prêt pour une version stable lorsque :
@@ -233,6 +247,8 @@ Le projet est prêt pour une version stable lorsque :
 - [ ] zéro dépendance runtime est vérifiée ;
 - [ ] les six registry items sont installables indépendamment ;
 - [ ] la CI reconstruit et vérifie les artefacts ;
+- [ ] le zéro-dépendance runtime est **vérifié** par la CI, et pas seulement affirmé ;
+- [ ] le harnais différentiel ne signale aucune divergence contre la baseline ;
 - [ ] la documentation publique est cohérente avec le comportement réel.
 
 ## 10. Non-objectifs
