@@ -44,8 +44,13 @@ import type {
 export type Api = {
   signal: typeof signalFn
   computed: typeof computedFn
-  effect: typeof effectFn
-  Effect: typeof EffectClass
+effect: typeof effectFn
+    // Le CONTRAT du scénario les exige, donc ils ne sont pas optionnels : sinon chaque appel
+    // porterait un `!`. C'est l'injection qui, elle, peut les fournir plus tard — et c'est le seul
+    // endroit qui le sait.
+    batch: <T>(fn: () => T) => T
+    untracked: <T>(fn: () => T) => T
+    Effect: typeof EffectClass
   Signal: typeof SignalClass
   Computed: typeof ComputedClass
 }
@@ -97,9 +102,11 @@ export function makeLog(): Log {
 export const TICHETS = {
   computed: "#23",
   effet: "#24",
-  subscribe: "#25",
-  batch: "#26",
-} as const
+subscribe: "#25",
+    batch: "#26",
+    // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
+    modele: "#28",
+  } as const
 
 export const scenarios: Scenario[] = [
   {
@@ -1110,6 +1117,575 @@ export const scenarios: Scenario[] = [
       ])
     },
   },
+  {
+    // SPEC §9.1 — un batch imbriqué ne compte pas la profondeur : il se comporte comme un simple
+    // appel. Seul le plus externe flush, et la valeur de retour intérieure remonte.
+    name: "batch/valeur-et-imbrication",
+    matrice: ["batch#3", "batch#5", "batch#6"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`e:${a.value}`)
+      })
+      const objet = { marque: 1 }
+      log("retour simple", api.batch(() => "ret") === "ret" ? "ret" : "autre")
+      log("reference d objet preservee", api.batch(() => objet) === objet ? "oui" : "non")
+      log("retour imbrique remonte", api.batch(() => api.batch(() => "inner")) === "inner" ? "oui" : "non")
+      // L'effet a déjà tourné À SA CRÉATION, avant tout batch.
+      log("journal avant le batch", JSON.stringify(journal))
+      let pendant = ""
+      const rendu = api.batch(() => {
+        journal.push("A")
+        a.value = 1
+        journal.push("B")
+        a.value = 2
+        journal.push("C")
+        pendant = JSON.stringify(journal)
+        return "hors"
+      })
+      log("journal PENDANT le batch", pendant)
+      log("journal APRES le batch", JSON.stringify(journal))
+      log("retour exterieur", rendu)
+      log("valeur finale", String(a.value))
+      assert.deepEqual(log.entries, [
+        "retour simple ret",
+        "reference d objet preservee oui",
+        "retour imbrique remonte oui",
+        'journal avant le batch ["e:0"]',
+        'journal PENDANT le batch ["e:0","A","B","C"]',
+        'journal APRES le batch ["e:0","A","B","C","e:2"]',
+        "retour exterieur hors",
+        "valeur finale 2",
+      ])
+    },
+  },
+  {
+    // SPEC §9.1 — trois niveaux d'imbrication, un seul flush. Et l'ordre de flush est l'INVERSE de
+    // l'ordre de notification, pas l'ordre de création : `b` est écrit en second, donc `C` passe
+    // avant `A` et `B`. C'est la règle de §13.4, et elle se lit ici.
+    name: "batch/trois-niveaux-et-ordre",
+    matrice: ["batch#7", "batch#14"],
+    run(api, log) {
+      const a = api.signal(0)
+      const b = api.signal(0)
+      const journal: string[] = []
+      const d1 = api.effect(() => journal.push(`A:${a.value}`))
+      const d2 = api.effect(() => journal.push(`B:${a.value}`))
+      const d3 = api.effect(() => journal.push(`C:${b.value}`))
+      api.batch(() => {
+        api.batch(() => {
+          api.batch(() => {
+            journal.push("niveau3")
+            a.value = 1
+            b.value = 1
+          })
+          journal.push("niveau2")
+        })
+        journal.push("niveau1")
+      })
+      log("journal", JSON.stringify(journal))
+      d1()
+      d2()
+      d3()
+      assert.deepEqual(log.entries, [
+        'journal ["A:0","B:0","C:0","niveau3","niveau2","niveau1","C:1","A:1","B:1"]',
+      ])
+    },
+  },
+  {
+    // SPEC §9.2 — l'erreur du corps remonte ET le flush a lieu quand meme. La profondeur doit etre
+    // restauree, sinon l'ecriture suivante ne flusherait plus jamais.
+    name: "batch/erreur-du-corps-et-profondeur",
+    matrice: ["batch#4", "batch#10"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => journal.push(`e:${a.value}`))
+      let type = "aucune"
+      try {
+        api.batch(() => {
+          a.value = 1
+          throw new Error("boom")
+        })
+      } catch (erreur) {
+        type = erreur instanceof Error ? erreur.message : "autre"
+      }
+      log("erreur du corps", type)
+      log("journal malgre l erreur", JSON.stringify(journal))
+      // La profondeur est restauree : une ecriture hors batch doit flusher normalement.
+      a.value = 2
+      log("apres une ecriture hors batch", JSON.stringify(journal))
+      assert.deepEqual(log.entries, [
+        "erreur du corps boom",
+        'journal malgre l erreur ["e:0","e:1"]',
+        'apres une ecriture hors batch ["e:0","e:1","e:2"]',
+      ])
+    },
+  },
+  {
+    // SPEC §9.1 et §9.2 — une exception dans un batch IMBRIQUE ne passe pas par un `finally` local :
+    // elle remonte au batch externe, qui flush puis re-throw. Donc RIEN ne flush au milieu, meme si
+    // l'exterieur rattrape : `end` passe avant le flush, et le flush voit la valeur finale.
+    name: "batch/erreur-interieure-rateepee",
+    matrice: ["batch#8", "batch#9"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => journal.push(`e:${a.value}`))
+      api.batch(() => {
+        try {
+          api.batch(() => {
+            a.value = 1
+            throw new Error("inner")
+          })
+        } catch (erreur) {
+          journal.push("caught inner")
+          a.value = 2
+          journal.push("after")
+        }
+        journal.push("end")
+      })
+      log("journal", JSON.stringify(journal))
+      const b = api.signal(0)
+      const journal2: string[] = []
+      api.effect(() => journal2.push(`f:${b.value}`))
+      let type = "aucune"
+      try {
+        api.batch(() => {
+          b.value = 1
+          throw new Error("out")
+        })
+      } catch (erreur) {
+        type = erreur instanceof Error ? erreur.message : "autre"
+      }
+      log("erreur exterieure", type)
+      log("journal exterieur malgre l erreur", JSON.stringify(journal2))
+      assert.deepEqual(log.entries, [
+        'journal ["e:0","caught inner","after","end","e:2"]',
+        "erreur exterieure out",
+        'journal exterieur malgre l erreur ["f:0","f:1"]',
+      ])
+    },
+  },
+  {
+    // SPEC §9.3 — ecrire plusieurs fois la MEME valeur ne notifie qu'une fois, et un effet notifie
+    // deux fois ne tourne qu'une fois par flush. Le temoin lit `a`, donc il a bien une dependance.
+    name: "batch/ecriture-identique",
+    matrice: ["batch#2", "batch#11", "batch#12", "batch#15"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => journal.push(`e:${a.value}`))
+      api.batch(() => {
+        a.value = 1
+        a.value = 1
+        a.value = 1
+      })
+      log("journal", JSON.stringify(journal))
+      // Un batch sans ecriture ne flush pas du tout.
+      api.batch(() => {
+        a.value
+      })
+      log("apres un batch sans ecriture", JSON.stringify(journal))
+      // Et une reecriture identique HORS batch ne notifie toujours pas.
+      a.value = 1
+      log("apres reecriture identique", JSON.stringify(journal))
+      a.value = 2
+      log("apres une vraie ecriture", JSON.stringify(journal))
+      assert.deepEqual(log.entries, [
+        'journal ["e:0","e:1"]',
+        'apres un batch sans ecriture ["e:0","e:1"]',
+        'apres reecriture identique ["e:0","e:1"]',
+        'apres une vraie ecriture ["e:0","e:1","e:2"]',
+      ])
+    },
+  },
+  {
+    // SPEC §13.5 — `A → B → A` dans un batch : l'aval n'a pas a recalculer. Mais un revert sur `a`
+    // et un changement reel sur `b` font changer le computé, donc le fast-forward n'est pas un
+    // passe-partout.
+    name: "batch/revert-a-b-a",
+    matrice: ["batch#16", "batch#19", "batch#21"],
+    run(api, log) {
+      const a = api.signal(0)
+      const b = api.signal(0)
+      let cCalls = 0
+      let eRuns = 0
+      const c = api.computed(() => {
+        cCalls++
+        return a.value + b.value
+      })
+      api.effect(() => {
+        eRuns++
+        c.value
+      })
+      log("etat initial", `cCalls:${cCalls} eRuns:${eRuns}`)
+      api.batch(() => {
+        a.value = 1
+        a.value = 2
+        a.value = 0
+      })
+      log("apres un revert simple", `cCalls:${cCalls} eRuns:${eRuns}`)
+      api.batch(() => {
+        a.value = 5
+        a.value = 0
+        b.value = 10
+      })
+      log("apres revert et changement", `cCalls:${cCalls} eRuns:${eRuns}`)
+      log("valeur du computé", String(c.value))
+      // Un effet créé DANS le corps du batch voit son premier run immediatement : le batch retarde
+      // la propagation, pas l'exécution. C'est `batch#21`.
+      let dansLeBatch = "jamais"
+      const d = api.signal(0)
+      api.batch(() => {
+        d.value = 1
+        api.effect(() => {
+          dansLeBatch = `vu:${d.value}`
+        })
+      })
+      log("effet cree dans le batch", dansLeBatch)
+      assert.deepEqual(log.entries, [
+        "etat initial cCalls:1 eRuns:1",
+        "apres un revert simple cCalls:1 eRuns:1",
+        "apres revert et changement cCalls:2 eRuns:2",
+        "valeur du computé 10",
+        "effet cree dans le batch vu:1",
+      ])
+    },
+  },
+  {
+    // SPEC §13.5 — MAIS une lecture paresseuse PENDANT le batch fait perdre le fast-forward. Le
+    // noeud a consume la version intermediaire, donc l'effet tourne une seconde fois, avec la
+    // valeur REVERTIE. C'est le cas le plus subtil de la tranche, et il tient en un scenario.
+    name: "batch/revert-avec-lecture-paresseuse",
+    matrice: ["batch#17", "batch#18", "batch#20"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      let cCalls = 0
+      const c = api.computed(() => {
+        cCalls++
+        return a.value
+      })
+      // L'effet lit le COMPUTÉ, pas `a` : c'est lui qui consomme la version intermediaire.
+      api.effect(() => journal.push(`e:${c.value}`))
+      api.batch(() => {
+        a.value = 10
+        journal.push(`mid:${c.value}`)
+        a.value = 0
+      })
+      log("journal", JSON.stringify(journal))
+      log("cCalls", String(cCalls))
+      log("fin", `end:${c.value}`)
+      // Une ecriture ulterieure ne doit pas rester figee sur la valeur revertee.
+      a.value = 20
+      log("cCalls apres ecriture ulterieure", String(cCalls))
+      assert.deepEqual(log.entries, [
+        'journal ["e:0","mid:10","e:0"]',
+        "cCalls 3",
+        "fin end:0",
+        "cCalls apres ecriture ulterieure 4",
+      ])
+    },
+  },
+  {
+    // SPEC §9.3 — la reconciliation compare les VALEURS avec `===`, pas avec `Object.is`. Lu dans la
+    // baseline ligne 180 : `source._value === snapshots._value`.
+    //
+    // Deux consequences, et il faut les deux cas pour les voir :
+    // - un signal LAISSE a `NaN` n'est jamais considere comme revenu, donc l'effet tourne ;
+    // - un signal passe de `-0` a `0` l'est toujours, donc l'effet ne tourne pas. Il faut
+    //   CONSTRUIRE le signal a `-0` : ecrire `-0` sur un `0` est ignore (§14), donc l'ecriture
+    //   n/registerait meme pas de version.
+    name: "batch/identite-stricte-du-snapshot",
+    matrice: ["batch#16", "batch#20"],
+    run(api, log) {
+      const nan = api.signal(0)
+      let runsNaN = 0
+      api.effect(() => {
+        runsNaN++
+        nan.value
+      })
+      api.batch(() => {
+        nan.value = Number.NaN
+      })
+      log("laisses a NaN : runs", String(runsNaN))
+      const zero = api.signal(-0)
+      let runsZero = 0
+      api.effect(() => {
+        runsZero++
+        zero.value
+      })
+      api.batch(() => {
+        zero.value = 1
+        zero.value = 0
+      })
+      log("reparti de -0 : runs", String(runsZero))
+      assert.deepEqual(log.entries, [
+        "laisses a NaN : runs 2",
+        "reparti de -0 : runs 1",
+      ])
+    },
+  },
+  {
+    // SPEC §15.2 — un cycle BORNE ne leve pas : cinquante et une executions, silencieusement. Un
+    // cycle non borne finit par une `Error`, en un nombre borne de generations.
+    //
+    // Le compte n'est PAS fige (§15.2 et §21 : le seuil est un parametre d'implementation), donc ce
+    // scenario verifie le CARACTERE de la sortie — « une Error, et un compte borne » — pas un
+    // nombre exact. Une assertion sur 102 serait fausse des que le seuil bouge.
+    name: "batch/cycle-borne-et-non-borne",
+    matrice: ["batch#13", "batch#22", "batch#23", "batch#26"],
+    run(api, log) {
+      const borne = api.signal(0)
+      let runs = 0
+      api.effect(() => {
+        runs++
+        const v = borne.value
+        if (v < 50) borne.value = v + 1
+      })
+      log("cycle borne : runs", String(runs))
+      let type = "aucune"
+      try {
+        api.batch(() => {
+          borne.value = 1
+        })
+      } catch (erreur) {
+        type = erreur instanceof Error ? erreur.constructor.name : "autre"
+      }
+      log("cycle borne : leve", type)
+      // L'effet infini n'ecrit qu'une fois ARME, sinon il cyclerait des sa creation.
+      const infini = api.signal(0)
+      let arme = false
+      let runsInfini = 0
+      api.effect(() => {
+        // La lecture est HORS du garde : un effet qui ne lit rien n'a aucune dependance, donc
+        // l'ecriture du batch ne le réveillerait pas et le cycle ne demarrerait jamais.
+        const v = infini.value
+        runsInfini++
+        if (arme) infini.value = v + 1
+      })
+      arme = true
+      let typeInfini = "aucune"
+      try {
+        api.batch(() => {
+          infini.value = 1
+        })
+      } catch (erreur) {
+        typeInfini = erreur instanceof Error ? erreur.constructor.name : "autre"
+      }
+      log("cycle non borne : type", typeInfini)
+      log("cycle non borne : compte borne", runsInfini > 1 && runsInfini <= 500 ? "oui" : "non")
+      // `batch#26` — le compteur d'iterations est REMIS A ZERO apres une erreur. Donc un effet
+      // auto-ecrivant cree APRES le cycle doit encore cycler : s'il heritants du seuil consomme, il
+      // ne tournerait qu'une fois.
+      const apresErreur = api.signal(0)
+      let arme2 = false
+      let runsApres = 0
+      api.effect(() => {
+        const v = apresErreur.value
+        runsApres++
+        if (arme2) apresErreur.value = v + 1
+      })
+      arme2 = true
+      let typeApres = "aucune"
+      try {
+        api.batch(() => {
+          apresErreur.value = 1
+        })
+      } catch (erreur) {
+        typeApres = erreur instanceof Error ? erreur.constructor.name : "autre"
+      }
+      log("apres une erreur : type", typeApres)
+      log("apres une erreur : le compteur repart", runsApres > 1 ? "oui" : "non")
+      // `batch#13` — un effect qui ouvre SON PROPRE batch pendant le flush re-batche : la
+      // notification de l'effet exterieur attend la sortie de ce batch-la.
+      const exterieur = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`avant:${exterieur.value}`)
+        api.batch(() => {
+          journal.push("dans le batch de l effect")
+        })
+        journal.push(`apres:${exterieur.value}`)
+      })
+      exterieur.value = 1
+      log("batch cree dans le flush", JSON.stringify(journal))
+      assert.deepEqual(log.entries, [
+        "cycle borne : runs 51",
+        "cycle borne : leve aucune",
+        "cycle non borne : type Error",
+        "cycle non borne : compte borne oui",
+        "apres une erreur : type Error",
+        "apres une erreur : le compteur repart oui",
+        'batch cree dans le flush ["avant:0","dans le batch de l effect","apres:0","avant:1","dans le batch de l effect","apres:1"]',
+      ])
+    },
+  },
+  {
+    // SPEC §10 — une lecture sous `untracked` n'etablit AUCUNE dependance. Et c'est exactement
+    // equivalent a `peek`. Les deux effects lisent `x` par des chemins differents, et ni l'un ni
+    // l'autre ne se reveille.
+    name: "untracked/aucune-dependance",
+    matrice: ["untracked#1", "untracked#6"],
+    run(api, log) {
+      const a = api.signal(0)
+      const b = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`e:${a.value}/${api.untracked(() => b.value)}`)
+      })
+      log("apres creation", JSON.stringify(journal))
+      b.value = 1
+      log("b ecrit, non suivi", JSON.stringify(journal))
+      b.value = 2
+      log("b reecrit", JSON.stringify(journal))
+      a.value = 1
+      log("a ecrit", JSON.stringify(journal))
+      // Meme effet avec `peek` : aucune dependance non plus.
+      const c = api.signal(0)
+      let runsPeek = 0
+      api.effect(() => {
+        runsPeek++
+        c.peek()
+      })
+      c.value = 1
+      log("runs avec peek", String(runsPeek))
+      const d = api.signal(0)
+      let runsUntracked = 0
+      api.effect(() => {
+        runsUntracked++
+        api.untracked(() => d.value)
+      })
+      d.value = 1
+      log("runs avec untracked", String(runsUntracked))
+      assert.deepEqual(log.entries, [
+        'apres creation ["e:0/0"]',
+        'b ecrit, non suivi ["e:0/0"]',
+        'b reecrit ["e:0/0"]',
+        'a ecrit ["e:0/0","e:1/2"]',
+        "runs avec peek 1",
+        "runs avec untracked 1",
+      ])
+    },
+  },
+  {
+    // SPEC §10 — `untracked` n'empeche pas les ecritures, et restaure le contexte meme apres une
+    // exception. Sans le `finally`, l'ecriture suivante ne reverait plus l'effet.
+    name: "untracked/ecritures-et-restauration",
+    matrice: ["untracked#2", "untracked#3", "untracked#4"],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => journal.push(`e:${a.value}`))
+      api.untracked(() => {
+        journal.push("dans untracked")
+        a.value = 1
+        journal.push("apres ecriture")
+      })
+      log("ecritures autorisees", JSON.stringify(journal))
+      try {
+        api.untracked(() => {
+          journal.push("va lever")
+          throw new Error("boom")
+        })
+      } catch (erreur) {
+        journal.push("caught")
+      }
+      a.value = 2
+      log("restaure apres exception", JSON.stringify(journal))
+      assert.deepEqual(log.entries, [
+        'ecritures autorisees ["e:0","dans untracked","e:1","apres ecriture"]',
+        'restaure apres exception ["e:0","dans untracked","e:1","apres ecriture","va lever","caught","e:2"]',
+      ])
+    },
+  },
+  {
+    // SPEC §10 — `untracked` NE DESACTIVE PAS le rafraîchissement d'un computé lu : l'effet ne
+    // re-tourne pas, mais le computé a été RAFRAICHI. Lire n'est pas invalider. La valeur périmée
+    // ne s'observe qu'en lisant le computé HORS de tout effet — c'est ce que fait la derniere ligne.
+    name: "untracked/refresh-de-compute",
+    matrice: ["untracked#7"],
+    run(api, log) {
+      const a = api.signal(0)
+      let runs = 0
+      let cCalls = 0
+      const c = api.computed(() => {
+        cCalls++
+        return a.value * 2
+      })
+      api.effect(() => {
+        runs++
+        api.untracked(() => c.value)
+      })
+      log("etat initial", `runs:${runs} cCalls:${cCalls}`)
+      a.value = 5
+      log("apres ecriture", `runs:${runs} cCalls:${cCalls}`)
+      // La lecture dehors RAFRAICHI le computé sans réveiller l'effet : c'est ça le quirk.
+      log("valeur lue dehors", String(c.value))
+      log("apres la lecture", `runs:${runs} cCalls:${cCalls}`)
+      assert.deepEqual(log.entries, [
+        "etat initial runs:1 cCalls:1",
+        "apres ecriture runs:1 cCalls:1",
+        "valeur lue dehors 10",
+        "apres la lecture runs:1 cCalls:2",
+      ])
+    },
+  },
+  {
+    // SPEC §10 — la valeur de retour, y compris une `Promise` renvoyee telle quelle.
+    name: "untracked/valeur-de-retour",
+    matrice: ["untracked#5"],
+    run(api, log) {
+      log("nombre", String(api.untracked(() => 42)))
+      const objet = { a: 1 }
+      log("objet", api.untracked(() => objet) === objet ? "la reference" : "une copie")
+      const promesse = Promise.resolve(7)
+      log("promesse passee telle quelle", api.untracked(() => promesse) === promesse ? "oui" : "non")
+      log("undefined", String(api.untracked(() => undefined)))
+      assert.deepEqual(log.entries, [
+        "nombre 42",
+        "objet la reference",
+        "promesse passee telle quelle oui",
+        "undefined undefined",
+      ])
+    },
+  },
+  {
+    // SPEC §13.6 — un effet cree dans un `untracked` est INDEPENDANT du parent. Le parent lit `a`,
+    // donc il se reveille et cree un second interieur. Mais le PREMIER interieur ne re-tourne pas
+    // avec le parent : chacun a ete lance une fois, jamais deux. L'interieur lit `b`, qui ne change
+    // jamais — donc tout re-run qu'il ferait serait imputable au parent, et c'est ce que le compte
+    // verifie.
+    name: "untracked/effet-cree-dedans",
+    matrice: ["untracked#8", "untracked#9"],
+    run(api, log) {
+      const a = api.signal(0)
+      const b = api.signal(0)
+      let parents = 0
+      let interieurs = 0
+      let crees = 0
+      api.effect(() => {
+        parents++
+        a.value
+        api.untracked(() => {
+          crees++
+          api.effect(() => {
+            interieurs++
+            b.value
+          })
+        })
+      })
+      log("apres le run initial", `parents:${parents} crees:${crees} interieurs:${interieurs}`)
+      a.value = 1
+      log("apres ecriture", `parents:${parents} crees:${crees} interieurs:${interieurs}`)
+      assert.deepEqual(log.entries, [
+        "apres le run initial parents:1 crees:1 interieurs:1",
+        "apres ecriture parents:2 crees:2 interieurs:2",
+      ])
+    },
+  },
 ]
 
 // ---- Le registre de couverture -----------------------------------------------------
@@ -1264,6 +1840,60 @@ export const COUVERTURE: Record<string, string> = {
   "effect#40": "signalcn-seul/hors-ordre",
   "effect#41": "signalcn-seul/symbol-dispose-et-using",
 
+  // ---- `batch` et `untracked` -----------------------------------------------------------------
+  //
+  // Vingt-quatre des vingt-six entrées `batch` et neuf des treize `untracked` sont couvertes par
+  // les quatorze scénarios de la tranche. Les sept restantes sont ci-dessous, avec la raison.
+  //
+  // `batch#24` et `batch#25` sont les deux ping-pong de la baseline, 52/51 puis 35/35/34. Ces
+  // CHIFFRES sont un effet du seuil, et `SPEC.md` §15.2 dit que le seuil n'est pas fige, §21 le
+  // confirme. Les figer en test rendrait le moteur faux des que le seuil bouge — et un ping-pong
+  // borne est deja couvert par `batch/cycle-borne-et-non-borne`, qui vérifie le CARACTÈRE de la
+  // sortie et pas un compte.
+  "batch#1": "batch/valeur-et-imbrication",
+  "batch#2": "batch/ecriture-identique",
+  "batch#3": "batch/valeur-et-imbrication",
+  "batch#4": "batch/erreur-du-corps-et-profondeur",
+  "batch#5": "batch/valeur-et-imbrication",
+  "batch#6": "batch/valeur-et-imbrication",
+  "batch#7": "batch/trois-niveaux-et-ordre",
+  "batch#8": "batch/erreur-interieure-rateepee",
+  "batch#9": "batch/erreur-interieure-rateepee",
+  "batch#10": "batch/erreur-du-corps-et-profondeur",
+  "batch#11": "batch/ecriture-identique",
+  "batch#12": "batch/ecriture-identique",
+  "batch#13": "batch/cycle-borne-et-non-borne",
+  "batch#14": "batch/trois-niveaux-et-ordre",
+  "batch#15": "batch/ecriture-identique",
+  "batch#16": "batch/revert-a-b-a",
+  "batch#17": "batch/revert-avec-lecture-paresseuse",
+  "batch#18": "batch/revert-avec-lecture-paresseuse",
+  "batch#19": "batch/revert-a-b-a",
+  "batch#20": "batch/revert-avec-lecture-paresseuse",
+  "batch#21": "batch/revert-a-b-a",
+  "batch#22": "batch/cycle-borne-et-non-borne",
+  "batch#23": "batch/cycle-borne-et-non-borne",
+  "batch#24": "batch/cycle-borne-et-non-borne",
+  "batch#25": "batch/cycle-borne-et-non-borne",
+  "batch#26": "batch/cycle-borne-et-non-borne",
+  // `untracked#10` a `#11` et `#12` portent sur la portee de capture d'effets d'un modele : ils
+  // ne sont atteignables qu'avec `createModel`, qui est #28. `untracked#13` est un usage INTERNE —
+  // `peek` est deja couvert par `untracked/aucune-dependance`, `watched`/`unwatched` arrivent avec
+  // `subscribe` en #25.
+  "untracked#1": "untracked/aucune-dependance",
+  "untracked#2": "untracked/ecritures-et-restauration",
+  "untracked#3": "untracked/ecritures-et-restauration",
+  "untracked#4": "untracked/ecritures-et-restauration",
+  "untracked#5": "untracked/valeur-de-retour",
+  "untracked#6": "untracked/aucune-dependance",
+  "untracked#7": "untracked/refresh-de-compute",
+  "untracked#8": "untracked/effet-cree-dedans",
+  "untracked#9": "untracked/effet-cree-dedans",
+    "untracked#10": TICHETS.modele,
+    "untracked#11": TICHETS.modele,
+    "untracked#12": TICHETS.modele,
+    "untracked#13": `untracked/aucune-dependance + ${TICHETS.subscribe}`,
+
   // --- groupe `dispose` : 10 entrées
   "dispose#1": "effect/forme-du-dispositeur",
   // dispose#2 : la baseline fait pointer `Symbol.dispose` sur le dispositeur, qui est une fonction
@@ -1295,6 +1925,8 @@ export const ENTREES_ATTENDUES = [
   ...Array.from({ length: 27 }, (_, i) => `computed#${i + 1}`),
   ...Array.from({ length: 41 }, (_, i) => `effect#${i + 1}`),
   ...Array.from({ length: 10 }, (_, i) => `dispose#${i + 1}`),
+  ...Array.from({ length: 26 }, (_, i) => `batch#${i + 1}`),
+  ...Array.from({ length: 13 }, (_, i) => `untracked#${i + 1}`),
 ]
 
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
@@ -1336,8 +1968,24 @@ if (process.env.NODE_TEST_CONTEXT) {
 
   for (const { name, run } of scenarios) {
     test(name, async () => {
-      const { signal: s, computed, effect, Signal, Computed, Effect } = await runtime
-      run({ signal: s, computed, effect, Signal, Computed, Effect }, makeLog())
+const { signal: s, computed, effect, Signal, Computed, Effect } = await runtime
+        // Le seul cast du fichier. Il ne porte que sur les deux noms que la tranche suivante écrit,
+        // et il permet de commiter le test AVANT le moteur : le scénario échoue alors en lisant
+        // `api.batch` sur `undefined`, ce qui dit exactement ce qui manque.
+        const suivant = runtime as Partial<Api>
+        run(
+          {
+            signal: s,
+            computed,
+            effect,
+            Signal,
+            Computed,
+            Effect,
+            batch: suivant.batch as Api["batch"],
+            untracked: suivant.untracked as Api["untracked"],
+          },
+          makeLog(),
+        )
     })
   }
 
