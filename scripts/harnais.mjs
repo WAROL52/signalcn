@@ -25,7 +25,12 @@ const { porte, cloture: reporterCloture } = reporter()
 
 // La surface injectee est celle de la table, pas celle du premier jet : le harnais rejoue la
 // table, et la table ne demande que ce qu elle utilise.
-const baselineApi = { signal: baseline.signal, Signal: baseline.Signal }
+const baselineApi = {
+  signal: baseline.signal,
+  computed: baseline.computed,
+  Signal: baseline.Signal,
+  Computed: baseline.Computed,
+}
 
 let nan = 0
 let total = 0

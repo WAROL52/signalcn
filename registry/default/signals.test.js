@@ -18,7 +18,7 @@
  * voir `SPEC.md` §22.
  *
  * ET POURQUOI LA STRUCTURE N'EST PAS DANS LA TABLE. SPEC §5.3 rend les huit noms de propriétés
- * un contrat de signalcn — `_value`, `_version`, et non les noms de la référence. La référence
+ * un contrat de signalcn — `_value`, `_version`, et non les noms de la baseline. La baseline
  * publiée, elle, minifie les siens : `Object.keys(signal(1))` y vaut
  * `["v","i","n","t","l","W","Z","name"]`. Un scénario qui affirme nos noms échouerait donc
  * contre la baseline par construction, et un scénario qui affirme les siens échouerait contre
@@ -30,7 +30,7 @@ import assert from "node:assert/strict";
  * Les tests signalcn-seuls observent des comportements que le TYPAGE interdit : un appel sans
  * `new`, une écriture sur un signal gelé, la présence d'un membre qui n'existe pas, une
  * conversion arithmétique d'un objet. Ce sont des comportements RUNTIME, figés par la matrice —
- * et la référence a exactement les mêmes refus de typage. Les affranchir tous par le même point
+ * et la baseline a exactement les mêmes refus de typage. Les affranchir tous par le même point
  * de sortie, c'est que le motif soit visible en un endroit au lieu d'être cinq `as` dispersés.
  */
 const auRuntime = (valeur) => valeur;
@@ -52,6 +52,7 @@ export const TICHETS = {
     computed: "#23",
     effet: "#24",
     subscribe: "#25",
+    batch: "#26",
 };
 export const scenarios = [
     {
@@ -287,6 +288,293 @@ export const scenarios = [
             ]);
         },
     },
+    {
+        // SPEC §6 — paresseux, puis mis en cache. Rien ne s'exécute avant la première lecture, et
+        // trois lectures consécutives donnent UNE évaluation : c'est le même fait, vu deux fois.
+        name: "computed/paresseux-et-cache",
+        matrice: ["computed#1", "computed#2"],
+        run(api, log) {
+            let calls = 0;
+            const a = api.signal(1);
+            const c = api.computed(() => {
+                calls++;
+                return a.value * 10;
+            });
+            log("evaluations avant toute lecture", calls);
+            log("valeur", String(c.value));
+            log("evaluations apres la 1re lecture", calls);
+            c.value;
+            c.value;
+            log("evaluations apres trois lectures", calls);
+            assert.deepEqual(log.entries, [
+                "evaluations avant toute lecture 0",
+                "valeur 10",
+                "evaluations apres la 1re lecture 1",
+                "evaluations apres trois lectures 1",
+            ]);
+        },
+    },
+    {
+        // SPEC §6 — sans abonné, une écriture de source ne réveille rien, et la lecture suivante
+        // intègre TOUTES les écritures. Le nombre d'évaluations reste 1 tant qu'on ne lit pas.
+        name: "computed/sans-abonne",
+        matrice: ["computed#3"],
+        run(api, log) {
+            let calls = 0;
+            const a = api.signal(1);
+            const c = api.computed(() => {
+                calls++;
+                return a.value + 1;
+            });
+            log("valeur initiale", String(c.value));
+            a.value = 2;
+            a.value = 3;
+            a.value = 4;
+            log("evaluations apres trois ecritures, sans lecture", calls);
+            log("valeur, qui integre les trois ecritures", String(c.value));
+            log("evaluations", calls);
+            assert.deepEqual(log.entries, [
+                "valeur initiale 2",
+                "evaluations apres trois ecritures, sans lecture 1",
+                "valeur, qui integre les trois ecritures 5",
+                "evaluations 2",
+            ]);
+        },
+    },
+    {
+        // SPEC §6 — invalidation puis recalcul, et `peek()` qui passe par la voie de lecture. Le
+        // recalcul n'a lieu qu'à la lecture : c'est ce qui rend le computé paresseux.
+        name: "computed/invalidation-et-recalcul",
+        matrice: ["computed#4", "computed#7"],
+        run(api, log) {
+            let calls = 0;
+            const a = api.signal(1);
+            const c = api.computed(() => {
+                calls++;
+                return a.value * 2;
+            });
+            log("valeur", String(c.value));
+            log("evaluations", calls);
+            log("valeur, relue sans ecriture", String(c.value));
+            log("evaluations, toujours 1", calls);
+            a.value = 2;
+            log("evaluations apres ecriture, sans lecture", calls);
+            log("valeur", String(c.value));
+            log("evaluations", calls);
+            assert.deepEqual(log.entries, [
+                "valeur 2",
+                "evaluations 1",
+                "valeur, relue sans ecriture 2",
+                "evaluations, toujours 1 1",
+                "evaluations apres ecriture, sans lecture 1",
+                "valeur 4",
+                "evaluations 2",
+            ]);
+        },
+    },
+    {
+        // SPEC §7 — une dépendance abandonnée cesse de notifier. Le journal montre que `a` n'est
+        // plus lue du tout, donc plus consultée.
+        name: "computed/dependances-dynamiques",
+        matrice: ["computed#8"],
+        run(api, log) {
+            const bascule = api.signal(true);
+            const a = api.signal(1);
+            const b = api.signal("b");
+            const journal = [];
+            const c = api.computed(() => {
+                if (bascule.value) {
+                    journal.push("a");
+                    return a.value;
+                }
+                journal.push("b");
+                return b.value;
+            });
+            log("1re lecture", String(c.value));
+            bascule.value = false;
+            log("apres bascule", String(c.value));
+            a.value = "a2";
+            log("apres ecriture de a, qui n'est plus lue", String(c.value));
+            log("journal : a n'apparait plus", JSON.stringify(journal.filter(e => e === "a").length === 1));
+            assert.deepEqual(log.entries, [
+                "1re lecture 1",
+                "apres bascule b",
+                "apres ecriture de a, qui n'est plus lue b",
+                "journal : a n'apparait plus true",
+            ]);
+        },
+    },
+    {
+        // SPEC §7 — la réactivation. Même exigence que l'abandon, vue de l'autre côté : le journal
+        // doit reprendre la lecture de `a`, et la valeurIntegrer l'écriture qui a eu lieu entre-temps.
+        name: "computed/reactivation-apres-abandon",
+        matrice: ["computed#9"],
+        run(api, log) {
+            const bascule = api.signal(true);
+            const a = api.signal(1);
+            const journal = [];
+            const c = api.computed(() => {
+                if (bascule.value) {
+                    journal.push("a");
+                    return a.value;
+                }
+                journal.push("b");
+                return "absent";
+            });
+            c.value;
+            bascule.value = false;
+            c.value;
+            a.value = 10;
+            bascule.value = true;
+            log("valeur apres reactivation", String(c.value));
+            log("journal", JSON.stringify(journal.join("")));
+            assert.deepEqual(log.entries, ["valeur apres reactivation 10", 'journal "aba"']);
+        },
+    },
+    {
+        // SPEC §15.2 — un cycle se détecte à la première relecture, pas après cent itérations. On ne
+        // fige pas le message : il vient du moteur, pas de nous. On fige le type et le fait qu'une
+        // seule évaluation a eu lieu.
+        name: "computed/cycles",
+        matrice: ["computed#12", "computed#13"],
+        run(api, log) {
+            let auto = 0;
+            // L'annotation est ce qui casse la circularite : sans elle, TypeScript ne peut pas typer
+            // `soi` a partir de sa propre initialisation, et le cycle — le sujet meme du scenario —
+            // deviendrait une erreur de typage au lieu d'un comportement observe.
+            const soi = api.computed(() => {
+                auto++;
+                return soi.value + 1;
+            });
+            let typeAuto = "aucune erreur";
+            try {
+                soi.value;
+            }
+            catch (erreur) {
+                typeAuto = erreur instanceof Error ? erreur.constructor.name : "autre";
+            }
+            log("auto-cycle : type, evaluations", `${typeAuto} / ${auto}`);
+            let indirect = 0;
+            const premier = api.computed(() => {
+                indirect++;
+                return second.value + 1;
+            });
+            const second = api.computed(() => {
+                indirect++;
+                return premier.value + 1;
+            });
+            let typeIndirect = "aucune erreur";
+            try {
+                premier.value;
+            }
+            catch (erreur) {
+                typeIndirect = erreur instanceof Error ? erreur.constructor.name : "autre";
+            }
+            log("cycle indirect : type, evaluations", `${typeIndirect} / ${indirect}`);
+            assert.deepEqual(log.entries, [
+                "auto-cycle : type, evaluations Error / 1",
+                "cycle indirect : type, evaluations Error / 2",
+            ]);
+        },
+    },
+    {
+        // SPEC §15 — l'erreur de la dérivation est STOCKÉE, pas recalculée à chaque lecture. C'est ce
+        // qui distingue une dérivation d'une fonction : six lectures ne font qu'une évaluation.
+        name: "computed/erreur-stockee",
+        matrice: ["computed#15", "computed#16"],
+        run(api, log) {
+            let calls = 0;
+            const declencheur = api.signal(false);
+            const c = api.computed(() => {
+                calls++;
+                if (declencheur.value)
+                    throw new Error("boom");
+                return 10;
+            });
+            log("valeur saine", String(c.value));
+            declencheur.value = true;
+            const rejets = [];
+            for (let i = 0; i < 3; i++) {
+                try {
+                    c.value;
+                    rejets.push("aucune erreur");
+                }
+                catch (erreur) {
+                    rejets.push(erreur instanceof Error ? erreur.message : "autre");
+                }
+            }
+            log("trois lectures apres declenchement", JSON.stringify(rejets));
+            log("evaluations : l'erreur n'est pas recalculee", calls);
+            declencheur.value = false;
+            log("valeur apres resolution", String(c.value));
+            log("evaluations", calls);
+            assert.deepEqual(log.entries, [
+                "valeur saine 10",
+                'trois lectures apres declenchement ["boom","boom","boom"]',
+                "evaluations : l'erreur n'est pas recalculee 2",
+                "valeur apres resolution 10",
+                "evaluations 3",
+            ]);
+        },
+    },
+    {
+        // SPEC §6 — le computé est en lecture seule. Le descripteur n'a pas de setter, donc en mode
+        // strict l'affectation lève. Le mode sloppy est un fichier à part, et la suite s'exécute en
+        // strict : on n'affirme donc que le strict.
+        name: "computed/lecture-seule",
+        matrice: ["computed#23", "computed#24"],
+        run(api, log) {
+            const c = api.computed(() => 1);
+            log("instanceof Signal", String(c instanceof api.Signal));
+            log("instanceof Computed", String(c instanceof api.Computed));
+            const descripteur = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(c), "value");
+            log("le descripteur a un setter", String(typeof descripteur?.set));
+            let type = "aucune erreur";
+            try {
+                ;
+                c.value = 2;
+            }
+            catch (erreur) {
+                type = erreur instanceof Error ? erreur.constructor.name : "autre";
+            }
+            log("ecriture en mode strict", type);
+            // Le mode SLOPPY : l'affectation doit être silencieusement ignorée, sans lever ni changer la
+            // valeur. Le module de test est en mode strict — c'est un module ESM — donc on passe par
+            // `Function`, dont le corps est sloppy sauf s'il commence par « use strict ». C'est la
+            // stdlib qui fournit le mode sloppy, pas un fichier `.cjs` de plus à distribuer.
+            const sloppy = auRuntime(new Function("c", "c.value = 2; return c.value"));
+            log("ecriture en mode sloppy, valeur inchangee", String(sloppy(c)));
+            log("aucune erreur levee en mode sloppy", String(sloppy(c) === 1));
+            assert.deepEqual(log.entries, [
+                "instanceof Signal true",
+                "instanceof Computed true",
+                "le descripteur a un setter undefined",
+                "ecriture en mode strict TypeError",
+                "ecriture en mode sloppy, valeur inchangee 1",
+                "aucune erreur levee en mode sloppy true",
+            ]);
+        },
+    },
+    {
+        // SPEC §4.2, §5.1 — `options.name` est un champ public mutable, et la marque est présente :
+        // c'est ce qui empêche `createModel` de descendre dans un computé.
+        name: "computed/options-et-marque",
+        matrice: ["computed#25", "computed#27"],
+        run(api, log) {
+            const c = api.computed(() => 1, { name: "c" });
+            log("nom", String(c.name));
+            c.name = "z";
+            log("nom modifie", String(c.name));
+            log("marque", String(api.computed(() => 1).brand));
+            log("marque partagee avec un signal", String(c.brand === api.signal(1).brand));
+            assert.deepEqual(log.entries, [
+                "nom c",
+                "nom modifie z",
+                "marque Symbol(preact-signals)",
+                "marque partagee avec un signal true",
+            ]);
+        },
+    },
 ];
 // ---- Le registre de couverture -----------------------------------------------------
 //
@@ -351,11 +639,53 @@ export const COUVERTURE = {
     "conv#13": "signal/brand-et-pas-de-dispose",
     "conv#14": "conversions/to-json-et-stringify",
     "conv#15": TICHETS.effet,
+    // --- groupe `computed` : 27 entrées
+    "computed#1": "computed/paresseux-et-cache",
+    "computed#2": "computed/paresseux-et-cache",
+    "computed#3": "computed/sans-abonne",
+    "computed#4": "computed/invalidation-et-recalcul",
+    // computed#5 et #6 : un résultat identique n'a pas de versions différentes à comparer sans
+    // observateur. Un effet les rend visibles.
+    "computed#5": TICHETS.effet,
+    "computed#6": TICHETS.effet,
+    "computed#7": "computed/invalidation-et-recalcul",
+    "computed#8": "computed/dependances-dynamiques",
+    "computed#9": "computed/reactivation-apres-abandon",
+    // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
+    // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
+    "computed#10": "signalcn-seul/ordre-des-sources",
+    "computed#11": TICHETS.batch,
+    "computed#12": "computed/cycles",
+    "computed#13": "computed/cycles",
+    "computed#14": TICHETS.effet,
+    "computed#15": "computed/erreur-stockee",
+    "computed#16": "computed/erreur-stockee",
+    "computed#17": TICHETS.effet,
+    "computed#18": TICHETS.effet,
+    // computed#19, #20, #21, #22 : le prototype partagé de la baseline est un écart ASSUMÉ, voir
+    // SPEC §21 et ADR-0004. Notre prototype ne porte pas d'état, nos noms sont lisibles, et
+    // `constructor` vaut `Computed` et non `Signal` — le correctif que SPEC §21 enregistre. Ces
+    // quatre entrées ne sont donc pas différentielles : elles sont nôtres seules.
+    "computed#19": "signalcn-seul/structure-de-classe",
+    "computed#20": "signalcn-seul/structure-de-classe",
+    "computed#21": "signalcn-seul/structure-de-classe",
+    "computed#22": "signalcn-seul/structure-de-classe",
+    "computed#23": "computed/lecture-seule",
+    "computed#24": "computed/lecture-seule",
+    "computed#25": "computed/options-et-marque",
+    "computed#26": TICHETS.subscribe,
+    "computed#27": "computed/options-et-marque",
 };
-/** Les 23 entrées du groupe `signal` et les 15 du groupe conversions. */
+/**
+ * Les entrées de matrice des trois groupes traités ici. Les COMPTES sont écrits en dur, et c'est
+ * une faiblesse connue : un `computed#28` ajouté à la matrice laisserait `registre-complet`
+ * vert. Le durcissement — lire la matrice pour en dériver la liste — est [#33](#33), qui a trouvé
+ * le problème en冲着 les entrées structurelles.
+ */
 export const ENTREES_ATTENDUES = [
     ...Array.from({ length: 23 }, (_, i) => `signal#${i + 1}`),
     ...Array.from({ length: 15 }, (_, i) => `conv#${i + 1}`),
+    ...Array.from({ length: 27 }, (_, i) => `computed#${i + 1}`),
 ];
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
 //
@@ -391,8 +721,8 @@ if (process.env.NODE_TEST_CONTEXT) {
     const moteurDe = async () => await runtime;
     for (const { name, run } of scenarios) {
         test(name, async () => {
-            const { signal: s, Signal } = await runtime;
-            run({ signal: s, Signal }, makeLog());
+            const { signal: s, computed, Signal, Computed } = await runtime;
+            run({ signal: s, computed, Signal, Computed }, makeLog());
         });
     }
     // ---- Les tests signalcn-seuls, en une seule source --------------------------------
@@ -427,32 +757,6 @@ if (process.env.NODE_TEST_CONTEXT) {
             vide.value = undefined;
             assert.equal(vide._version, 0, "undefined -> undefined ne notifie pas");
         },
-        // SPEC §5.3 — l'ordre des propriétés-own est contractuel, donc observable, donc figé.
-        "structure-de-classe": async ({ signal: moteur }) => {
-            assert.deepEqual(Object.keys(moteur(1)), [
-                "_value",
-                "_version",
-                "_node",
-                "_targets",
-                "_batchSnapshotVersion",
-                "_watched",
-                "_unwatched",
-                "name",
-            ]);
-            // Un Signal n'a pas de `_flags` : ce n'est pas un effet. Ni sur l'instance, ni hérité.
-            assert.equal("_flags" in moteur(1), false);
-            assert.equal(auRuntime(moteur(1))._flags, undefined);
-            // `name` est toujours présent comme clé, même absent comme valeur — la matrice l'a figé.
-            assert.equal("name" in moteur(1), true);
-            assert.equal(moteur(1).name, undefined);
-            // `value` est un accesseur de prototype, donc non énumérable. S'il était énumérable, il
-            // apparaîtrait dans `Object.keys` ci-dessus et le contrat des huit propriétés serait faux.
-            const descripteur = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(moteur(1)), "value");
-            assert.ok(descripteur, "value doit etre un descripteur de prototype");
-            assert.equal(descripteur.enumerable, false);
-            assert.equal(typeof descripteur.get, "function");
-            assert.equal(typeof descripteur.set, "function");
-        },
         // DIVERGENCE ASSUMÉE, déjà arbitrée par ADR-0004 et SPEC §21 : la baseline écrit son
         // prototype à la main, donc ses méthodes y sont énumérables et `for..in` les fait remonter.
         // Une classe ES2020 ne le fait pas. Le prix est ici, et il est bon : une énumération d'API
@@ -479,6 +783,126 @@ if (process.env.NODE_TEST_CONTEXT) {
             for (const nom in moteur(1)) {
                 assert.ok(!(nom in Signal.prototype), `${nom} ne doit pas traverser le for..in`);
             }
+        },
+        // `computed#10` — l'ordre des dépendances est l'ordre de lecture, et la liste se parcourt
+        // depuis la source lue EN DERNIER. `docs/architecture.md` §3 le dit de la même façon, et le
+        // sens n'est pas indifférent : partir de la plus récemment utilisée, c'est ce qui autorise à
+        // sortir dès qu'une version diffère.
+        //
+        // La baseline, elle, range sa liste à l'envers — sa tête est la source lue en PREMIER. C'est
+        // mesuré, et c'est une différence d'implémentation interne, pas de comportement : la liste est
+        // à sens unique et rien d'observable par la surface publique n'en dépend. Le nôtre suit le
+        // document, parce qu'un seul sens de parcours rend le balayage non ambigu — et c'est exactement
+        // le bug que cette tranche a payé.
+        "ordre-des-sources": async ({ signal: moteur, computed }) => {
+            const premier = moteur(1);
+            const second = moteur(2);
+            const troisieme = moteur(3);
+            const c = computed(() => premier.value * 100 + second.value * 10 + troisieme.value);
+            c.value;
+            const lus = [];
+            for (let n = auRuntime(c)._sources; n !== undefined; n = n._prev)
+                lus.push(n._source);
+            // `assert.equal` et non `deepEqual` : deux objets se comparent ici par RÉFÉRENCE, et c'est
+            // l'identité qu'on vérifie. Un `deepEqual` traverserait le graphe entier — circulaire — et
+            // comparerait des nœuds, ce qui n'est pas du tout la même question.
+            assert.equal(lus.length, 3);
+            assert.equal(lus[0], troisieme, "_sources est la source lue en dernier");
+            assert.equal(lus[1], second);
+            assert.equal(lus[2], premier);
+            // Et la liste reste complète après plusieurs évaluations : c'est le défaut qu'elle ne
+            // visitait qu'un nœud.
+            c.value;
+            c.value;
+            const apres = [];
+            for (let n = auRuntime(c)._sources; n !== undefined; n = n._prev)
+                apres.push(n._source);
+            assert.equal(apres.length, 3, "trois lectures de plus ne perdent aucune dépendance");
+            // Une dépendance quittée est retirée, même AU MILIEU de la liste.
+            const bascule = moteur(true);
+            const gauche = moteur("g");
+            const milieu = moteur("m");
+            const droite = moteur("d");
+            const dyn = computed(() => (bascule.value ? milieu.value : `${gauche.value}${droite.value}`));
+            dyn.value;
+            bascule.value = false;
+            dyn.value;
+            const restants = [];
+            for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev)
+                restants.push(n._source);
+            // La branche fausse lit `gauche` et `droite` en plus de `bascule` : trois dépendances, dont
+            // `milieu` est sortie.
+            assert.equal(restants.length, 3, "`milieu`, lue en second, est retirée");
+            assert.equal(restants[0], droite);
+            assert.equal(restants[1], gauche);
+            assert.equal(restants[2], bascule);
+            assert.equal(restants.includes(milieu), false, "et surtout : la dépendance quittée a disparu de la liste");
+            // Le NŒUD est RÉACTIVÉ, pas réalloué. C'est SPEC §7, et c'est la seule façon de le voir :
+            // la valeur serait juste même avec une réallocation.
+            bascule.value = true;
+            dyn.value;
+            const milieuReactive = [];
+            for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev)
+                milieuReactive.push(n._source);
+            // La branche vraie ne lit que `bascule` et `milieu` : deux dépendances, et c'est bien la
+            // preuve que `milieu` est revenue.
+            assert.equal(milieuReactive.length, 2, "`milieu` redevient une dépendance");
+            assert.equal(milieuReactive.includes(milieu), true, "`milieu` est de nouveau dans la liste");
+            // Et la liste ne grossit pas : trois allers-retours ne laissent aucun nœud derrière.
+            for (let i = 0; i < 3; i++) {
+                bascule.value = !bascule.value;
+                dyn.value;
+            }
+            const finale = [];
+            for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev)
+                finale.push(n._source);
+            assert.equal(finale.length, 3, "aucune fuite de nœud après six évaluations");
+            assert.equal(finale.includes(bascule), true, "`bascule` est lue à chaque calcul, elle reste donc");
+        },
+        // SPEC §6.1 — douze propriétés-own pour un computé, dans l'ordre : les huit du signal puis
+        // `_fn`, `_sources`, `_globalVersion`, `_flags`. Et `for..in` ne remonte rien du prototype.
+        //
+        // DIVERGENCE ASSUMÉE, arbitrée par ADR-0004 et SPEC §21 : la baseline construit
+        // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
+        // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm.
+        // Nous ne le faisons pas, et `constructor` vaut `Computed` et non `Signal` — voir
+        // `computed#19` et la ligne dedicated dans le registre de couverture.
+        // SPEC §6.1 — douze propriétés-own pour un computé, dans l'ordre : les huit du signal puis
+        // `_fn`, `_sources`, `_globalVersion`, `_flags`. Et `for..in` ne remonte rien du prototype,
+        // alors que la baseline en remonte dix.
+        //
+        // DIVERGENCE ASSUMÉE, arbitrée par ADR-0004 et SPEC §21 : la baseline construit
+        // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
+        // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm.
+        // Nous ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
+        "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed }) => {
+            const c = computed(() => 1);
+            assert.deepEqual(Object.keys(c), [
+                "_value",
+                "_version",
+                "_node",
+                "_targets",
+                "_batchSnapshotVersion",
+                "_watched",
+                "_unwatched",
+                "name",
+                "_fn",
+                "_sources",
+                "_globalVersion",
+                "_flags",
+            ]);
+            assert.equal(c instanceof Signal, true);
+            assert.equal(c instanceof Computed, true);
+            assert.equal(c.constructor, Computed, "et non Signal : le prototype ne porte pas d'état");
+            // Le prototype ne porte AUCUNE donnée d'instance. C'est le défaut qu'on supprime.
+            const proto = Object.getPrototypeOf(c);
+            assert.equal(proto._value, undefined, "le prototype ne doit porter aucune valeur");
+            assert.equal(proto._fn, undefined, "le prototype ne doit porter aucune dérivation");
+            // `for..in` expose les douze, et rien du prototype.
+            const enumerables = [];
+            for (const nom in c)
+                enumerables.push(nom);
+            assert.deepEqual(enumerables, Object.keys(c), "for..in ne doit rien ajouter du prototype");
         },
         // SPEC §14 — un signal gelé lève en écriture. Le mode strict du module de test le fait.
         "signal-gele": async ({ signal: moteur }) => {
