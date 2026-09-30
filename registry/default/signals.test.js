@@ -24,8 +24,65 @@
  * contre la baseline par construction, et un scénario qui affirme les siens échouerait contre
  * nous. La table ne peut pas dire la structure ; les tests signalcn-seuls le font. Voir #33.
  */
+var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
+    if (value !== null && value !== void 0) {
+        if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
+        var dispose, inner;
+        if (async) {
+            if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
+            dispose = value[Symbol.asyncDispose];
+        }
+        if (dispose === void 0) {
+            if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
+            dispose = value[Symbol.dispose];
+            if (async) inner = dispose;
+        }
+        if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
+        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
+        env.stack.push({ value: value, dispose: dispose, async: async });
+    }
+    else if (async) {
+        env.stack.push({ async: true });
+    }
+    return value;
+};
+var __disposeResources = (this && this.__disposeResources) || (function (SuppressedError) {
+    return function (env) {
+        function fail(e) {
+            env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
+            env.hasError = true;
+        }
+        var r, s = 0;
+        function next() {
+            while (r = env.stack.pop()) {
+                try {
+                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
+                    if (r.dispose) {
+                        var result = r.dispose.call(r.value);
+                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
+                    }
+                    else s |= 1;
+                }
+                catch (e) {
+                    fail(e);
+                }
+            }
+            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
+            if (env.hasError) throw env.error;
+        }
+        return next();
+    };
+})(typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
+    var e = new Error(message);
+    return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+});
 import { test } from "node:test";
 import assert from "node:assert/strict";
+/**
+ * Le `this` lexical du module. Une flèche le capture — et c'est ce que `effect#10` fige : une
+ * fléchée n'obtient PAS l'instance d'effet.
+ */
+const thisGlobal = globalThis;
 /**
  * Les tests signalcn-seuls observent des comportements que le TYPAGE interdit : un appel sans
  * `new`, une écriture sur un signal gelé, la présence d'un membre qui n'existe pas, une
@@ -575,6 +632,477 @@ export const scenarios = [
             ]);
         },
     },
+    {
+        // SPEC §8.1 — premier run SYNCHRONE, avant même que `effect()` ne rende la main, et le
+        // callback ne reçoit AUCUN argument.
+        name: "effect/premier-run-et-arguments",
+        matrice: ["effect#1", "effect#38"],
+        run(api, log) {
+            const journal = [];
+            api.effect(function () {
+                journal.push(`${arguments.length}/${typeof this}`);
+            });
+            log("arguments/this", JSON.stringify(journal));
+            assert.deepEqual(log.entries, ['arguments/this ["0/object"]']);
+        },
+    },
+    {
+        // SPEC §8.1 — un effet SANS dépendance ne tourne qu'une fois et n'est jamais re-notifié : il
+        // n'a rien à quoi s'abonner. Deux écritures ne le réveillent pas.
+        name: "effect/sans-dependance",
+        matrice: ["effect#3"],
+        run(api, log) {
+            const s = api.signal(0);
+            let runs = 0;
+            // Le callback ne lit RIEN. C'est toute la différence avec un effet qui lit.
+            api.effect(() => {
+                runs++;
+            });
+            s.value = 1;
+            s.value = 2;
+            log("runs", String(runs));
+            assert.deepEqual(log.entries, ["runs 1"]);
+        },
+    },
+    {
+        // SPEC §8.1, §12 — re-run à chaque changement, cleanup exécuté JUSTE AVANT le run suivant,
+        // et le cleanup voit la valeur COURANTE : celle qui vient d'écrire, pas celle de son run.
+        name: "effect/rerun-et-cleanup",
+        matrice: ["effect#2", "effect#6", "effect#8"],
+        run(api, log) {
+            const s = api.signal(0);
+            const journal = [];
+            api.effect(() => {
+                journal.push(`run:${s.value}`);
+                return () => journal.push(`cleanup:${s.value}`);
+            });
+            s.value = 1;
+            s.value = 2;
+            log("journal", JSON.stringify(journal));
+            assert.deepEqual(log.entries, ['journal ["run:0","cleanup:1","run:1","cleanup:2","run:2"]']);
+        },
+    },
+    {
+        // SPEC §8.2 — le dispositeur est `_dispose.bind(effect)` : `name === "bound "`, `length === 0`,
+        // `Object.keys()` vide. Ce n'est ni une arrow, ni l'instance.
+        name: "effect/forme-du-dispositeur",
+        matrice: ["effect#4", "effect#35"],
+        run(api, log) {
+            const d = api.effect(() => { });
+            log("type", typeof d);
+            log("name", JSON.stringify(d.name));
+            log("length", String(d.length));
+            log("cles", JSON.stringify(Object.keys(d)));
+            assert.deepEqual(log.entries, ["type function", 'name "bound "', "length 0", "cles []"]);
+        },
+    },
+    {
+        // SPEC §8.1 — une valeur de retour qui n'est pas une fonction est IGNORÉE. Pas d'erreur, pas
+        // de cleanup : c'est le cas le plus courant du monde, un callback qui renvoie autre chose.
+        name: "effect/retour-non-fonction-ignore",
+        matrice: ["effect#5"],
+        run(api, log) {
+            const d = api.effect(() => 42);
+            log("dispositeur rendu", typeof d);
+            d();
+            log("aucune erreur", "true");
+            assert.deepEqual(log.entries, ["dispositeur rendu function", "aucune erreur true"]);
+        },
+    },
+    {
+        // SPEC §12 — le cleanup s'exécute HORS de tout contexte de suivi : lire un autre signal ne
+        // réabonne pas. Sans quoi le dispose laisserait une dépendance fantôme.
+        name: "effect/cleanup-hors-suivi",
+        matrice: ["effect#7"],
+        run(api, log) {
+            const pilote = api.signal(0);
+            const autre = api.signal(0);
+            const journal = [];
+            const d = api.effect(() => {
+                journal.push(`run ${pilote.value}`);
+                return () => journal.push(`cleanup voit ${autre.value}`);
+            });
+            autre.value = 5;
+            d();
+            log("journal", JSON.stringify(journal));
+            log("autre a-t-elle un abonne ?", String(auRuntime(autre)._targets === undefined));
+            assert.deepEqual(log.entries, [
+                'journal ["run 0","cleanup voit 5"]',
+                "autre a-t-elle un abonne ? true",
+            ]);
+        },
+    },
+    {
+        // SPEC §8.3 — `this` est l'INSTANCE d'effet pour une fonction non fléchée ; une flèche capture
+        // le `this` lexical du module. On vérifie l'identité de classe, PAS les noms de propriétés :
+        // la baseline minifie les siens, donc ils ne sont pas lisibles. Même cause que #33.
+        name: "effect/this-est-linstance",
+        matrice: ["effect#9", "effect#10"],
+        run(api, log) {
+            let cleNonFlechee;
+            api.effect(function () {
+                cleNonFlechee = this;
+            });
+            log("non flechee : instanceof", String(cleNonFlechee instanceof api.Effect));
+            let cleFlechee = undefined;
+            api.effect(() => {
+                cleFlechee = thisGlobal;
+            });
+            log("flechee : instanceof", String(cleFlechee instanceof api.Effect));
+            log("flechee : this du module", String(cleFlechee === globalThis));
+            assert.deepEqual(log.entries, [
+                "non flechee : instanceof true",
+                "flechee : instanceof false",
+                "flechee : this du module true",
+            ]);
+        },
+    },
+    {
+        // SPEC §13.4 — HORS batch, chaque écriture draine immédiatement, donc l'ordre des runs suit
+        // l'ordre des écritures. L'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est #26 :
+        // sans `batch`, la règle n'est pas observable et l'affirmer serait inventer.
+        name: "effect/ordre-hors-batch",
+        matrice: ["effect#15", "effect#17"],
+        run(api, log) {
+            const a = api.signal(0);
+            const b = api.signal(0);
+            const journal = [];
+            api.effect(() => {
+                journal.push(`A:${a.value}`);
+            });
+            api.effect(() => {
+                journal.push(`B:${b.value}`);
+            });
+            a.value = 1;
+            b.value = 1;
+            log("ordre des runs", JSON.stringify(journal.slice(2)));
+            assert.deepEqual(log.entries, ['ordre des runs ["A:1","B:1"]']);
+        },
+    },
+    {
+        // SPEC §8.4 — un effet qui écrit une dépendance qu'il lit se ré-exécute dans la MÊME flush. Le
+        // drain est en largeur : une génération est vidée entièrement avant la suivante.
+        name: "effect/auto-ecriture",
+        matrice: ["effect#16"],
+        run(api, log) {
+            const s = api.signal(0);
+            let runs = 0;
+            api.effect(() => {
+                runs++;
+                if (s.value < 2)
+                    s.value = s.value + 1;
+            });
+            log("runs", String(runs));
+            log("valeur", String(s.value));
+            assert.deepEqual(log.entries, ["runs 3", "valeur 2"]);
+        },
+    },
+    {
+        // SPEC §13.6 — un effet créé dans un effet est INDÉPENDANT et non possédé : le dispose de
+        // l'extérieur ne doit pas emporter l'intérieur. L'intérieur est créé UNE FOIS, pas à chaque
+        // run, sinon c'est un autre comportement qu'on mesurerait.
+        name: "effect/nesting-et-independance",
+        matrice: ["effect#33"],
+        run(api, log) {
+            const s = api.signal(0);
+            const journal = [];
+            const interne = api.effect(() => {
+                journal.push(`interne:${s.value}`);
+            });
+            const externe = api.effect(() => {
+                journal.push(`externe:${s.value}`);
+            });
+            log("runs avant ecriture", journal.length);
+            s.value = 1;
+            log("journal apres ecriture", JSON.stringify(journal));
+            externe();
+            s.value = 2;
+            // L'interne a tourné une fois de plus, et l'externe aucune : c'est exactement
+            // « indépendant et non possédé ».
+            log("seul l'interne a-t-il tourne ?", String(journal.length === 5));
+            interne();
+            assert.deepEqual(log.entries, [
+                "runs avant ecriture 2",
+                'journal apres ecriture ["interne:0","externe:0","interne:1","externe:1"]',
+                "seul l'interne a-t-il tourne ? true",
+            ]);
+        },
+    },
+    {
+        // SPEC §15.2 — un cycle borné ne lève pas : c'est un cycle, pas une erreur. Le COMPTE de runs
+        // d'un cycle non borné n'est pas figé, donc on ne l'affirme pas.
+        name: "effect/cycle-borne",
+        matrice: ["effect#19"],
+        run(api, log) {
+            const a = api.signal(0);
+            let runs = 0;
+            api.effect(() => {
+                runs++;
+                const v = a.value;
+                if (v < 50)
+                    a.value = v + 1;
+            });
+            log("runs", String(runs));
+            log("valeur", String(a.value));
+            assert.deepEqual(log.entries, ["runs 51", "valeur 50"]);
+        },
+    },
+    {
+        // SPEC §15 — une exception au PREMIER run dispose l'effet, se propage, et ne rend AUCUN
+        // dispositeur. Une exception à un RE-RUN laisse l'effet vivant : la propagation suivante le
+        // rappelle, et celle d'après ne lève plus.
+        name: "effect/erreurs",
+        matrice: ["effect#20", "effect#22", "effect#24", "effect#18"],
+        run(api, log) {
+            const s = api.signal(0);
+            let runs = 0;
+            let rendu = "jamais rendu";
+            try {
+                rendu = api.effect(() => {
+                    runs++;
+                    if (s.value === 0)
+                        throw new Error("boom premier");
+                });
+                log("aucune erreur au premier run", "inattendu");
+            }
+            catch (erreur) {
+                rendu = "leve";
+                log("erreur propagee", erreur instanceof Error ? erreur.message : "autre");
+            }
+            log("un dispositeur a-t-il ete rendu ?", String(rendu === "leve"));
+            log("runs du premier effet", String(runs));
+            const t = api.signal(0);
+            let runsT = 0;
+            api.effect(() => {
+                runsT++;
+                if (t.value === 1)
+                    throw new Error("boom rerun");
+            });
+            try {
+                t.value = 1;
+                log("pas d'erreur au rerun", "inattendu");
+            }
+            catch (erreur) {
+                log("erreur du rerun relancee par l'ecriture", erreur instanceof Error ? erreur.message : "autre");
+            }
+            t.value = 2;
+            log("runs de l'effet survivant", String(runsT));
+            assert.deepEqual(log.entries, [
+                "erreur propagee boom premier",
+                "un dispositeur a-t-il ete rendu ? true",
+                "runs du premier effet 1",
+                "erreur du rerun relancee par l'ecriture boom rerun",
+                "runs de l'effet survivant 3",
+            ]);
+        },
+    },
+    {
+        // SPEC §4.2 — `watched` à l'ajout du PREMIER abonné, `unwatched` à la perte du DERNIER, les
+        // deux hors de tout suivi, et une seule fois chacun quel que soit le nombre d'abonnés.
+        name: "effect/watchers",
+        matrice: ["effect#21"],
+        run(api, log) {
+            const journal = [];
+            const s = api.signal(0, {
+                watched() {
+                    journal.push(`watched ${String(this.name)}`);
+                },
+                unwatched() {
+                    journal.push(`unwatched ${String(this.name)}`);
+                },
+            });
+            s.name = "W";
+            const d1 = api.effect(() => s.value);
+            const d2 = api.effect(() => s.value);
+            d1();
+            d2();
+            s.value = 1;
+            log("journal", JSON.stringify(journal));
+            assert.deepEqual(log.entries, ['journal ["watched W","unwatched W"]']);
+        },
+    },
+    {
+        // SPEC §13.1 — la chaîne A → B → C → Effect. Le drain est en largeur : une génération est
+        // vidée entièrement avant la suivante.
+        name: "effect/chaine-et-drain",
+        matrice: ["effect#32"],
+        run(api, log) {
+            const a = api.signal(0);
+            const journal = [];
+            const c1 = api.computed(() => {
+                journal.push(`c1:${a.value}`);
+                return a.value;
+            });
+            const c2 = api.computed(() => {
+                journal.push(`c2:${c1.value}`);
+                return c1.value;
+            });
+            api.effect(() => {
+                journal.push(`d1:${c2.value}`);
+            });
+            a.value = 1;
+            log("journal", JSON.stringify(journal));
+            assert.deepEqual(log.entries, ['journal ["c1:0","c2:0","d1:0","c1:1","c2:1","d1:1"]']);
+        },
+    },
+    {
+        // SPEC §12 — un cleanup qui LÈVE dispose l'effet, même en pleine flush : l'écriture suivante
+        // ne propage plus. Et il ne casse pas le contexte de suivi, le moteur reste utilisable.
+        name: "dispose/cleanup-qui-leve",
+        matrice: ["effect#28", "effect#30", "effect#31"],
+        run(api, log) {
+            const s = api.signal(0);
+            let runs = 0;
+            api.effect(() => {
+                runs++;
+                // Le cleanup ne sera appelé qu'au run SUIVANT, donc il faut encore une écriture.
+                if (s.value >= 1)
+                    return () => { throw new Error("cleanup boom"); };
+            });
+            const tentatives = [];
+            for (const ecriture of [1, 2, 3]) {
+                try {
+                    s.value = ecriture;
+                    tentatives.push(`${ecriture}:aucune`);
+                }
+                catch (erreur) {
+                    tentatives.push(`${ecriture}:${erreur instanceof Error ? erreur.message : "autre"}`);
+                }
+            }
+            log("tentatives", JSON.stringify(tentatives));
+            log("runs", String(runs));
+            const t = api.signal(0);
+            let runsT = 0;
+            const d2 = api.effect(() => {
+                runsT++;
+            });
+            t.value = 1;
+            log("l'effet suivant tourne-t-il ?", String(runsT));
+            d2();
+            assert.deepEqual(log.entries, [
+                "tentatives [\"1:aucune\",\"2:cleanup boom\",\"3:aucune\"]",
+                "runs 2",
+                "l'effet suivant tourne-t-il ? 1",
+            ]);
+        },
+    },
+    {
+        // SPEC §8.4 — un effet disposé ALORS qu'il est dans la file de flush est sauté
+        // silencieusement, sans callback.
+        name: "dispose/dans-la-file",
+        matrice: ["effect#14", "dispose#8"],
+        run(api, log) {
+            const s = api.signal(0);
+            const journal = [];
+            const d2 = api.effect(() => {
+                journal.push(`d2:${s.value}`);
+            });
+            const d1 = api.effect(() => {
+                journal.push(`d1:${s.value}`);
+                d2();
+            });
+            s.value = 1;
+            log("journal", JSON.stringify(journal));
+            s.value = 2;
+            log("d2 n'est pas revenu", String(journal.filter(e => e === "d2:1").length === 0));
+            assert.deepEqual(log.entries, [
+                'journal ["d2:0","d1:0","d1:1"]',
+                "d2 n'est pas revenu true",
+            ]);
+        },
+    },
+    {
+        // SPEC §12 — dispose externe idempotent, et il détache toutes les dépendances : la source ne
+        // garde plus d'abonné, donc plus aucune propagation.
+        name: "dispose/idempotent-et-detachement",
+        matrice: ["effect#13", "dispose#6", "dispose#9"],
+        run(api, log) {
+            const s = api.signal(0);
+            const journal = [];
+            const d = api.effect(() => {
+                journal.push(`run:${s.value}`);
+                return () => journal.push("cleanup");
+            });
+            s.value = 1;
+            d();
+            d();
+            d();
+            log("journal", JSON.stringify(journal));
+            s.value = 2;
+            log("aucun run apres", String(journal.length));
+            log("la source a-t-elle un abonne ?", String(auRuntime(s)._targets === undefined));
+            assert.deepEqual(log.entries, [
+                'journal ["run:0","cleanup","run:1","cleanup"]',
+                "aucun run apres 4",
+                "la source a-t-elle un abonne ? true",
+            ]);
+        },
+    },
+    {
+        // SPEC §8.3, §12 — `this.dispose()` pendant le run : cleanup IMMÉDIAT, et l'effet ne peut plus
+        // être notifié. Appelé deux fois, un seul cleanup.
+        name: "dispose/pendant-le-run",
+        matrice: ["effect#11", "effect#12", "dispose#7"],
+        run(api, log) {
+            const s = api.signal(0);
+            const journal = [];
+            api.effect(function () {
+                journal.push(`run:${s.value}`);
+                this.dispose();
+                this.dispose();
+            });
+            log("journal", JSON.stringify(journal));
+            s.value = 1;
+            log("aucun run apres", String(journal.length));
+            assert.deepEqual(log.entries, ['journal ["run:0"]', "aucun run apres 1"]);
+        },
+    },
+    {
+        // SPEC §12 — un cleanup qui lève AU MOMENT DU DISPOSE remonte, et l'effet est mort. La
+        // différence avec `dispose/cleanup-qui-leve` est nette : là le cleanup était levé en pleine
+        // propagation, ici il est levé par le dispositeur lui-même, donc rien ne le rattrape.
+        name: "dispose/cleanup-qui-leve-au-dispose",
+        matrice: ["effect#29", "effect#30"],
+        run(api, log) {
+            const s = api.signal(0);
+            let runs = 0;
+            const d = api.effect(() => {
+                runs++;
+                return () => {
+                    throw new Error("cleanup boom");
+                };
+            });
+            let type = "aucune erreur";
+            try {
+                d();
+            }
+            catch (erreur) {
+                type = erreur instanceof Error ? erreur.message : "autre";
+            }
+            log("erreur du dispose", type);
+            log("runs", String(runs));
+            // L'effet est mort : plus aucun run, quelle que soit l'écriture suivante.
+            s.value = 1;
+            log("runs apres ecriture", String(runs));
+            log("la source a-t-elle un abonne ?", String(auRuntime(s)._targets === undefined));
+            // Et un second dispose ne lève plus : il n'y a plus rien à faire.
+            let second = "aucune erreur";
+            try {
+                d();
+            }
+            catch (erreur) {
+                second = erreur instanceof Error ? erreur.message : "autre";
+            }
+            log("second dispose", second);
+            assert.deepEqual(log.entries, [
+                "erreur du dispose cleanup boom",
+                "runs 1",
+                "runs apres ecriture 1",
+                "la source a-t-elle un abonne ? true",
+                "second dispose aucune erreur",
+            ]);
+        },
+    },
 ];
 // ---- Le registre de couverture -----------------------------------------------------
 //
@@ -675,10 +1203,76 @@ export const COUVERTURE = {
     "computed#25": "computed/options-et-marque",
     "computed#26": TICHETS.subscribe,
     "computed#27": "computed/options-et-marque",
+    // --- groupe `effect` : 41 entrées
+    "effect#1": "effect/premier-run-et-arguments",
+    "effect#2": "effect/rerun-et-cleanup",
+    "effect#3": "effect/sans-dependance",
+    "effect#4": "effect/forme-du-dispositeur",
+    "effect#5": "effect/retour-non-fonction-ignore",
+    "effect#6": "effect/rerun-et-cleanup",
+    "effect#7": "effect/cleanup-hors-suivi",
+    "effect#8": "effect/rerun-et-cleanup",
+    "effect#9": "effect/this-est-linstance",
+    "effect#10": "effect/this-est-linstance",
+    "effect#11": "dispose/pendant-le-run",
+    "effect#12": "dispose/pendant-le-run",
+    "effect#13": "dispose/idempotent-et-detachement",
+    "effect#14": "dispose/dans-la-file",
+    // effect#15 et #17 : l'ordre INVERSÉ est normatif à l'intérieur d'un batch. Hors batch chaque
+    // écriture draine seule, donc l'ordre ne s'observe pas — ce que le scénario vérifie.
+    "effect#15": "effect/ordre-hors-batch + #26",
+    "effect#16": "effect/auto-ecriture",
+    "effect#17": "effect/ordre-hors-batch + #26",
+    "effect#18": "effect/erreurs",
+    "effect#19": "effect/cycle-borne",
+    "effect#20": "effect/erreurs",
+    "effect#21": "effect/watchers",
+    "effect#22": "effect/erreurs",
+    // effect#23, #25, #26, #27 : la propagation d'erreur passe par le batch ou par un setter, donc
+    // par #26.
+    "effect#23": "#26",
+    "effect#24": "effect/erreurs",
+    "effect#25": "#26",
+    "effect#26": "#26",
+    "effect#27": "#26",
+    "effect#28": "dispose/cleanup-qui-leve",
+    "effect#29": "dispose/cleanup-qui-leve-au-dispose",
+    "effect#30": "dispose/cleanup-qui-leve + dispose/cleanup-qui-leve-au-dispose",
+    "effect#31": "dispose/cleanup-qui-leve + dispose/dans-la-file",
+    "effect#32": "effect/chaine-et-drain",
+    "effect#33": "effect/nesting-et-independance",
+    // effect#34 : un effet créé dans un COMPUTÉ fuit à chaque évaluation. C'est un quirk figé, et le
+    // mesurer demande un observateur — donc un effet dans un effet.
+    "effect#34": "signalcn-seul/effet-dans-un-calcule",
+    "effect#35": "effect/forme-du-dispositeur",
+    "effect#36": "signalcn-seul/options-de-linstance",
+    "effect#37": "signalcn-seul/drapeaux-initiaux",
+    "effect#38": "effect/premier-run-et-arguments",
+    // effect#39 : la baseline écrit son prototype à la main, donc ses méthodes y sont énumérables.
+    // ADR-0004 refuse cette énumérabilité. DIVERGENCE ASSUMÉE.
+    "effect#39": "signalcn-seul/descripteurs-de-prototype",
+    "effect#40": "signalcn-seul/hors-ordre",
+    "effect#41": "signalcn-seul/symbol-dispose-et-using",
+    // --- groupe `dispose` : 10 entrées
+    "dispose#1": "effect/forme-du-dispositeur",
+    // dispose#2 : la baseline fait pointer `Symbol.dispose` sur le dispositeur, qui est une fonction
+    // LIÉE, et V8 refuse alors cette méthode. DIVERGENCE ASSUMÉE — voir #34.
+    "dispose#2": "signalcn-seul/symbol-dispose-et-using",
+    "dispose#3": "signalcn-seul/symbol-dispose-et-using",
+    // dispose#4 : `subscribe` renvoie aussi un disposeur — #25.
+    "dispose#4": "#25",
+    // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
+    // atteignable que sur le bundle réel dans un tel realm ; l'affirmer demanderait de l'éteindre.
+    "dispose#5": "signalcn-seul/symbol-dispose-absent",
+    "dispose#6": "dispose/idempotent-et-detachement + dispose/cleanup-qui-leve-au-dispose",
+    "dispose#7": "dispose/pendant-le-run",
+    "dispose#8": "dispose/dans-la-file",
+    "dispose#9": "dispose/idempotent-et-detachement",
+    "dispose#10": "signalcn-seul/descripteurs-de-prototype",
 };
 /**
- * Les entrées de matrice des trois groupes traités ici. Les COMPTES sont écrits en dur, et c'est
- * une faiblesse connue : un `computed#28` ajouté à la matrice laisserait `registre-complet`
+ * Les entrées de matrice des cinq groupes traités ici. Les COMPTES sont écrits en dur, et c'est
+ * une faiblesse connue : une entrée ajoutée à la matrice laisserait `registre-complet`
  * vert. Le durcissement — lire la matrice pour en dériver la liste — est [#33](#33), qui a trouvé
  * le problème en冲着 les entrées structurelles.
  */
@@ -686,6 +1280,8 @@ export const ENTREES_ATTENDUES = [
     ...Array.from({ length: 23 }, (_, i) => `signal#${i + 1}`),
     ...Array.from({ length: 15 }, (_, i) => `conv#${i + 1}`),
     ...Array.from({ length: 27 }, (_, i) => `computed#${i + 1}`),
+    ...Array.from({ length: 41 }, (_, i) => `effect#${i + 1}`),
+    ...Array.from({ length: 10 }, (_, i) => `dispose#${i + 1}`),
 ];
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
 //
@@ -721,15 +1317,14 @@ if (process.env.NODE_TEST_CONTEXT) {
     const moteurDe = async () => await runtime;
     for (const { name, run } of scenarios) {
         test(name, async () => {
-            const { signal: s, computed, Signal, Computed } = await runtime;
-            run({ signal: s, computed, Signal, Computed }, makeLog());
+            const { signal: s, computed, effect, Signal, Computed, Effect } = await runtime;
+            run({ signal: s, computed, effect, Signal, Computed, Effect }, makeLog());
         });
     }
     // ---- Les tests signalcn-seuls, en une seule source --------------------------------
-    // Cet objet alimente `node:test` ET le contrôle du registre. Avant, les noms vivaient dans
-    // une liste à côté : on pouvait y ajouter un nom, le citer dans le registre, et le registre
-    // passer sans qu'aucun test n'existe derrière. Un contrôle à sens unique n'est pas un
-    // contrôle.
+    // Cet objet alimente `node:test` ET le contrôle du registre. Avant, les noms vivaient dans une
+    // liste à côté : on pouvait y ajouter un nom, le citer dans le registre, et le registre passer
+    // sans qu'aucun test n'existe derrière. Un contrôle à sens unique n'est pas un contrôle.
     //
     // Ils sont ici, et pas dans un fichier séparé, pour ne pas ajouter un troisième fichier à un
     // couple dont la composition est figée.
@@ -757,23 +1352,23 @@ if (process.env.NODE_TEST_CONTEXT) {
             vide.value = undefined;
             assert.equal(vide._version, 0, "undefined -> undefined ne notifie pas");
         },
-        // DIVERGENCE ASSUMÉE, déjà arbitrée par ADR-0004 et SPEC §21 : la baseline écrit son
-        // prototype à la main, donc ses méthodes y sont énumérables et `for..in` les fait remonter.
-        // Une classe ES2020 ne le fait pas. Le prix est ici, et il est bon : une énumération d'API
-        // qui change selon le minificateur n'est pas une énumération d'API.
-        "descripteurs-de-prototype": async ({ signal: moteur, Signal }) => {
-            const proto = Signal.prototype;
-            for (const nom of ["peek", "toString", "toJSON", "valueOf"]) {
-                const d = Object.getOwnPropertyDescriptor(proto, nom);
-                assert.ok(d, `${nom} doit exister sur le prototype`);
-                assert.equal(d.enumerable, false, `${nom} ne doit pas être énumérable`);
-                assert.equal(d.writable, true, `${nom} doit rester inscriptible`);
-                assert.equal(d.configurable, true, `${nom} doit rester configurable`);
+        // DIVERGENCE ASSUMÉE, déjà arbitrée par ADR-0004 et SPEC §21 : la baseline écrit son prototype
+        // à la main, donc ses méthodes y sont énumérables et `for..in` les fait remonter. Une classe
+        // ES2020 ne le fait pas. Le prix est ici, et il est bon : une énumération d'API qui change
+        // selon le minificateur n'est pas une énumération d'API.
+        "descripteurs-de-prototype": async ({ signal: moteur, Signal, Effect: ClasseEffet }) => {
+            for (const proto of [Signal.prototype, ClasseEffet.prototype]) {
+                for (const nom of ["peek", "toString", "toJSON", "valueOf", "dispose"]) {
+                    const d = Object.getOwnPropertyDescriptor(proto, nom);
+                    if (d === undefined)
+                        continue;
+                    assert.equal(d.enumerable, false, `${nom} ne doit pas être énumérable`);
+                }
             }
             // `brand` est sur le prototype et non énumérable — la divergence ci-dessus. Il reste
             // inscriptible et configurable comme la baseline, sur `conv#12` : s'écarter de la
             // compatibilité ici coûterait un ADR de plus pour protéger d'un accident.
-            const marque = Object.getOwnPropertyDescriptor(proto, "brand");
+            const marque = Object.getOwnPropertyDescriptor(Signal.prototype, "brand");
             assert.ok(marque, "brand doit etre sur le prototype");
             assert.equal(marque.value, Symbol.for("preact-signals"));
             assert.equal(marque.enumerable, false, "sinon for..in le remonterait sur chaque signal");
@@ -789,11 +1384,10 @@ if (process.env.NODE_TEST_CONTEXT) {
         // sens n'est pas indifférent : partir de la plus récemment utilisée, c'est ce qui autorise à
         // sortir dès qu'une version diffère.
         //
-        // La baseline, elle, range sa liste à l'envers — sa tête est la source lue en PREMIER. C'est
-        // mesuré, et c'est une différence d'implémentation interne, pas de comportement : la liste est
-        // à sens unique et rien d'observable par la surface publique n'en dépend. Le nôtre suit le
-        // document, parce qu'un seul sens de parcours rend le balayage non ambigu — et c'est exactement
-        // le bug que cette tranche a payé.
+        // La baseline range sa liste à l'envers — sa tête est la source lue en PREMIER. C'est mesuré,
+        // et c'est une différence d'implémentation interne, pas de comportement : la liste est à sens
+        // unique et rien d'observable par la surface publique n'en dépend. Le nôtre suit le document,
+        // parce qu'un seul sens de parcours rend le balayage non ambigu.
         "ordre-des-sources": async ({ signal: moteur, computed }) => {
             const premier = moteur(1);
             const second = moteur(2);
@@ -810,8 +1404,6 @@ if (process.env.NODE_TEST_CONTEXT) {
             assert.equal(lus[0], troisieme, "_sources est la source lue en dernier");
             assert.equal(lus[1], second);
             assert.equal(lus[2], premier);
-            // Et la liste reste complète après plusieurs évaluations : c'est le défaut qu'elle ne
-            // visitait qu'un nœud.
             c.value;
             c.value;
             const apres = [];
@@ -825,29 +1417,53 @@ if (process.env.NODE_TEST_CONTEXT) {
             const droite = moteur("d");
             const dyn = computed(() => (bascule.value ? milieu.value : `${gauche.value}${droite.value}`));
             dyn.value;
+            // Le nœud de `milieu` est capturé PENDANT qu'il est dans la liste. Après l'abandon il n'y
+            // est plus — c'est tout l'intérêt de la réconciliation — donc le chercher après ne
+            // reviendrait pas, et la comparaison n'aurait rien à comparer.
+            const nœudMilieuAvant = (() => {
+                for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) {
+                    if (n._source === milieu)
+                        return n;
+                }
+                return undefined;
+            })();
+            assert.ok(nœudMilieuAvant, "sanity : `milieu` a un nœud tant qu'elle est lue");
             bascule.value = false;
             dyn.value;
             const restants = [];
             for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev)
                 restants.push(n._source);
-            // La branche fausse lit `gauche` et `droite` en plus de `bascule` : trois dépendances, dont
-            // `milieu` est sortie.
             assert.equal(restants.length, 3, "`milieu`, lue en second, est retirée");
             assert.equal(restants[0], droite);
             assert.equal(restants[1], gauche);
             assert.equal(restants[2], bascule);
-            assert.equal(restants.includes(milieu), false, "et surtout : la dépendance quittée a disparu de la liste");
+            assert.equal(restants.includes(milieu), false, "et elle a disparu de la liste");
             // Le NŒUD est RÉACTIVÉ, pas réalloué. C'est SPEC §7, et c'est la seule façon de le voir :
-            // la valeur serait juste même avec une réallocation.
+            // la VALEUR serait juste même avec une réallocation, donc la valeur ne prouve rien.
+            const noeudMilieuApres = (() => {
+                for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) {
+                    if (n._source === milieu)
+                        return n;
+                }
+                return undefined;
+            })();
+            assert.equal(noeudMilieuApres, undefined, "après abandon, `milieu` n'a plus de nœud dans la liste");
             bascule.value = true;
             dyn.value;
             const milieuReactive = [];
             for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev)
                 milieuReactive.push(n._source);
-            // La branche vraie ne lit que `bascule` et `milieu` : deux dépendances, et c'est bien la
-            // preuve que `milieu` est revenue.
             assert.equal(milieuReactive.length, 2, "`milieu` redevient une dépendance");
             assert.equal(milieuReactive.includes(milieu), true, "`milieu` est de nouveau dans la liste");
+            // Le nœud RÉACTIVÉ est le MÊME objet.
+            const nœudMilieuReactive = (() => {
+                for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) {
+                    if (n._source === milieu)
+                        return n;
+                }
+                return undefined;
+            })();
+            assert.equal(nœudMilieuReactive, nœudMilieuAvant, "le nœud est RÉACTIVÉ, pas réalloué");
             // Et la liste ne grossit pas : trois allers-retours ne laissent aucun nœud derrière.
             for (let i = 0; i < 3; i++) {
                 bascule.value = !bascule.value;
@@ -857,25 +1473,16 @@ if (process.env.NODE_TEST_CONTEXT) {
             for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev)
                 finale.push(n._source);
             assert.equal(finale.length, 3, "aucune fuite de nœud après six évaluations");
-            assert.equal(finale.includes(bascule), true, "`bascule` est lue à chaque calcul, elle reste donc");
+            assert.equal(finale.includes(bascule), true, "`bascule` est lue à chaque calcul, elle reste");
         },
         // SPEC §6.1 — douze propriétés-own pour un computé, dans l'ordre : les huit du signal puis
         // `_fn`, `_sources`, `_globalVersion`, `_flags`. Et `for..in` ne remonte rien du prototype.
         //
         // DIVERGENCE ASSUMÉE, arbitrée par ADR-0004 et SPEC §21 : la baseline construit
         // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
-        // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm.
-        // Nous ne le faisons pas, et `constructor` vaut `Computed` et non `Signal` — voir
-        // `computed#19` et la ligne dedicated dans le registre de couverture.
-        // SPEC §6.1 — douze propriétés-own pour un computé, dans l'ordre : les huit du signal puis
-        // `_fn`, `_sources`, `_globalVersion`, `_flags`. Et `for..in` ne remonte rien du prototype,
-        // alors que la baseline en remonte dix.
-        //
-        // DIVERGENCE ASSUMÉE, arbitrée par ADR-0004 et SPEC §21 : la baseline construit
-        // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
-        // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm.
-        // Nous ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
-        "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed }) => {
+        // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm. Nous
+        // ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
+        "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet }) => {
             const c = computed(() => 1);
             assert.deepEqual(Object.keys(c), [
                 "_value",
@@ -903,6 +1510,121 @@ if (process.env.NODE_TEST_CONTEXT) {
             for (const nom in c)
                 enumerables.push(nom);
             assert.deepEqual(enumerables, Object.keys(c), "for..in ne doit rien ajouter du prototype");
+            // L'effet a six propriétés-own, et le prototype n'en porte aucune.
+            const e = new ClasseEffet(() => 1);
+            assert.deepEqual(Object.keys(e), ["_fn", "_cleanup", "_sources", "_nextBatchedEffect", "_flags", "name"]);
+            const protoEffet = Object.getPrototypeOf(e);
+            assert.equal(protoEffet._fn, undefined, "le prototype d'effet ne porte rien");
+        },
+        // `effect#34` — un effet créé dans un COMPUTÉ fuit : il en est créé un nouveau à chaque
+        // évaluation. C'est un quirk FIGÉ de la baseline, pas un oubli de notre implémentation : un
+        // computé est paresseux et sans destructeur, donc l'effet qu'il fabrique n'a personne pour le
+        // ramasser. On fige le comportement, on ne le corrige pas.
+        "effet-dans-un-calcule": async ({ signal: moteur, computed, effect: effet }) => {
+            const a = moteur(0);
+            const journal = [];
+            const fabrique = computed(() => {
+                journal.push(`outer:${a.value}`);
+                effet(() => {
+                    journal.push(`inner:${a.value}`);
+                });
+                return a.value;
+            });
+            assert.equal(journal.length, 0, "rien avant la première lecture : le computé est paresseux");
+            assert.equal(fabrique.value, 0);
+            a.value = 1;
+            assert.equal(fabrique.value, 1);
+            a.value = 2;
+            assert.equal(fabrique.value, 2);
+            // Trois évaluations, donc trois effets intérieurs créés, et le journal compte six runs : c'est la
+            // fuite, figée. Le compte est vérifié contre la baseline, qui donne exactement le même.
+            assert.equal(journal.filter(e => e.startsWith("outer:")).length, 3, "trois évaluations");
+            assert.equal(journal.filter(e => e.startsWith("inner:")).length, 6, "et six runs d'effets");
+        },
+        // `effect#36` — `options.name` est visible sur l'INSTANCE, et pas via la valeur de retour :
+        // le retour est une fonction liée, dont le nom est `bound `. C'est ce qui rend l'instance
+        // exportée indispensable.
+        "options-de-linstance": async ({ Effect: ClasseEffet }) => {
+            const e = new ClasseEffet(() => 1, { name: "n" });
+            assert.equal(e.name, "n");
+            e.name = "z";
+            assert.equal(e.name, "z", "et le nom est mutable après coup");
+            const sansNom = new ClasseEffet(() => 1);
+            assert.equal(sansNom.name, undefined, "absent, c'est `undefined`");
+            assert.equal("name" in sansNom, true, "mais la clé est toujours là");
+        },
+        // `effect#37` — les drapeaux initiaux. Un effet naît DÉJÀ observed, donc il ouvre les
+        // abonnements de ses sources ; un computé naît en train de collecter, mais pas observed.
+        "drapeaux-initiaux": async ({ signal: moteur, computed, Effect: ClasseEffet }) => {
+            const TRACKING = 32;
+            const OUTDATED = 4;
+            const e = new ClasseEffet(() => moteur(0).value);
+            assert.equal(e._flags, TRACKING, "un effet est observed dès la construction");
+            assert.equal((e._flags & OUTDATED) !== 0, false, "et pas encore périmé");
+            const c = auRuntime(computed(() => 1));
+            assert.equal(c._flags, OUTDATED, "un computé naît en collectant");
+            assert.equal((c._flags & TRACKING) !== 0, false, "mais pas observed");
+        },
+        // `effect#40` — `Out-of-order effect` n'est atteignable qu'en refermant deux fois : le
+        // collecteur de dépendances appartient à un effet à la fois.
+        "hors-ordre": async ({ signal: moteur, effect: effet }) => {
+            const s = moteur(0);
+            let first = true;
+            const d = effet(function () {
+                if (!first) {
+                    // Refermer le PREMIER effet alors que le second est sur la pile : c'est le désordre.
+                    const finir = auRuntime(this)._start();
+                    assert.throws(() => finir(), /Out-of-order effect/);
+                    return;
+                }
+                first = false;
+                effet(() => s.value);
+            });
+            d();
+        },
+        // `dispose#5` — un realm où `Symbol.dispose` est ABSENT fait de la clé la chaîne
+        // `"undefined"` chez la baseline, et c'est un quasi-leak : `using` devient un no-op qui fuit
+        // tous les effets. Le cas POSITIF n'est pas mesurable ici — il faudrait éteindre le symbole
+        // dans le realm — donc on ne fige que ce qui l'empêche.
+        "symbol-dispose-absent": async ({ effect: effet }) => {
+            const d = effet(() => { });
+            assert.equal(Object.prototype.hasOwnProperty.call(d, "undefined"), false, "aucune clé `\"undefined\"` n'est posée sur le dispositeur");
+        },
+        // DIVERGENCE ASSUMÉE, et une vraie — voir #34 pour l'arbitrage. La baseline fait pointer
+        // `Symbol.dispose` sur le dispositeur lui-même, qui est une fonction LIÉE ; V8 refuse alors
+        // cette méthode et `using` lève. SPEC §8.2 exige les DEUX propriétés, et elles sont
+        // mutuellement exclusives sur ce runtime.
+        //
+        // On garde `using`. C'est la seule des deux qu'un code utilisateur constate : personne
+        // n'écrit `d[Symbol.dispose] === d` pour demander quelque chose, alors que tout le monde écrit
+        // `using`. Le prix est un écart avec `dispose#2`, que le registre déclare.
+        "symbol-dispose-et-using": async ({ effect: effet }) => {
+            const journal = [];
+            const d = effet(() => {
+                journal.push("run");
+                return () => journal.push("cleanup");
+            });
+            assert.equal(Symbol.dispose in d, true, "Symbol.dispose doit être présent");
+            assert.equal(typeof d[Symbol.dispose], "function", "et DOIT être une fonction, sinon `using` échoue");
+            // Et `d[Symbol.dispose] !== d` : c'est la divergence assumée, vérifiée pour que quelqu'un qui
+            // la découvre ne la croie pas accidentelle.
+            assert.notEqual(d[Symbol.dispose], d, "divergence assumée : la méthode n'est pas le dispositeur, sinon `using` ne marche pas");
+            const portee = () => {
+                const env_1 = { stack: [], error: void 0, hasError: false };
+                try {
+                    const _ = __addDisposableResource(env_1, d, false);
+                    journal.push("corps");
+                }
+                catch (e_1) {
+                    env_1.error = e_1;
+                    env_1.hasError = true;
+                }
+                finally {
+                    __disposeResources(env_1);
+                }
+            };
+            portee();
+            assert.deepEqual(journal, ["run", "corps", "cleanup"]);
         },
         // SPEC §14 — un signal gelé lève en écriture. Le mode strict du module de test le fait.
         "signal-gele": async ({ signal: moteur }) => {
@@ -923,9 +1645,9 @@ if (process.env.NODE_TEST_CONTEXT) {
         assert.deepEqual(manquantes, [], `entrées de matrice sans aucune destination : ${manquantes.join(", ")}`);
         const surnumeraires = Object.keys(COUVERTURE).filter(id => !ENTREES_ATTENDUES.includes(id));
         assert.deepEqual(surnumeraires, [], `entrées de couverture qui n'existent pas : ${surnumeraires.join(", ")}`);
-        // Chaque destination nommée doit exister. Les noms viennent de deux côtés : les scénarios
-        // d'une part, les clés de l'objet de tests d'autre part — donc aucune liste Maintenance
-        // séparée qui pourrait outliver ce qu'elle désigne.
+        // Chaque destination nommée doit exister. Les noms viennent de deux côtés : les scénarios d'une
+        // part, les clés de l'objet de tests d'autre part — donc aucune liste séparée qui pourrait
+        // outliver ce qu'elle désigne.
         const noms = new Set([
             ...scenarios.map(s => s.name),
             ...Object.keys(testsSignalcnSeul).map(nom => `signalcn-seul/${nom}`),
