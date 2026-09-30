@@ -268,10 +268,10 @@ type Node = {
   _targetPrev: Node | undefined
   _targetNext: Node | undefined
   /**
-   * Liste des dépendances de la cible. Les lectures s'y empilent en TÊTE, donc `_sources` est la
-   * plus récemment lue et `_prev` ramène vers les précédentes. Après le nettoyage, `_sources`
-   * désigne la plus ANCIENNE survivante et `_next` repart vers les plus récentes : c'est
-   * l'invariant que la baseline a de mesuré, et il est vérifié côté signalcn.
+   * Liste des dépendances de la cible. Les lectures s'y empilent en TÊTE, donc `_sources` est TOUJOURS
+   * la plus récemment lue — `cleanupDependency` la recroche sur le premier survivant, qui est le plus
+   * récent, et y pose `_next = undefined`. `_prev` est donc le SEUL sens qui remonte toute la liste ;
+   * `_next` repart vers les plus récentes et butte sur la tête. `docs/architecture.md` §3 le dit.
    */
   _next: Node | undefined
   _prev: Node | undefined
@@ -670,12 +670,24 @@ function endBatch(): void {
  * UNE fonction pour les deux — la duplication répondait à la même question deux fois, en
  * anglais et en français.
  *
+ * Le parcours part de `_sources`, c'est-à-dire de la source lue EN DERNIER, et suit `_prev` vers
+ * les plus ANCIENNES — le même sens que le balayage de `cleanupSources`, et le seul qui remonte
+ * toute la liste : `_sources` pointe la plus récente (`docs/architecture.md` §3). C'est ce qui
+ * autorise la sortie anticipée, et surtout ce qui fait qu'une cible à plusieurs sources en VOIT
+ * toutes.
+ *
+ * `_next` est le piège, et il est silencieux : `cleanupDependency` recroche la tête sur le nœud le
+ * plus RÉCENT et y pose `_next = undefined`, donc `_next` butte sur la tête et ne rend qu'UNE source
+ * — celle lue en dernier. Partir par là ne visitait qu'un nœud au lieu de la liste. Les trois autres
+ * parcours qui faisaient pareil sont au même endroit : `disposeSelf`, et les deux surcharges de
+ * `Computed`.
+ *
  * Le cycle indirect est ici : `_refresh` ne renvoie `false` que si la source est DÉJÀ en train de
  * se calculer, donc si l'on est à l'intérieur d'elle. C'est périmé, donc `true` — l'inverse
  * de cela, la source serait servie périmée et le cycle ne serait jamais détecté.
  */
 function sourcesAreStale(node: { _sources: Node | undefined }): boolean {
-  for (let current = node._sources; current !== undefined; current = current._next) {
+  for (let current = node._sources; current !== undefined; current = current._prev) {
     const source = current._source
     if (source._version !== current._version) return true
     if (source instanceof Computed && !source._refresh()) return true
@@ -718,7 +730,17 @@ function runCleanupUntracked(effet: Effect<any>): void {
 
 /** Détache l'effet de toutes ses sources. Sans l'effet, il ne peut plus être réveillé. */
 function disposeSelf(effet: Effect<any>): void {
-  for (let noeud = effet._sources; noeud !== undefined; noeud = noeud._next) {
+  // Les sources se détachent dans l'ordre de LECTURE, source la plus ancienne la première : c'est
+  // l'ordre des crochets `unwatched`, et il est observable. Notre liste a la plus récente en tête —
+  // `docs/architecture.md` §3 — donc `_prev` remonte vers les anciennes, et `_next` redescend. Le
+  // premier maillon étant à `_prev`, on descend d'abord jusqu'à lui, puis on suit `_next` : deux
+  // passages, et le détachement dans l'ordre qu'on veut.
+  //
+  // `_next` seul ne suffirait pas : la tête l'a à `undefined`, donc il ne rendrait qu'UN nœud, et
+  // les autres resteraient abonnés à des sources dont la cible est morte.
+  let ancien: Node | undefined = effet._sources
+  while (ancien !== undefined && ancien._prev !== undefined) ancien = ancien._prev
+  for (let noeud = ancien; noeud !== undefined; noeud = noeud._next) {
     noeud._source._removeNode(noeud)
   }
   effet._fn = undefined
@@ -1064,7 +1086,10 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
   override _addNode(node: Node): void {
     if (this._targets === undefined) {
       this._flags |= OUTDATED | TRACKING
-      for (let source = this._sources; source !== undefined; source = source._next) {
+      // `_prev` : `_next` ne rendrait que la source lue en dernier, donc un computé à deux sources
+      // ne raccorderait que la seconde, et la chaîne `A → B → C → Effect` serait coupée à son
+      // premier maillon. `effect#2` le vérifie.
+      for (let source = this._sources; source !== undefined; source = source._prev) {
         source._source._addNode(source)
       }
     }
@@ -1079,7 +1104,8 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
     super._removeNode(node)
     if (this._targets === undefined && (this._flags & TRACKING) !== 0) {
       this._flags &= ~(OUTDATED | TRACKING)
-      for (let source = this._sources; source !== undefined; source = source._next) {
+      // La symetrie exacte de l'abonnement, et donc le meme sens de parcours.
+      for (let source = this._sources; source !== undefined; source = source._prev) {
         source._source._removeNode(source)
       }
     }

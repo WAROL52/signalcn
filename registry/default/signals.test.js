@@ -683,7 +683,24 @@ export const scenarios = [
             s.value = 1;
             s.value = 2;
             log("journal", JSON.stringify(journal));
-            assert.deepEqual(log.entries, ['journal ["run:0","cleanup:1","run:1","cleanup:2","run:2"]']);
+            // `effect#2` dit « re-run à chaque CHANGEMENT de dépendance », pas « sur la dernière lue ».
+            // La liste des sources est chaînée vers les plus ANCIENNES : écrire sur la première lue doit
+            // réveiller autant que écrire sur la dernière. C'est la seule chose que le cas à une seule
+            // source ne prouve pas.
+            const p = api.signal(0);
+            const q = api.signal(0);
+            const chezSoi = [];
+            api.effect(() => {
+                chezSoi.push(`${p.value}:${q.value}`);
+            });
+            p.value = 1;
+            q.value = 1;
+            p.value = 2;
+            log("deux sources", JSON.stringify(chezSoi));
+            assert.deepEqual(log.entries, [
+                'journal ["run:0","cleanup:1","run:1","cleanup:2","run:2"]',
+                'deux sources ["0:0","1:0","1:1","2:1"]',
+            ]);
         },
     },
     {
@@ -922,7 +939,22 @@ export const scenarios = [
             d2();
             s.value = 1;
             log("journal", JSON.stringify(journal));
-            assert.deepEqual(log.entries, ['journal ["watched W","unwatched W"]']);
+            // `effect#21`, cas des DEUX sources : un dispose doit détacher TOUTES celles que l'effet
+            // lit, pas seulement celle qu'il a lue en dernier — sinon les autres restent abonnées à des
+            // sources prévenues par un effet mort. Et l'ordre est celui de LECTURE, pas l'inverse.
+            const hooks = [];
+            const p = api.signal(0, { watched: () => hooks.push("+p"), unwatched: () => hooks.push("-p") });
+            const q = api.signal(0, { watched: () => hooks.push("+q"), unwatched: () => hooks.push("-q") });
+            const d3 = api.effect(() => {
+                p.value;
+                q.value;
+            });
+            d3();
+            log("deux sources", JSON.stringify(hooks));
+            assert.deepEqual(log.entries, [
+                'journal ["watched W","unwatched W"]',
+                'deux sources ["+p","+q","-p","-q"]',
+            ]);
         },
     },
     {
@@ -946,7 +978,24 @@ export const scenarios = [
             });
             a.value = 1;
             log("journal", JSON.stringify(journal));
-            assert.deepEqual(log.entries, ['journal ["c1:0","c2:0","d1:0","c1:1","c2:1","d1:1"]']);
+            // `effect#32` n'a qu'une source par computé. Un computé à DEUX sources doit raccorder les
+            // DEUX à son effet : sinon la chaîne est coupée à son premier maillon, et une écriture sur
+            // la source lue en premier ne réveille plus personne — alors que le computé, lui, se
+            // recalcule. C'est ce que prouve ici : le computé se met à jour ET l'effet tourne.
+            const p = api.signal(0);
+            const q = api.signal(0);
+            const deux = api.computed(() => p.value * 10 + q.value);
+            const vuParEffet = [];
+            api.effect(() => {
+                vuParEffet.push(String(deux.value));
+            });
+            p.value = 1;
+            q.value = 1;
+            log("computé a deux sources", JSON.stringify(vuParEffet));
+            assert.deepEqual(log.entries, [
+                'journal ["c1:0","c2:0","d1:0","c1:1","c2:1","d1:1"]',
+                'computé a deux sources ["0","10","11"]',
+            ]);
         },
     },
     {
@@ -1865,23 +1914,24 @@ export const COUVERTURE = {
     // Vingt-quatre des vingt-six entrées `batch` et neuf des treize `untracked` sont couvertes par
     // les quatorze scénarios de la tranche. Les sept restantes sont ci-dessous, avec la raison.
     //
-    // `batch#24` et `batch#25` sont les deux ping-pong de la baseline, 52/51 puis 35/35/34. Ces
-    // CHIFFRES sont un effet du seuil, et `SPEC.md` §15.2 dit que le seuil n'est pas fige, §21 le
-    // confirme : les figer en test rendrait le moteur faux des que le seuil bouge. Mais le CARACTERE,
-    // lui, se fige — chaque effet tourne plusieurs fois, et une erreur sort — et c'est ce qui SHOULD
-    // etre affirme. Le probleur : le ping-pong NE PASSE PAS chez nous. Deux effets qui s'ecrivent
-    // l'un l'autre font CROITRE la chaine d'une seule generation, donc `batchIteration` ne monte plus
-    // et le seuil n'arrive jamais ; la baseline s'arrete en 2 ms, nous ne nous arretons pas. C'est un
-    // defaut du DRAINAGE, et il est REPRODUCTIBLE SANS `batch` — deux signaux et deux effets suffisent,
-    // ce qui le sort du perimetre de cette tranche. C'est #35, et le registre doit le dire plutot que
-    // de pointer un scenario qui ne le prouve pas.
+    // `batch#24` et `batch#25` — le ping-pong entre effets — n'ont NI fauxificateur NI scénario, parce
+    // qu'ils ne passent pas. La chaîne d'une SEULE génération croît sans fin : le compteur
+    // `batchIteration` reste donc figé, et le seuil n'arrive jamais. La baseline s'arrête en 2 ms sur
+    // 52/51 runs ; nous ne nous arrêtons pas. C'est un défaut du DRAINAGE, et il est REPRODUCTIBLE
+    // SANS `batch` — deux signaux et deux effets suffisent — donc il ne tombe pas sous cette tranche.
+    // C'est #35.
+    //
+    // Deux dépendances à plusieurs sources ont été trouvées EN CHEMIN et corrigées — `sourcesAreStale`,
+    // `disposeSelf`, `Computed._addNode` et `Computed._removeNode` parcouraient la liste des dépendances
+    // par `_next`, qui ne rend que la tête. Elles ne suffisent pas à arrêter le ping-pong, et il ne faut
+    // pas prétendre le contraire : la chaîne qui croît est un autre mécanisme, encore à trouver.
     //
     // `batch#20` reste sans falsificateur pour une raison STRUCTURELLE, et non de flemme : une
-    // ecriture de drainage a pour valeur de snapshot la valeur d'AVANT elle, donc elle s'en est deja
-    // eloignee quand la reconciliation du batch SUIVANT la compare. La faire passer demanderait une
-    // ecriture restorative ULTERIEURE et un noeud qui n'a pas relu entre-temps — soit deux fois la
+    // écriture de drainage a pour valeur de snapshot la valeur d'AVANT elle, donc elle s'en est déjà
+    // éloignée quand la réconciliation du batch SUIVANT la compare. La faire passer demanderait une
+    // écriture restaurative ULTÉRIEURE et un nœud qui n'a pas relu entre-temps — soit deux fois la
     // machinerie de `batch#17`. La garde est en place et se lit ; son falsificateur arrive avec le
-    // registre derive de la matrice, en #33.
+    // registre dérivé de la matrice, en #33.
     "batch#1": "batch/valeur-et-imbrication",
     "batch#2": "batch/ecriture-identique",
     "batch#3": "batch/valeur-et-imbrication",
