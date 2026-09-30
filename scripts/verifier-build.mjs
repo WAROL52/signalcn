@@ -91,7 +91,35 @@ for (const item of ["signals", "signals.test"]) {
   )
 }
 
-// 4. Aucun ARTEFACT ne demande un fichier `.ts`. Les sources, elles, doivent en parler : la
+// 4. La SOURCE et l'ARTEFACT ne peuvent pas diverger silencieusement.
+//
+//    `node --test` sur la source accepte des choses que la cible refuse : le plus notable est
+//    l'`await` de premier niveau, que le type-stripping de Node tolère et qu'esbuild refuse à la
+//    minification puisque la cible est ES2020. Le résultat est la pire des configurations — la
+//    suite source verte et l'artefact qui ne démarre pas — et le décalage n'apparaît qu'au build.
+//
+//    Exiger le même compte de tests des deux côtés attrape exactement ça. La parité complète des
+//    quatre cibles appartient à #30 ; ici on ne vérifie que ce qui se casse en silence.
+const compter = chemin => {
+  const sortie = spawnSync(process.execPath, ["--test", "--test-reporter=tap", chemin], { encoding: "utf8" })
+  const passe = Number(sortie.stdout.match(/^# pass (\d+)$/m)?.[1] ?? -1)
+  const echoue = Number(sortie.stdout.match(/^# fail (\d+)$/m)?.[1] ?? -1)
+  return { passe, echoue, code: sortie.status }
+}
+
+const source = compter(join(ITEMS, "signals.test.ts"))
+const compile = compter(join(ITEMS, "signals.test.js"))
+const minifie = compter(join(ITEMS, "signals.test.min.js"))
+porte("la source passe", source.echoue === 0 && source.code === 0, `${source.passe} pass, ${source.echoue} fail`)
+porte("le build passe", compile.echoue === 0 && compile.code === 0, `${compile.passe} pass, ${compile.echoue} fail`)
+porte("le minifié passe", minifie.echoue === 0 && minifie.code === 0, `${minifie.passe} pass, ${minifie.echoue} fail`)
+porte(
+  "les trois cibles comptent le même nombre de tests",
+  source.passe === compile.passe && compile.passe === minifie.passe,
+  `source ${source.passe}, build ${compile.passe}, minifié ${minifie.passe}`,
+)
+
+// 5. Aucun ARTEFACT ne demande un fichier `.ts`. Les sources, elles, doivent en parler : la
 //    source s'exécute là où le TypeScript est présent, et c'est `tsc` qui la réécrit à
 //    l'émission. Ce que le projet utilisateur reçoit ne peut pas, lui, exiger un compilateur.
 for (const fichier of (await readdir(ITEMS)).sort()) {
