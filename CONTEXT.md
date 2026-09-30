@@ -100,9 +100,17 @@ _Avoid_ : abonné, listener, consommateur
 Marquage d'un nœud comme obsolète, sans le réévaluer. Le recalcul n'a lieu qu'à la lecture.
 _Avoid_ : dirty, périmé, sale
 
+**Drainage** :
+Passage par lequel le moteur réexécute les cibles invalidées. Chaque drainage vide la file d'attente accumulée depuis la dernière passe et n'en fait apparaître aucune nouvelle ; la passe suivante ne s'ouvre que lorsque la file est vide.
+_Avoid_ : flush, vidage, propagation
+
 **Cycle** :
-Graphe où un nœud se relit lui-même par une chaîne de dépendances, détecté et levé comme erreur plutôt que d'entrer en récursion infinie.
-_Avoid_ : boucle infinie, deadlock
+Auto-rentrée : un nœud se réévalue alors qu'il est encore en cours d'évaluation. Détecté exactement, par construction, sans aucun comptage, et levé immédiatement. Un cycle n'implique pas de chaîne : deux nœuds qui se relisent ne sont pas un cycle.
+_Avoid_ : boucle infinie, deadlock, cycle de dépendances
+
+**Borne de drainage** :
+Limite du nombre de drainages qu'une portée peut enchaîner avant que le moteur n'abandonne et ne lève. Ce n'est pas une détection de cycle : rien n'inspecte le graphe, et rien ne distingue une boucle d'une cascade légitime. Une cascade assez longue atteint la borne, et le moteur lève alors qu'aucun cycle n'existe.
+_Avoid_ : seuil de cycle, détection de cycle, limite de récursion
 
 **Batch** :
 Portée qui regroupe des écritures et diffère la propagation de leurs effets jusqu'à la sortie de la portée la plus externe.
