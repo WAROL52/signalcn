@@ -214,9 +214,9 @@ Ce comportement s'applique aussi aux effects. Le nœud de dépendance abandonné
 
 ### 8.2 Forme de la valeur de retour
 
-La fonction retournée est `_dispose.bind(effect)` : `name === "bound "`, `length === 0`, `Object.keys()` vide, et `[Symbol.dispose]` **est la même fonction**. Elle est utilisable avec `using`.
+La fonction retournée n'est **ni une arrow, ni l'instance `Effect`** : `name === "bound "`, `length === 0`, `Object.keys()` vide, `[Symbol.dispose]` **est la même fonction**, et elle est utilisable avec `using`.
 
-Ce n'est ni une arrow, ni l'instance `Effect`.
+Le mécanisme est une **fonction ordinaire qui ferme sur l'instance**, et non `_dispose.bind(effect)`. La forme liée satisfait l'identité et casse `using` : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même, et accepte une fonction ordinaire. Le `bind` était donc le seul obstacle — `§8.3` ne demande `this` qu'au *callback*, pas au dispositeur. Aucune divergence, aucun ADR.
 
 ### 8.3 `this`
 

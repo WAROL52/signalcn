@@ -1267,7 +1267,8 @@ export const COUVERTURE: Record<string, string> = {
   // --- groupe `dispose` : 10 entrées
   "dispose#1": "effect/forme-du-dispositeur",
   // dispose#2 : la baseline fait pointer `Symbol.dispose` sur le dispositeur, qui est une fonction
-  // LIÉE, et V8 refuse alors cette méthode. DIVERGENCE ASSUMÉE — voir #34.
+  // LIÉE, et V8 refuse alors cette méthode. On garde l'identité en passant par une fermeture :
+  // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
   "dispose#2": "signalcn-seul/symbol-dispose-et-using",
   "dispose#3": "signalcn-seul/symbol-dispose-et-using",
   // dispose#4 : `subscribe` renvoie aussi un disposeur — #25.
@@ -1643,14 +1644,10 @@ if (process.env.NODE_TEST_CONTEXT) {
       )
     },
 
-    // DIVERGENCE ASSUMÉE, et une vraie — voir #34 pour l'arbitrage. La baseline fait pointer
-    // `Symbol.dispose` sur le dispositeur lui-même, qui est une fonction LIÉE ; V8 refuse alors
-    // cette méthode et `using` lève. SPEC §8.2 exige les DEUX propriétés, et elles sont
-    // mutuellement exclusives sur ce runtime.
-    //
-    // On garde `using`. C'est la seule des deux qu'un code utilisateur constate : personne
-    // n'écrit `d[Symbol.dispose] === d` pour demander quelque chose, alors que tout le monde écrit
-    // `using`. Le prix est un écart avec `dispose#2`, que le registre déclare.
+    // Les deux exigences de SPEC §8.2, côte à côte, parce qu'elles semblaient s'exclure.
+    // Elles ne s'excluent pas : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur
+    // elle-même, et accepte une fonction simple. Le `bind` de la baseline était le seul
+    // obstacle — un effet, et non une divergence.
     "symbol-dispose-et-using": async ({ effect: effet }) => {
       const journal: string[] = []
       const d = effet(() => {
@@ -1664,13 +1661,14 @@ if (process.env.NODE_TEST_CONTEXT) {
         "function",
         "et DOIT être une fonction, sinon `using` échoue",
       )
-      // Et `d[Symbol.dispose] !== d` : c'est la divergence assumée, vérifiée pour que quelqu'un qui
-      // la découvre ne la croie pas accidentelle.
-      assert.notEqual(
-        (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
-        d,
-        "divergence assumée : la méthode n'est pas le dispositeur, sinon `using` ne marche pas",
-      )
+// Et l'IDENTITÉ : `d[Symbol.dispose] === d`, comme l'exige SPEC §8.2. Elle ne coûte pas
+        // `using`, parce que V8 ne refuse que les fonctions *liées* dont la méthode pointe sur
+        // elles-mêmes — une fonction simple passe. C'est ce que le test ci-dessous mesure.
+        assert.equal(
+          (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
+          d,
+          "SPEC §8.2 exige que la méthode de libération soit le dispositeur lui-même",
+        )
 
       const portee = () => {
         using _ = d as unknown as { [Symbol.dispose](): void }

@@ -648,15 +648,21 @@ export function effect(fn, options) {
         effet._dispose();
         throw erreur;
     }
-    const dispositeur = effet._dispose.bind(effet);
-    // `name === "bound "` est figé par SPEC §8.2 et par la matrice. Un nom de méthode ne peut pas être
-    // vide — `bind` produit `bound _dispose` — donc la valeur est écrite explicitement.
+    // `SPEC.md` §8.2 exige `name === "bound "`, `length === 0`, `Object.keys()` vide,
+    // `[Symbol.dispose] === d`, utilisable avec `using`, ni une arrow ni l'instance.
+    //
+    // Les six tiennent — mais PAS avec `_dispose.bind(effet)`. V8 refuse une fonction LIÉE dont
+    // `Symbol.dispose` pointe sur elle-même ; une fonction simple passe, une liée non. Le refus
+    // vient donc du `bind`, pas de l'identité — et `this` n'est jamais demandé au dispositeur,
+    // `§8.3` ne le demande qu'au CALLBACK. D'où la fermeture : elle rend les six-tenables.
+    // C'est mesuré, pas supposé : `signalcn-seul/symbol-dispose-et-using` rejoue les deux.
+    const dispositeur = function () {
+        effet._dispose();
+    };
+    // Un nom de méthode ne peut pas être vide — il serait `dispositeur` — donc la valeur est
+    // écrite explicitement, comme l'exige §8.2.
     Object.defineProperty(dispositeur, "name", { value: "bound ", configurable: true });
-    // `Symbol.dispose` est une FONCTION, et pas le dispositeur lui-même. SPEC §8.2 veut les deux et
-    // ils sont MUTUELLEMENT EXCLUSIFS : V8 refuse une fonction liée comme méthode de libération, donc
-    // `d[Symbol.dispose] === d` EMPÊCHE `using` de fonctionner. On garde `using`, parce que c'est la
-    // seule des deux visible depuis du code utilisateur — voir #34.
-    dispositeur[Symbol.dispose] = () => dispositeur();
+    dispositeur[Symbol.dispose] = dispositeur;
     return dispositeur;
 }
 // ---- Le computé --------------------------------------------------------------------------------
