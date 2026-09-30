@@ -45,9 +45,6 @@ export type Api = {
   signal: typeof signalFn
   computed: typeof computedFn
 effect: typeof effectFn
-    // Le CONTRAT du scénario les exige, donc ils ne sont pas optionnels : sinon chaque appel
-    // porterait un `!`. C'est l'injection qui, elle, peut les fournir plus tard — et c'est le seul
-    // endroit qui le sait.
     batch: <T>(fn: () => T) => T
     untracked: <T>(fn: () => T) => T
     Effect: typeof EffectClass
@@ -102,11 +99,13 @@ export function makeLog(): Log {
 export const TICHETS = {
   computed: "#23",
   effet: "#24",
-subscribe: "#25",
-    batch: "#26",
-    // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
-    modele: "#28",
-  } as const
+  subscribe: "#25",
+      batch: "#26",
+      // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
+      modele: "#28",
+      // Le ping-pong entre effets ne termine pas : un defaut du drainage, reproductible sans `batch`.
+      pingpong: "#35",
+    } as const
 
 export const scenarios: Scenario[] = [
   {
@@ -1511,14 +1510,36 @@ export const scenarios: Scenario[] = [
         journal.push(`apres:${exterieur.value}`)
       })
       exterieur.value = 1
-      log("batch cree dans le flush", JSON.stringify(journal))
+        // `batch#23` — le meme cycle, mais l effet ouvre son PROPRE batch pour ecrire. Le seuil est
+        // alors atteint a l interieur d un drainage : c est ce qui distingue ce cas du precedent, ou
+        // l ecriture venait du batch de l utilisateur.
+        const propre = api.signal(0)
+        let armePropre = false
+        let runsPropre = 0
+        api.effect(() => {
+          const v = propre.value
+          runsPropre++
+          if (armePropre) api.batch(() => (propre.value = v + 1))
+        })
+        armePropre = true
+        let typePropre = "aucune"
+        try {
+          propre.value = 1
+        } catch (erreur) {
+          typePropre = erreur instanceof Error ? erreur.constructor.name : "autre"
+        }
+        log("batch ecrit par l effet : type", typePropre)
+        log("batch ecrit par l effet : compte borne", runsPropre > 1 && runsPropre <= 500 ? "oui" : "non")
+        log("batch cree dans le flush", JSON.stringify(journal))
       assert.deepEqual(log.entries, [
         "cycle borne : runs 51",
         "cycle borne : leve aucune",
         "cycle non borne : type Error",
         "cycle non borne : compte borne oui",
-        "apres une erreur : type Error",
-        "apres une erreur : le compteur repart oui",
+          "apres une erreur : type Error",
+          "apres une erreur : le compteur repart oui",
+          "batch ecrit par l effet : type Error",
+          "batch ecrit par l effet : compte borne oui",
         'batch cree dans le flush ["avant:0","dans le batch de l effect","apres:0","avant:1","dans le batch de l effect","apres:1"]',
       ])
     },
@@ -1847,10 +1868,22 @@ export const COUVERTURE: Record<string, string> = {
   //
   // `batch#24` et `batch#25` sont les deux ping-pong de la baseline, 52/51 puis 35/35/34. Ces
   // CHIFFRES sont un effet du seuil, et `SPEC.md` §15.2 dit que le seuil n'est pas fige, §21 le
-  // confirme. Les figer en test rendrait le moteur faux des que le seuil bouge — et un ping-pong
-  // borne est deja couvert par `batch/cycle-borne-et-non-borne`, qui vérifie le CARACTÈRE de la
-  // sortie et pas un compte.
-  "batch#1": "batch/valeur-et-imbrication",
+  // confirme : les figer en test rendrait le moteur faux des que le seuil bouge. Mais le CARACTERE,
+  // lui, se fige — chaque effet tourne plusieurs fois, et une erreur sort — et c'est ce qui SHOULD
+  // etre affirme. Le probleur : le ping-pong NE PASSE PAS chez nous. Deux effets qui s'ecrivent
+  // l'un l'autre font CROITRE la chaine d'une seule generation, donc `batchIteration` ne monte plus
+  // et le seuil n'arrive jamais ; la baseline s'arrete en 2 ms, nous ne nous arretons pas. C'est un
+  // defaut du DRAINAGE, et il est REPRODUCTIBLE SANS `batch` — deux signaux et deux effets suffisent,
+  // ce qui le sort du perimetre de cette tranche. C'est #35, et le registre doit le dire plutot que
+  // de pointer un scenario qui ne le prouve pas.
+    //
+    // `batch#20` reste sans falsificateur pour une raison STRUCTURELLE, et non de flemme : une
+    // ecriture de drainage a pour valeur de snapshot la valeur d'AVANT elle, donc elle s'en est deja
+    // eloignee quand la reconciliation du batch SUIVANT la compare. La faire passer demanderait une
+    // ecriture restorative ULTERIEURE et un noeud qui n'a pas relu entre-temps — soit deux fois la
+    // machinerie de `batch#17`. La garde est en place et se lit ; son falsificateur arrive avec le
+    // registre derive de la matrice, en #33.
+    "batch#1": "batch/valeur-et-imbrication",
   "batch#2": "batch/ecriture-identique",
   "batch#3": "batch/valeur-et-imbrication",
   "batch#4": "batch/erreur-du-corps-et-profondeur",
@@ -1873,8 +1906,8 @@ export const COUVERTURE: Record<string, string> = {
   "batch#21": "batch/revert-a-b-a",
   "batch#22": "batch/cycle-borne-et-non-borne",
   "batch#23": "batch/cycle-borne-et-non-borne",
-  "batch#24": "batch/cycle-borne-et-non-borne",
-  "batch#25": "batch/cycle-borne-et-non-borne",
+  "batch#24": TICHETS.pingpong,
+  "batch#25": TICHETS.pingpong,
   "batch#26": "batch/cycle-borne-et-non-borne",
   // `untracked#10` a `#11` et `#12` portent sur la portee de capture d'effets d'un modele : ils
   // ne sont atteignables qu'avec `createModel`, qui est #28. `untracked#13` est un usage INTERNE —
@@ -1968,11 +2001,7 @@ if (process.env.NODE_TEST_CONTEXT) {
 
   for (const { name, run } of scenarios) {
     test(name, async () => {
-const { signal: s, computed, effect, Signal, Computed, Effect } = await runtime
-        // Le seul cast du fichier. Il ne porte que sur les deux noms que la tranche suivante écrit,
-        // et il permet de commiter le test AVANT le moteur : le scénario échoue alors en lisant
-        // `api.batch` sur `undefined`, ce qui dit exactement ce qui manque.
-        const suivant = runtime as Partial<Api>
+const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect } = await runtime
         run(
           {
             signal: s,
@@ -1981,8 +2010,8 @@ const { signal: s, computed, effect, Signal, Computed, Effect } = await runtime
             Signal,
             Computed,
             Effect,
-            batch: suivant.batch as Api["batch"],
-            untracked: suivant.untracked as Api["untracked"],
+            batch,
+            untracked,
           },
           makeLog(),
         )

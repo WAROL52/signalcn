@@ -77,6 +77,11 @@ export class Signal<T = undefined> {
     //
     // Donc pas de `Object.is` ici, et pas de branche spéciale pour `NaN`.
     if (this._value !== next) {
+      // SPEC §15.1 — le compteur d'itérations de drainage est armé DEPUIS LE SETTER. Le compteur,
+      // lui, n'avance que dans le drainage : écrire dans le corps d'un batch ne l'avance pas, et
+      // c'est ce qui borne le seuil aux itérations de drainage et non aux écritures.
+      if (batchIteration > SEUIL_CYCLE) throw new Error("Cycle detected")
+      recordBatchSnapshot(this)
       this._value = next
       this._version++
       globalVersion++
@@ -134,7 +139,7 @@ export class Signal<T = undefined> {
     node._targetNext = undefined
     if (tete !== undefined) tete._targetNext = node
     this._targets = node
-    if (tete === undefined) horsSuivi(() => this._watched?.call(this))
+    if (tete === undefined) untracked(() => this._watched?.call(this))
   }
 
   /**
@@ -148,7 +153,7 @@ export class Signal<T = undefined> {
     if (node._targetPrev !== undefined) node._targetPrev._targetNext = node._targetNext
     if (node === this._targets) {
       this._targets = node._targetPrev
-      if (this._targets === undefined) horsSuivi(() => this._unwatched?.call(this))
+      if (this._targets === undefined) untracked(() => this._unwatched?.call(this))
     }
     node._targetPrev = undefined
     node._targetNext = undefined
@@ -255,7 +260,7 @@ const ABANDONNE = -1
 type Node = {
   /** Version de la source telle que la cible l'a vue. `ABANDONNE` = potentielle sentinelle. */
   _version: number
-  _source: Signal<any> | Computed<any>
+  _source: Signal<any>
   /**
    * Liste des abonnés de la source, insertion en TÊTE : seule la longueur compte pour celle-là.
    * C'est la source qui fait tourner cette liste, donc elle est chaînée par `_targetNext`.
@@ -329,6 +334,27 @@ let batchedEffect: Effect<any> | Computed<any> | undefined = undefined
 let enDrain = false
 
 /**
+ * Les écritures faites pendant le corps d'un `batch` utilisateur, pour pouvoir les REVERTIR.
+ *
+ * C'est une liste chaînée à part, distincte de la file d'effets : celle-ci dit « qui doit tourner »,
+ * celle-là dit « qui est peut-être revenu ». Les deux se vident au même moment, mais pour des
+ * raisons sans rapport, et les confondre ferait perdre la réconciliation.
+ */
+let batchSnapshots: Snapshot | undefined = undefined
+
+/**
+ * Le jeton des snapshots. Il DÉDUPLIQUE : une seule entrée par signal et par batch.
+ *
+ * Sans lui, un signal écrit dix fois dans la même portée produirait dix entrées, dont neuf ne
+ * décrivent plus rien. Le jeton est MONOTONE, jamais remis à zéro : le remettre à zéro ferait rejouer
+ * les snapshots de la portée précédente, déjà consommés.
+ */
+let batchSnapshotVersion = 0
+
+/** Le jeton de la portée EN COURS. Comparé au jeton porté par chaque signal. */
+let currentBatchSnapshotVersion = 0
+
+/**
  * Le seuil au-delà duquel un flush est un cycle et non un programme lent.
  *
  * Cent est un ORDRE DE GRANDEUR, pas une constante : la matrice fige le seuil de la baseline à
@@ -340,12 +366,19 @@ const SEUIL_CYCLE = 100
 /**
  * Exécute `fn` sans qu'aucune lecture n'inscrive de dépendance.
  *
- * C'est `untracked`, mais interne et restreint : ici il sert aux crochets `watched` et
+ * C'est la fonction publique de SPEC §10, et elle sert aussi en interne aux crochets `watched` et
  * `unwatched`, qui ne doivent pas s'abonner à ce qu'ils lisent, et à `Computed.peek`, qui doit
- * actualiser sans laisser de dépendance. #26 en fera la fonction publique — et son corps y ira
- * tel quel, à un `capturedEffects` près que le flush de batch amènera.
+ * actualiser sans laisser de dépendance. UNE implémentation pour les trois : les recopier ferait
+ * trois endroits où le `finally` de restauration pourrait manquer.
+ *
+ * Elle neutralise le contexte de suivi, PAS le rafraîchissement : lire un computé ici le rafraîchit
+ * quand même, elle ne réveille simplement aucune cible. Lire n'est pas invalider.
+ *
+ * Il lui manque un cas, et il est ailleurs : neutraliser aussi la portée de CAPTURE d'effets d'un
+ * modèle englobant. Cela n'existe pas tant que `createModel` n'existe pas — c'est #28, et le JSDoc
+ * de la baseline le signale déjà.
  */
-function horsSuivi<T>(fn: () => T): T {
+export function untracked<T>(fn: () => T): T {
   const precedent = currentObserver
   currentObserver = undefined
   try {
@@ -479,6 +512,64 @@ function cleanupDependency(node: { _sources: Node | undefined }): void {
 }
 
 /**
+ * Enregistre l'état pré-batch d'un signal, une fois par portée.
+ *
+ * Deux conditions, et chacune compte. `batchIteration !== 0` : on est dans un DRAINAGE — donc dans
+ * l'exécution d'un effet, pas dans le callback de l'utilisateur. Sans celle-là, une écriture faite
+ * par un effet pendant le drainage serait snapshotée, et la réconciliation pourrait « reverdir » un
+ * signal que l'utilisateur n'a jamais écrit. `batch#20` le vérifie.
+ *
+ * `currentBatchSnapshotVersion === 0` : aucune portée UTILISATEUR n'est ouverte. C'est le filet de la
+ * seconde, et il est ici parce que le jeton se lit ici. `Effect._start` ouvre et referme lui aussi une
+ * portée, mais SANS jeton — donc son premier run, qui s'exécute hors drainage, verrait sinon une
+ * écriture snapshotée avec le jeton de la portée précédente, et son `endBatch` la réconcilierait. Le
+ * jeton est remis à zéro en fin de drainage ; il ne peut donc être non nul que dans un `batch`.
+ */
+function recordBatchSnapshot(source: Signal<any>): void {
+  if (batchIteration !== 0 || currentBatchSnapshotVersion === 0) return
+
+  if (source._batchSnapshotVersion !== currentBatchSnapshotVersion) {
+    source._batchSnapshotVersion = currentBatchSnapshotVersion
+    batchSnapshots = {
+      _source: source,
+      _value: source._value,
+      _version: source._version,
+      _next: batchSnapshots,
+    }
+  }
+}
+
+/**
+ * Avance la version des nœuds dont la source est revenue à son état pré-batch.
+ *
+ * La comparaison est `===` et NON `Object.is` — c'est toute la différence entre les deux
+ * comportements observables : `NaN === NaN` est faux, donc un signal laissé à `NaN` n'est jamais
+ * considéré comme revenu ; `-0 === 0` est vrai, donc un signal qui passe de `-0` à `0` l'est
+ * toujours. Lu dans la baseline, ligne 180.
+ *
+ * Les versions n'avANCENT JAMAIS à rebours. Un computé a pu observer une version intermédiaire
+ * pendant le batch ; la lui rendre autoriserait une future écriture à réémettre ce numéro pour une
+ * autre valeur, et le computé la jugerait à jamais inchangée. D'où le fast-forward : on SAUTE la
+ * génération, pas le temps.
+ */
+function reconcileBatchSnapshots(): void {
+  let snapshots = batchSnapshots
+  batchSnapshots = undefined
+
+  while (snapshots !== undefined) {
+    const source = snapshots._source
+    if (source._value === snapshots._value) {
+      for (let node = source._targets; node !== undefined; node = node._targetPrev) {
+        if (node._version === snapshots._version) {
+          node._version = source._version
+        }
+      }
+    }
+    snapshots = snapshots._next
+  }
+}
+
+/**
  * Vide la file d'effets différés.
  *
  * Le drainage est en LARGEUR et c'est le cœur du moteur. Quatre règles, et les confondre produit
@@ -497,6 +588,8 @@ function cleanupDependency(node: { _sources: Node | undefined }): void {
  * L'erreur retenue est la PREMIÈRE dans l'ordre de flush, pas la première chronologique, et le
  * drainage continue malgré les erreurs — un effet qui lève n'en empêche pas dix autres de tourner.
  */
+
+
 function endBatch(): void {
   if (batchDepth > 1) {
     batchDepth--
@@ -513,15 +606,12 @@ function endBatch(): void {
   enDrain = true
 
   try {
+    // La réconciliation passe AVANT la boucle, jamais dedans : elle avance la version des nœuds
+    // qui ont vu l'état pré-batch, et le drainage les CONSOMMERait avant qu'elle puisse le faire.
+    reconcileBatchSnapshots()
+
     while (batchedEffect !== undefined) {
-      // Le garde de cycle. Une chaîne qui avance d'un maillon à chaque génération SANS qu'aucune
-      // écriture ne la relance est un cycle : on le dit, plutôt que de tourner jusqu'à épuisement
-      // de la mémoire, ce qui est la pire manière de planter.
-      if (++batchIteration > SEUIL_CYCLE) {
-        aErreur = true
-        premiereErreur = new Error("Cycle detected")
-        break
-      }
+      batchIteration++
 
       let generation: Effect<any> | Computed<any> | undefined = batchedEffect
       batchedEffect = undefined
@@ -560,13 +650,16 @@ function endBatch(): void {
       }
     }
   } finally {
-    // L'état est rendu ICI, et l'erreur est levée APRÈS : un `throw` depuis le `finally`
-    // remplacerait celle du cycle par celle d'un effet, et le cycle serait perdu sans un bruit.
-    // C'est ce que dit `docs/architecture.md` §5 — le flush n'a pas de `try`/`finally` qui porte
-    // l'erreur.
+    // L'état est rendu ICI, et l'erreur est levée APRÈS. Un `throw` depuis le `finally`
+    // ÉCRASERAIT celle d'un effet — et SPEC §15.6 le veut : l'erreur d'un effet passe avant celle du
+    // corps du `batch`. Rendre l'état d'abord est donc ce qui rend cet écrasement VOLONTAIRE.
     enDrain = false
     batchIteration = 0
     batchDepth--
+    // Le jeton meurt avec la portée. Le remettre à zéro est sûr pour la déduplication parce que
+    // `batchSnapshotVersion`, lui, reste MONOTONE : un jeton passé ne peut jamais_EQUALS un jeton
+    // à venir, donc aucune entrée ancienne ne peut rejouer.
+    currentBatchSnapshotVersion = 0
   }
 
   if (aErreur) throw premiereErreur
@@ -579,13 +672,19 @@ function endBatch(): void {
  *
  * Le cycle indirect est ici : `_refresh` ne renvoie `false` que si la source est DÉJÀ en train de
  * se calculer, donc si l'on est à l'intérieur d'elle. C'est périmé, donc `true` — l'inverse
- *这么大, la source serait servie périmée et le cycle ne serait jamais détecté.
+ * de cela, la source serait servie périmée et le cycle ne serait jamais détecté.
  */
 function sourcesAreStale(node: { _sources: Node | undefined }): boolean {
   for (let current = node._sources; current !== undefined; current = current._next) {
     const source = current._source
     if (source._version !== current._version) return true
     if (source instanceof Computed && !source._refresh()) return true
+    // Le refus, puis NOUVELLEMENT la version. `_refresh` vient d'évaluer la source, donc de lui
+    // avancer sa version — même quand elle s'évalue bien. Sans cette troisième vérification, une
+    // source fraîchement recalculée passerait pour inchangée et l'amont ne tournerait pas. C'est ce
+    // que SPEC §13.6 exige : un computé invalidé puis relu sans cible réévalue et intègre les
+    // écritures.
+    if (source._version !== current._version) return true
   }
   return false
 }
@@ -787,6 +886,42 @@ export function effect<FnReturn = void>(fn: () => FnReturn, options?: { name?: s
     return dispositeur
 }
 
+/**
+ * Regroupe les écritures et diffère leur propagation jusqu'à la sortie du callback.
+ *
+ * Un `batch` appelé alors qu'une portée est DÉJÀ ouverte n'ouvre rien : il se comporte comme un
+ * simple appel. Donc seul le plus externe draine — SPEC §9.1.
+ *
+ * L'absence de comptabilité porte sur le FLUSH et sur la valeur de retour, pas sur le
+ * `try`/`finally` : une exception dans un batch imbriqué remonte telle quelle au batch externe, qui
+ * drainage puis re-throw. Sans ce `finally`, la profondeur resterait levée et plus rien ne drainerait.
+ */
+export function batch<T>(fn: () => T): T {
+  if (batchDepth > 0) return fn()
+  // Un jeton neuf pour la portée, attribué ICI et nulle part ailleurs : `currentBatch…` change donc
+  // une fois par batch, et un signal ne peut être snapshoté qu'une fois par jeton.
+  currentBatchSnapshotVersion = ++batchSnapshotVersion
+  batchDepth++
+  try {
+    return fn()
+  } finally {
+    endBatch()
+  }
+}
+
+/**
+ * Une entrée de la liste des écritures à réconcilier. Elle est dans la LISTE, pas dans le signal :
+ * le signal n'a que huit propriétés own et son jeu est figé par `signal#3`, et un neuvième champ
+ * ferait échouer `signal#3`. Un computé n'y figure jamais — il écrit `_value` en direct, sans passer
+ * par le setter, donc sans snapshot possible.
+ */
+type Snapshot = {
+  _source: Signal<any>
+  _value: unknown
+  _version: number
+  _next: Snapshot | undefined
+}
+
 // ---- Le computé --------------------------------------------------------------------------------
 
 /**
@@ -907,16 +1042,6 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
     return true
   }
 
-  /**
-   * Vrai si une source a bougé depuis que la cible l'a vue.
-   *
-   * Le parcours part de `_sources`, c'est-à-dire de la source lue EN DERNIER, et remonte vers les
-   * plus anciennes. C'est ce qui autorise la sortie anticipée : si la plus récemment utilisée est
-   * périmée, il est inutile de regarder les autres.
-   *
-   * Le second test sur la version n'est pas redondant : `_refresh()` peut être appelé sur une
-   * source computé ci-dessus et faire bouger sa version.
-   */
   /** Une écriture reçue. Sans abonné, il n'y a personne à réveiller : le calcul est paresseux. */
   override _notify(): void {
     if ((this._flags & NOTIFIED) !== 0) return
@@ -974,7 +1099,7 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
   override peek(): T {
     // `peek()` est une lecture non abonnée — donc elle n'inscrit pas de nœud. Elle actualise
     // quand même, sinon `peek()` servirait une valeur périmée.
-    return horsSuivi(() => this.value)
+    return untracked(() => this.value)
   }
 
   override toString(): string {
