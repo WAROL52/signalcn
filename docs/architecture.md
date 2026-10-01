@@ -74,15 +74,22 @@ dont la détection de sous-objet d'un modèle a besoin.
 Un seul objet `Node` sert de liaison dans deux listes doublement chaînées indépendantes. Son
 champ `_source` est un `Signal`, son champ `_target` un `Computed` ou un `Effect`.
 
-| Liste | Tête | Sens d'insertion | Raison |
-|---|---|---|---|
-| `signal._targets` — les abonnés | en **tête** | O(1) | seule la longueur compte |
-| `node._sources` — les dépendances | en **queue** | O(1) | l'ordre d'utilisation est sémantique |
+| Liste | Tête | Insertion | Parcours | Raison |
+|---|---|---|---|---|
+| `signal._targets` — les abonnés | le plus récent | en tête, O(1) | `_targetPrev`, vers les plus anciens | seule la longueur compte |
+| `node._sources` — les dépendances | le plus récent | en tête, O(1) | `_prev`, vers les plus anciens | l'ordre d'utilisation est sémantique |
 
-L'asymétrie est la géométrie correcte, pas un détail. `_sources` pointe toujours vers la
-**queue**, c'est-à-dire le nœud le plus récemment utilisé. C'est ce qui autorise la sortie
-anticipée de `needsToRecompute` dès qu'une version diffère, et le balayage arrière de
-`cleanupSources`.
+Les deux listes ont la **même** géométrie, et c'est celle-ci qu'il faut écrire sans se tromper :
+l'insertion se fait en tête, la tête est le nœud le plus récemment utilisé, et le parcours descend
+`_prev` vers les plus anciennes. L'asymétrie n'est pas entre les deux listes — elle est **avec la
+baseline**, dont la liste des dépendances est le miroir : chez elle la tête est la plus ancienne et
+le parcours passe par `_nextSource`. Cette divergence est un arbitrage en cours, #36.
+
+Ce qui autorise la sortie anticipée de `sourcesAreStale` dès qu'une version diffère, et le balayage de
+`cleanupSources`, c'est que la tête est en tête de liste, et que le parcours suit `_prev`. Le piège
+est symétrique : `_next` part de la tête, où il vaut `undefined`, donc un parcours par `_next` ne rend
+**qu'un seul nœud**, silencieusement. C'est ce qui a produit les quatre traversages faux corrigés en
+`0d61427` — `sourcesAreStale`, `disposeSelf`, et les deux surcharges de `Computed`.
 
 ### La sentinelle de recyclage
 
@@ -122,7 +129,7 @@ inutile, jamais une valeur fausse. C'est le bon échange : la voie rapide est bo
 Un effet n'a pas de `_globalVersion` : il ne cache rien, donc rien à raccourcir. Sa
 détermination se fait nœud par nœud, à la demande.
 
-## 5. Le batch et le flush
+## 5. Le batch et le drainage
 
 Trois variables de module :
 
@@ -140,7 +147,7 @@ Ce LIFO n'est pas un choix séparé, c'est la conséquence de l'insertion en tê
 pratique est la **localité** : si un effet réveille deux aval, le plus proche s'exécute
 immédiatement après son producteur, sans jamais attendre la génération suivante.
 
-### Le flush se fait en détachant
+### Le drainage se fait en détachant
 
 L'algorithme, et le cœur de tout le mécanisme :
 
@@ -163,14 +170,14 @@ empile sur une pile vide, donc dans la génération suivante. Et la chaîne est 
 nœud par nœud au fil du parcours, ce qui est la seconde barrière.
 
 Le drapeau `NOTIFIED` est effacé **avant** l'invocation, jamais après. Il déduplique donc
-dans une génération, pas dans un flush.
+dans une génération, pas dans un drainage.
 
 Le drain est ainsi en **largeur de notification** : une génération = tout ce que la même
 écriture a réveillé, puis tout ce que ces effets ont réveillé.
 
 ### Erreurs
 
-Le flush n'a pas de `try`/`finally`. Il accumule explicitement : la première erreur gagne,
+Le drainage n'a pas de `try`/`finally`. Il accumule explicitement : la première erreur gagne,
 les suivantes sont avalées, le drain se termine, l'état global est intégralement restauré,
 et **ensuite** l'erreur est levée.
 
@@ -185,17 +192,17 @@ batch** et sa version **avant batch**. Les abonnés sont relus au moment de la r
 ### La condition d'enregistrement
 
 Un snapshot n'est pris que si l'on est dans le corps du `batch` de l'utilisateur, et pas
-pendant le flush. Les deux exclusions ont une raison chacune, et la seconde est contre-intuitive :
+pendant le drainage. Les deux exclusions ont une raison chacune, et la seconde est contre-intuitive :
 
 - hors de tout batch, il n'y a pas d'état pré-batch auquel se comparer ;
-- **pendant le flush, la propagation de version est un canal voulu.** C'est par lui qu'un effet qui écrit un signal réveille ses propres dépendants pour la génération suivante. Désactiver la propagation ici casserait les cascades multi-effets, et ferait boucler une auto-écriture jusqu'au seuil.
+- **pendant le drainage, la propagation de version est un canal voulu.** C'est par lui qu'un effet qui écrit un signal réveille ses propres dépendants pour la génération suivante. Désactiver la propagation ici casserait les cascades multi-effets, et ferait boucler une auto-écriture jusqu'à la borne.
 
 Un jeton de lot, porté par la source, garantit **un seul snapshot par source par batch**,
 même si elle est écrite dix fois.
 
 ### L'algorithme de fast-forward
 
-Au moment du flush, **avant** la boucle de drain :
+Au moment du drainage, **avant** la boucle de drain :
 
 1. détacher la pile de snapshots, comme pour la pile d'effets ;
 2. pour chaque snapshot, comparer `source._value === snapshot._value` ;
@@ -229,25 +236,32 @@ fast-forward ne s'applique qu'aux nœuds ayant vu la version pré-batch.
 pas un `Object.is`. Donc un signal passé à `NaN` n'est **jamais** considéré comme réverti,
 et un signal passé de `-0` à `0` l'est **toujours**.
 
-## 7. La détection de cycle
+## 7. L'auto-rentrée et la borne de drainage
 
-**Deux mécanismes distincts**, parce qu'ils ne répondent pas au même problème.
+**Deux mécanismes distincts**, parce qu'ils ne répondent pas au même problème. Un seul détecte quoi
+que ce soit, et il ne voit que l'auto-rentrée.
 
-### Mécanisme A — le compteur d'itérations de flush
+### Mécanisme A — le compteur de drainages
 
 Armé depuis le setter d'un signal, à l'intérieur de la garde d'égalité, donc avant toute
-mutation. Un cycle borné ne lève pas : c'est une **limite de débit**, pas une détection.
+mutation. Un cycle borné ne lève pas : c'est une **limite de débit**.
 
-Ce n'est pas une détection de cycle, et ce n'est pas présenté comme tel : rien n'inspecte le
-graphe, rien ne distingue une vraie boucle d'une chaîne légitime d'effets. Détecter
-exactement un cycle serait indécidable — un effet qui réécrit une valeur *légèrement
+Ce n'est pas une reconnaissance de cycle, et ce n'est pas présenté comme tel : rien n'inspecte le
+graphe, rien ne distingue une vraie boucle d'une chaîne légitime d'effets. Reconnaître exactement
+un cycle serait indécidable — un effet qui réécrit une valeur *légèrement
 différente* est un schéma légitime. La limite de débit est le bon outil.
 
-Le setter **imbrique son propre batch**, donc le flush imbriqué ne fait rien et chaque
-génération correspond à exactement une exécution d'effet. Le seuil compte des générations, pas
+Et le prix se paie : une cascade légitime assez longue atteint la borne, et le moteur lève alors
+qu'aucun cycle n'existe. Exemple mesuré, identique sur la baseline : une chaîne de 150 effets, chacun
+lisant le précédent et écrivant le suivant **sans le relire**, lève `Error: Cycle detected` alors
+qu'aucun nœud ne se relit. À 101 maillons, la même chaîne passe. La borne exacte n'est pas figée,
+§15.2 — ce qui compte ici n'est pas le nombre, c'est qu'un graphe sans cycle puisse lever.
+
+Le setter **imbrique son propre batch**, donc le drainage imbriqué ne fait rien et chaque
+génération correspond à exactement une exécution d'effet. La borne compte des générations, pas
 des tours de boucle.
 
-**Le seuil est un paramètre d'implémentation, pas une constante sémantique.** Il n'existe pas
+**La borne est un paramètre d'implémentation, pas une constante sémantique.** Il n'existe pas
 de valeur correcte : seulement une valeur assez grande pour ne pas casser les cascades
 légitimes, assez petite pour ne pas figer. `SPEC.md` §15.2 exige que le cycle **existe**, pas
 qu'il tombe à 102.
@@ -269,9 +283,9 @@ lecture**, pas depuis le site d'écriture.
 ### Pourquoi il en faut deux
 
 Le mécanisme B détecte un cycle de **lecture**, synchrone, dans la pile d'appels. Le
-mécanisme A détecte une oscillation **asynchrone**, dans le flush. Avec B seul, une
+mécanisme A détecte une oscillation **asynchrone**, dans le drainage. Avec B seul, une
 auto-écriture boucle pour toujours. Avec A seul, un cycle de lecture passe 100 fois dans le
-flush avant de lever — lent mais correct.
+drainage avant de lever — lent mais correct.
 
 ## 8. Le tracking
 
@@ -308,8 +322,8 @@ Trois défenses contre l'itération invalide :
 - **la sauvegarde de l'emplacement** de la source, par nœud, exactement une fois par passe —
   sans elle, un computed imbriqué qui lit une source déjà lue laisserait la source pointant
   sur le nœud du parent, et le parent perdrait sa correspondance ;
-- **l'ajout en queue** : un nœud écrit est toujours **derrière** le pointeur de course, jamais
-  devant. On n'ajoute jamais dans une liste qu'on parcourt.
+- **l'insertion en tête** : un nœud écrit tombe là où le pointeur de course vient de passer, donc
+  toujours **derrière** lui, jamais devant. On n'ajoute jamais dans une liste qu'on parcourt.
 
 ## 10. Les drapeaux
 
@@ -330,7 +344,7 @@ en lisant les nœuds. Il n'a pas de cache, donc pas besoin d'un drapeau de cache
 
 Les deux effacements de `NOTIFIED` sont inconditionnels et	positionnés **avant** tout test.
 C'est ce qui permet à un computed de notifier ses propres abonnés en cascade au tour suivant du
-flush, au lieu de devenir silencieusement définitif.
+drainage, au lieu de devenir silencieusement définitif.
 
 ## 11. `createModel` — la portée de capture
 
@@ -460,11 +474,11 @@ valeurs référentiellement stables.
 ### Détection des fonctions asynchrones
 
 Une fonction asynchrone est enveloppée sans avertissement, et `action` ne batch que son préfixe
-synchrone. Un modèle avec une méthode `async` observe donc **deux flushs** au lieu d'un, et rien
+synchrone. Un modèle avec une méthode `async` observe donc **deux drainages** au lieu d'un, et rien
 ne le signale.
 
 Nous **avertissons** au moment de l'enveloppement. Corriger — attendre la promesse avant de
-fermer le batch — changerait le contrat synchrone de `action` et rendrait le flush non
+fermer le batch — changerait le contrat synchrone de `action` et rendrait le drainage non
 déterministe pour les observateurs. Avertir apprend sans casser.
 
 ## 14. `createModel` — le dispose
@@ -550,7 +564,7 @@ figé.
 ### Dans les scénarios
 
 Le **nom** d'un scénario porte la traçabilité — il contient la référence du contrat. Un
-commentaire n'explique que ce qui ne se devine pas : pourquoi un ordre de flush est normatif,
+commentaire n'explique que ce qui ne se devine pas : pourquoi un ordre de drainage est normatif,
 pourquoi une valeur ne doit pas être observée.
 
 ## 16. Les écarts assumés
@@ -567,7 +581,7 @@ et [ADR-0005 — Les défauts non figés de `createModel` sont corrigés](./adr/
 | `Object.keys(Computed.prototype)` | vide, au lieu de douze noms de champs |
 | `Computed.prototype` sans état | plus d'empoisonnement global par une lecture `.value` sur le prototype |
 | `Computed.prototype.constructor` | `Computed`, au lieu de `Signal` |
-| Le seuil de cycle n'est pas figé à 102 | `SPEC.md` §15.2 |
+| La borne de drainage n'est pas figée à 102 | `SPEC.md` §15.2 |
 
 Et les sept écarts de `createModel` listés dans `SPEC.md` §16.6, tous couverts par
 [ADR-0005](./adr/0005-defauts-non-figes-de-createmodel.md).

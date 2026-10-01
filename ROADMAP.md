@@ -111,18 +111,18 @@ l'implémentation.
 - [ ] Implémenter `computed()` et l'évaluation paresseuse.
 - [ ] Implémenter le cache et la voie rapide par version globale.
 - [ ] Implémenter l'invalidation et la réconciliation des dépendances.
-- [ ] Implémenter la détection de cycle.
+- [ ] Implémenter l'auto-rentrée et la borne de drainage.
 
 ### Effect
 
 - [ ] Implémenter `effect()` et le suivi des dépendances.
 - [ ] Implémenter les callbacks de cleanup.
 - [ ] Implémenter le disposer.
-- [ ] Implémenter le flush en détachant, en largeur.
+- [ ] Implémenter le drainage en détachant, en largeur.
 
 ### Batch / untracked
 
-- [ ] Implémenter `batch()` et le flush LIFO.
+- [ ] Implémenter `batch()` et le drainage LIFO.
 - [ ] Implémenter la réconciliation de snapshots.
 - [ ] Implémenter `untracked()`.
 - [ ] Garantir la restauration du contexte après exception.

@@ -34,7 +34,7 @@ Toute montée de version upstream est un changement de contrat de compatibilité
 - Compatibilité avec des environnements JavaScript standards.
 - Zéro dépendance runtime externe.
 - Interdiction de toute sortie du cœur : framework, DOM, réseau, ordonnanceur asynchrone, `import()` dynamique, `require`, `eval`, `new Function`.
-- Le flush est synchrone. `setTimeout`, `queueMicrotask` et `Promise` sont donc interdits, et il n'y a rien à configurer.
+- Le drainage est synchrone. `setTimeout`, `queueMicrotask` et `Promise` sont donc interdits, et il n'y a rien à configurer.
 - Interdiction de lire l'horloge, l'aléa ou un générateur cryptographique.
 - Cœur autonome.
 - Comportement observable déterministe selon le présent contrat.
@@ -224,14 +224,14 @@ Dans le callback d'un effect, `this` est l'instance `Effect` **pour une fonction
 
 ### 8.4 Ordre d'exécution
 
-- L'ordre de flush est l'**inverse** de l'ordre de notification (§13.4).
+- L'ordre de drainage est l'**inverse** de l'ordre de notification (§13.4).
 - Le drain est en **largeur** : une chaîne de notification est vidée entièrement avant la suivante ; les effets notifiés pendant l'exécution repartent dans une nouvelle chaîne.
-- Un effet disposé alors qu'il est dans la file de flush est **sauté silencieusement**, sans callback.
-- Un effet qui écrit une dépendance qu'il lit se ré-exécute dans la même flush.
+- Un effet disposé alors qu'il est dans la file de drainage est **sauté silencieusement**, sans callback.
+- Un effet qui écrit une dépendance qu'il lit se ré-exécute dans le même drainage.
 
 ## 9. Batch
 
-`batch(fn)` regroupe les mutations et diffère la propagation observable jusqu'au flush, qui est **synchrone**.
+`batch(fn)` regroupe les mutations et diffère la propagation observable jusqu'au drainage, qui est **synchrone**.
 
 ```ts
 batch(() => {
@@ -242,19 +242,19 @@ batch(() => {
 
 ### 9.1 Batches imbriqués
 
-Un `batch` appelé alors qu'un `batch` est déjà ouvert n'incrémente pas la profondeur : il se comporte comme un simple appel de `fn`. **Seul le batch le plus externe flush.**
+Un `batch` appelé alors qu'un `batch` est déjà ouvert n'incrémente pas la profondeur : il se comporte comme un simple appel de `fn`. **Seul le batch le plus externe draine.**
 
-Précision normative : l'absence de comptabilité supplémentaire porte sur le flush et sur la valeur de retour, **pas** sur le `try`/`finally`. Les setters internes ouvrent et ferment toujours leur propre portée ; et une exception dans un batch imbriqué **ne** passe pas par un `finally` local — elle remonte au batch externe, qui flush puis re-throw.
+Précision normative : l'absence de comptabilité supplémentaire porte sur le drainage et sur la valeur de retour, **pas** sur le `try`/`finally`. Les setters internes ouvrent et ferment toujours leur propre portée ; et une exception dans un batch imbriqué **ne** passe pas par un `finally` local — elle remonte au batch externe, qui draine puis re-throw.
 
-Un batch imbriqué propage la valeur de retour du callback. Trois niveaux d'imbrication produisent un seul flush. Un batch sans écriture ne flush pas.
+Un batch imbriqué propage la valeur de retour du callback. Trois niveaux d'imbrication produisent un seul drainage. Un batch sans écriture ne draine pas.
 
 ### 9.2 Erreurs
 
-`batch` fait remonter l'erreur de son corps **mais flush quand même**. La profondeur de batch est restaurée, même après une exception. Le compteur d'itérations de flush est remis à zéro après une erreur.
+`batch` fait remonter l'erreur de son corps **mais draine quand même**. La profondeur de batch est restaurée, même après une exception. Le compteur de drainages est remis à zéro après une erreur.
 
 ### 9.3 Coalescence
 
-Écrire plusieurs fois la même valeur dans un batch ne produit qu'une notification. Un effet notifié deux fois ne tourne qu'une fois par flush. Le cas `A → B → A` dans un batch est traité par réconciliation de snapshots (§13.5).
+Écrire plusieurs fois la même valeur dans un batch ne produit qu'une notification. Un effet notifié deux fois ne tourne qu'une fois par drainage. Le cas `A → B → A` dans un batch est traité par réconciliation de snapshots (§13.5).
 
 ### 9.4 Cas obligatoires de test
 
@@ -263,8 +263,8 @@ Un batch imbriqué propage la valeur de retour du callback. Trois niveaux d'imbr
 - plusieurs écritures ;
 - lecture après écriture à l'intérieur d'un batch ;
 - computed lu pendant le batch ;
-- flush après sortie du batch extérieur ;
-- exception dans le callback, avec flush quand même ;
+- drainage après sortie du batch extérieur ;
+- exception dans le callback, avec drainage quand même ;
 - batch imbriqué dont le callback lève, rattrapé par l'extérieur ;
 - valeur de retour de `batch()`, y compris imbriquée.
 
@@ -306,9 +306,9 @@ Tout abonnement ou effect ayant une opération de dispose doit pouvoir être net
 
 Observations normatives :
 
-- un cleanup qui **lève** dispose l'effet, y compris en pleine flush, et l'erreur est propagée ; un cleanup qui lève **interrompt** la boucle de dispose d'un modèle, les modèles suivants n'étant pas disposés ;
+- un cleanup qui **lève** dispose l'effet, y compris en plein drainage, et l'erreur est propagée ; un cleanup qui lève **interrompt** la boucle de dispose d'un modèle, les modèles suivants n'étant pas disposés ;
 - un cleanup qui lit le signal dont dépend l'effet ne le réabonne pas, mais lit la valeur post-écriture ;
-- les écritures faites dans un cleanup sont **différées** si le dispose a lieu pendant une flush, **immédiates** s'il a lieu hors flush ;
+- les écritures faites dans un cleanup sont **différées** si le dispose a lieu pendant un drainage, **immédiates** s'il a lieu hors drainage ;
 - un cleanup qui lève ne casse pas le contexte de suivi.
 
 Les tests doivent vérifier :
@@ -353,13 +353,13 @@ A → B → C → Effect
         computed
 ```
 
-### 13.4 Ordre de flush
+### 13.4 Ordre de drainage
 
 **Normatif.** La file d'effets différés est une **pile** :
 
 - trois signaux distincts écrits dans un batch produisent l'ordre inverse des écritures : `["C:1","B:1","A:1"]` ;
 - plusieurs effets sur le **même** signal sortent dans l'ordre de création : `["d4:1","d3:1","d2:1","d1:1"]` ;
-- le drain entre deux itérations de flush est en largeur.
+- le drain entre deux drainages est en largeur.
 
 Ce sont **deux règles distinctes**. Les confondre produit une suite qui passe sur les graphes simples et échoue sur les graphes réels.
 
@@ -367,7 +367,7 @@ Ce sont **deux règles distinctes**. Les confondre produit une suite qui passe s
 
 Écrire `A → B → A` à l'intérieur d'un batch n'oblige pas les aval à se recalculer : les nœuds qui ont vu la version pré-batch sont advanced d'un cran.
 
-**Le fast-forward ne s'applique qu'aux nœuds ayant vu la version pré-batch.** Une lecture paresseuse pendant le batch suffit à faire perdre cet avantage : le cas `A → B → A` **avec** lecture intermédiaire fait tourner l'effet une seconde fois, avec la valeur revertie. Le snapshot n'est enregistré que pendant le corps du `batch` utilisateur : une écriture faite par un effect pendant le flush n'y entre pas.
+**Le fast-forward ne s'applique qu'aux nœuds ayant vu la version pré-batch.** Une lecture paresseuse pendant le batch suffit à faire perdre cet avantage : le cas `A → B → A` **avec** lecture intermédiaire fait tourner l'effet une seconde fois, avec la valeur revertie. Le snapshot n'est enregistré que pendant le corps du `batch` utilisateur : une écriture faite par un effect pendant le drainage n'y entre pas.
 
 ### 13.6 Assertions obligatoires
 
@@ -410,16 +410,19 @@ Comportement normatif, dérivé de la baseline et non de l'intuition :
 
 ### 15.1 Deux mécanismes distincts
 
-La détection de cycle repose sur **deux mécanismes**, et non un :
+L'auto-rentrée et la borne de drainage reposent sur **deux mécanismes**, et non un — et un seul des
+deux détecte quoi que ce soit :
 
-- le **compteur d'itérations de flush**, armant depuis le setter ;
+- le **compteur de drainages**, armé depuis le setter ;
 - le flag `RUNNING` sur un computed en cours d'évaluation, indépendant du compteur. Lire un computed pendant son propre calcul lève immédiatement, même hors batch.
 
-### 15.2 Seuil
+### 15.2 Borne de drainage
 
-Ce mécanisme est une **limite de débit**, pas une détection : rien n'inspecte le graphe, et rien ne distingue une vraie boucle d'une chaîne légitime d'effets. Détecter exactement un cycle serait indécidable — un effet qui réécrit une valeur légèrement différente est un schéma légitime.
+Ce mécanisme est une **limite de débit**, pas une reconnaissance : rien n'inspecte le graphe, et rien ne distingue une vraie boucle d'une chaîne légitime d'effets. Reconnaître exactement un cycle serait indécidable — un effet qui réécrit une valeur légèrement différente est un schéma légitime.
 
-Le contrat est donc : **une oscillation asynchrone se termine par une `Error`, dans un nombre borné d'itérations de flush.** Le seuil lui-même est un paramètre d'implémentation, et son compte n'est pas figé. La baseline utilise cent générations de flush, ce qui produit une erreur après cent-deux exécutions d'effet ; un ping-pong de deux effets donne 52 / 51 exécutions, à trois effets 35 / 35 / 34.
+Le prix : une cascade légitime assez longue atteint la borne, et le moteur lève alors qu'aucun cycle n'existe. Une chaîne de 150 effets, chacun lisant le précédent et écrivant le suivant, lève `Error: Cycle detected` — aucun nœud ne se relit. Le message nomme donc « Cycle » un graphe qui n'en contient pas ; c'est celui de la baseline, et §15.4 ne fige pas la chaîne.
+
+Le contrat est donc : **une oscillation asynchrone se termine par une `Error`, dans un nombre borné de drainages.** La borne elle-même est un paramètre d'implémentation, et son compte n'est pas figé. La baseline utilise cent drainages, ce qui produit une erreur après cent-deux exécutions d'effet ; un ping-pong de deux effets donne 52 / 51 exécutions, à trois effets 35 / 35 / 34.
 
 Un cycle **borné** ne lève pas : `if (v < 50) a = v + 1` produit 51 exécutions sans erreur.
 
@@ -440,7 +443,7 @@ Un cycle **borné** ne lève pas : `if (v < 50) a = v + 1` produit 51 exécution
 
 ### 15.6 Drain et hiérarchie des erreurs
 
-- la **première erreur mémorisée est la première rencontrée dans l'ordre de flush**, pas la première chronologique ;
+- la **première erreur mémorisée est la première rencontrée dans l'ordre de drainage**, pas la première chronologique ;
 - le drain est **complet** : les effets sans erreur tournent malgré l'erreur d'un pair ;
 - l'erreur est re-throwée depuis le setter si l'écriture a eu lieu hors batch, et depuis le `batch` sinon ;
 - **l'erreur d'un effet écrase l'erreur du corps du `batch`**, y compris en cas d'imbrication.
@@ -493,7 +496,7 @@ Si la fabrique lève, les effets capturés sont perdus : ils survivent à tout d
 
 ### 16.5 Dispose
 
-`model[Symbol.dispose]` est un `action`, donc il batche les disposes, les cleanups étant flushés dans l'ordre, un par un.
+`model[Symbol.dispose]` est un `action`, donc il batche les disposes, les cleanups étant drainés dans l'ordre, un par un.
 
 - il **écrase** silencieusement un `Symbol.dispose` fourni par l'utilisateur ;
 - il n'est pas énumérable : `Object.keys` ne le contient pas, `Object.getOwnPropertySymbols` contient exactement `Symbol(Symbol.dispose)` ;
@@ -713,7 +716,7 @@ Les écarts suivants sont **volontaires**. Chacun est documenté ici, et aucun n
 | Les méthodes de prototype sont **non énumérables**. `for..in` sur un signal expose 8 clés au lieu de 17, sur un computed 12 au lieu de 22. `Object.keys(Computed.prototype)` est vide au lieu de douze noms de champs. | Le comportement normal d'une classe ES2020. Aucun outil ne s'appuie sur l'énumération des méthodes. Voir [ADR-0004](docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md). |
 | `Computed.prototype` **ne porte pas d'état**. Lire `.value` dessus échoue sans rien empoisonner. | La baseline en fait une instance de `Signal` : un prototype partagé dont une lecture `.value` condamne le prototype pour tous les computeds du même realm. Supprimer cet état supprime le quirk. Voir [ADR-0004](docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md). |
 | `Computed.prototype.constructor` vaut `Computed`, et non `Signal`. | Conséquence directe du précédent, et un correctif : l'introspection de type par `.constructor` est juste. |
-| Le seuil de détection de cycle **n'est pas figé** à 102 (§15.2). | Cent est un ordre de grandeur, pas une constante sémantique. Le mécanisme est contractuel, le compte ne l'est pas. |
+| La borne de drainage **n'est pas figée** à 102 (§15.2). | Cent est un ordre de grandeur, pas une constante sémantique. Le mécanisme est contractuel, le compte ne l'est pas. |
 | Les **sept écarts de `createModel`** (§16.6). | Le veto `brand` par valeur, les clés propres, la descension par descripteur, la mémoïsation, l'absence de clé `"undefined"`, l'avertissement asynchrone, et quatre gardes. Voir [ADR-0005](docs/adr/0005-defauts-non-figes-de-createmodel.md). |
 
 Toute divergence supplémentaire exige un ADR.

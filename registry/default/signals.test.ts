@@ -816,7 +816,7 @@ export const scenarios: Scenario[] = [
     },
   },
   {
-    // SPEC §8.4 — un effet qui écrit une dépendance qu'il lit se ré-exécute dans la MÊME flush. Le
+    // SPEC §8.4 — un effet qui écrit une dépendance qu'il lit se ré-exécute dans le MÊME drainage. Le
     // drain est en largeur : une génération est vidée entièrement avant la suivante.
     name: "effect/auto-ecriture",
     matrice: ["effect#16"],
@@ -1009,7 +1009,7 @@ export const scenarios: Scenario[] = [
       },
   },
   {
-    // SPEC §12 — un cleanup qui LÈVE dispose l'effet, même en pleine flush : l'écriture suivante
+    // SPEC §12 — un cleanup qui LÈVE dispose l'effet, même en plein drainage : l'écriture suivante
     // ne propage plus. Et il ne casse pas le contexte de suivi, le moteur reste utilisable.
     name: "dispose/cleanup-qui-leve",
     matrice: ["effect#28", "effect#30", "effect#31"],
@@ -1049,7 +1049,7 @@ export const scenarios: Scenario[] = [
     },
   },
   {
-    // SPEC §8.4 — un effet disposé ALORS qu'il est dans la file de flush est sauté
+    // SPEC §8.4 — un effet disposé ALORS qu'il est dans la file de drainage est sauté
     // silencieusement, sans callback.
     name: "dispose/dans-la-file",
     matrice: ["effect#14", "dispose#8"],
@@ -1165,7 +1165,7 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §9.1 — un batch imbriqué ne compte pas la profondeur : il se comporte comme un simple
-    // appel. Seul le plus externe flush, et la valeur de retour intérieure remonte.
+    // appel. Seul le plus externe draine, et la valeur de retour intérieure remonte.
     name: "batch/valeur-et-imbrication",
     matrice: ["batch#3", "batch#5", "batch#6"],
     run(api, log) {
@@ -1207,7 +1207,7 @@ export const scenarios: Scenario[] = [
     },
   },
   {
-    // SPEC §9.1 — trois niveaux d'imbrication, un seul flush. Et l'ordre de flush est l'INVERSE de
+    // SPEC §9.1 — trois niveaux d'imbrication, un seul drainage. Et l'ordre de drainage est l'INVERSE de
     // l'ordre de notification, pas l'ordre de création : `b` est écrit en second, donc `C` passe
     // avant `A` et `B`. C'est la règle de §13.4, et elle se lit ici.
     name: "batch/trois-niveaux-et-ordre",
@@ -1240,8 +1240,8 @@ export const scenarios: Scenario[] = [
     },
   },
   {
-    // SPEC §9.2 — l'erreur du corps remonte ET le flush a lieu quand meme. La profondeur doit etre
-    // restauree, sinon l'ecriture suivante ne flusherait plus jamais.
+    // SPEC §9.2 — l'erreur du corps remonte ET le drainage a lieu quand meme. La profondeur doit etre
+    // restauree, sinon l'ecriture suivante ne drainerait plus jamais.
     name: "batch/erreur-du-corps-et-profondeur",
     matrice: ["batch#4", "batch#10"],
     run(api, log) {
@@ -1259,7 +1259,7 @@ export const scenarios: Scenario[] = [
       }
       log("erreur du corps", type)
       log("journal malgre l erreur", JSON.stringify(journal))
-      // La profondeur est restauree : une ecriture hors batch doit flusher normalement.
+      // La profondeur est restauree : une ecriture hors batch doit drainer normalement.
       a.value = 2
       log("apres une ecriture hors batch", JSON.stringify(journal))
       assert.deepEqual(log.entries, [
@@ -1271,8 +1271,8 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §9.1 et §9.2 — une exception dans un batch IMBRIQUE ne passe pas par un `finally` local :
-    // elle remonte au batch externe, qui flush puis re-throw. Donc RIEN ne flush au milieu, meme si
-    // l'exterieur rattrape : `end` passe avant le flush, et le flush voit la valeur finale.
+    // elle remonte au batch externe, qui draine puis re-throw. Donc RIEN ne draine au milieu, meme si
+    // l'exterieur rattrape : `end` passe avant le drainage, et le drainage voit la valeur finale.
     name: "batch/erreur-interieure-rateepee",
     matrice: ["batch#8", "batch#9"],
     run(api, log) {
@@ -1316,7 +1316,7 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §9.3 — ecrire plusieurs fois la MEME valeur ne notifie qu'une fois, et un effet notifie
-    // deux fois ne tourne qu'une fois par flush. Le temoin lit `a`, donc il a bien une dependance.
+    // deux fois ne tourne qu'une fois par drainage. Le temoin lit `a`, donc il a bien une dependance.
     name: "batch/ecriture-identique",
     matrice: ["batch#2", "batch#11", "batch#12", "batch#15"],
     run(api, log) {
@@ -1329,7 +1329,7 @@ export const scenarios: Scenario[] = [
         a.value = 1
       })
       log("journal", JSON.stringify(journal))
-      // Un batch sans ecriture ne flush pas du tout.
+      // Un batch sans ecriture ne draine pas du tout.
       api.batch(() => {
         a.value
       })
@@ -1478,7 +1478,7 @@ export const scenarios: Scenario[] = [
     // SPEC §15.2 — un cycle BORNE ne leve pas : cinquante et une executions, silencieusement. Un
     // cycle non borne finit par une `Error`, en un nombre borne de generations.
     //
-    // Le compte n'est PAS fige (§15.2 et §21 : le seuil est un parametre d'implementation), donc ce
+    // Le compte n'est PAS fige (§15.2 et §21 : la borne est un parametre d'implementation), donc ce
     // scenario verifie le CARACTERE de la sortie — « une Error, et un compte borne » — pas un
     // nombre exact. Une assertion sur 102 serait fausse des que le seuil bouge.
     name: "batch/cycle-borne-et-non-borne",
@@ -1545,7 +1545,7 @@ export const scenarios: Scenario[] = [
       }
       log("apres une erreur : type", typeApres)
       log("apres une erreur : le compteur repart", runsApres > 1 ? "oui" : "non")
-      // `batch#13` — un effect qui ouvre SON PROPRE batch pendant le flush re-batche : la
+      // `batch#13` — un effect qui ouvre SON PROPRE batch pendant le drainage re-batche : la
       // notification de l'effet exterieur attend la sortie de ce batch-la.
       const exterieur = api.signal(0)
       const journal: string[] = []
@@ -1582,7 +1582,7 @@ export const scenarios: Scenario[] = [
         // dépendances à plus d'un élément, et donc ce qui fait que le drainage a une file à vider.
         //
         // Les COMPTES EXACTS (52/51, 35/35/34) ne sont pas affirmés : SPEC §15.2 refuse de figer
-        // le seuil, §21 le confirme. Ce qui se fige, c'est le CARACTÈRE — chaque effet tourne
+        // la borne, §21 le confirme. Ce qui se fige, c'est le CARACTÈRE — chaque effet tourne
         // plusieurs fois, et une erreur sort. C'est ce que la divergence observée faisait échouer.
         const formePingPong = (nb: number): [string, boolean] => {
           const signaux = Array.from({ length: nb }, () => api.signal(0))
@@ -1622,7 +1622,7 @@ export const scenarios: Scenario[] = [
         const [typePing3, ping3Tourne] = formePingPong(3)
         log("ping pong a 3 effets : type", typePing3)
         log("ping pong a 3 effets : tous ont tourne", ping3Tourne ? "oui" : "non")
-        log("batch cree dans le flush", JSON.stringify(journal))
+        log("batch cree dans le drainage", JSON.stringify(journal))
       assert.deepEqual(log.entries, [
         "cycle borne : runs 51",
         "cycle borne : leve aucune",
@@ -1636,7 +1636,7 @@ export const scenarios: Scenario[] = [
           "ping pong a 2 effets : tous ont tourne oui",
           "ping pong a 3 effets : type Error",
           "ping pong a 3 effets : tous ont tourne oui",
-        'batch cree dans le flush ["avant:0","dans le batch de l effect","apres:0","avant:1","dans le batch de l effect","apres:1"]',
+        'batch cree dans le drainage ["avant:0","dans le batch de l effect","apres:0","avant:1","dans le batch de l effect","apres:1"]',
       ])
     },
   },
@@ -1964,7 +1964,7 @@ export const COUVERTURE: Record<string, string> = {
   //
   // `batch#24` et `batch#25` — le ping-pong entre effets — n'ont NI fauxificateur NI scénario, parce
   // qu'ils ne passent pas. La chaîne d'une SEULE génération croît sans fin : le compteur
-  // `batchIteration` reste donc figé, et le seuil n'arrive jamais. La baseline s'arrête en 2 ms sur
+  // `batchIteration` reste donc figé, et la borne n'arrive jamais. La baseline s'arrête en 2 ms sur
   // 52/51 runs ; nous ne nous arrêtons pas. C'est un défaut du DRAINAGE, et il est REPRODUCTIBLE
   // SANS `batch` — deux signaux et deux effets suffisent — donc il ne tombe pas sous cette tranche.
   // C'est #35.

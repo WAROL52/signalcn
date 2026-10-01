@@ -102,7 +102,7 @@ _Avoid_ : dirty, périmé, sale
 
 **Drainage** :
 Passage par lequel le moteur réexécute les cibles invalidées. Chaque drainage vide la file d'attente accumulée depuis la dernière passe et n'en fait apparaître aucune nouvelle ; la passe suivante ne s'ouvre que lorsque la file est vide.
-_Avoid_ : flush, vidage, propagation
+_Avoid_ : flush, vidage, passe
 
 **Cycle** :
 Auto-rentrée : un nœud se réévalue alors qu'il est encore en cours d'évaluation. Détecté exactement, par construction, sans aucun comptage, et levé immédiatement. Un cycle n'implique pas de chaîne : deux nœuds qui se relisent ne sont pas un cycle.

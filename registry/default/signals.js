@@ -67,7 +67,7 @@ export class Signal {
         if (this._value !== next) {
             // SPEC §15.1 — le compteur d'itérations de drainage est armé DEPUIS LE SETTER. Le compteur,
             // lui, n'avance que dans le drainage : écrire dans le corps d'un batch ne l'avance pas, et
-            // c'est ce qui borne le seuil aux itérations de drainage et non aux écritures.
+            // c'est ce qui compte les itérations de drainage et non les écritures.
             if (batchIteration > SEUIL_CYCLE)
                 throw new Error("Cycle detected");
             recordBatchSnapshot(this);
@@ -205,13 +205,13 @@ const ABANDONNE = -1;
 let currentObserver = undefined;
 /** Le compteur global. Incrémenté par toute écriture de signal, jamais par un computé. */
 let globalVersion = 0;
-/** La profondeur de portée. `0` signifie « pas dans une portée », et c'est le seul compte qui décide du flush. */
+/** La profondeur de portée. `0` signifie « pas dans une portée », et c'est le seul compte qui décide du drainage. */
 let batchDepth = 0;
 /**
- * Le compteur de générations de flush — le troisième état de module de `docs/architecture.md` §5.
+ * Le compteur de drainages — le troisième état de module de `docs/architecture.md` §5.
  *
  * Il compte de MODULE, pas dans `endBatch`, et c'est délibéré : un compteur local serait remis à
- * zéro par une entrée réentrante, donc le seuil posé dessus ne tomberait jamais. C'est lui qui
+ * zéro par une entrée réentrante, donc la borne posée dessus ne tomberait jamais. C'est lui qui
  * distingue « un programme lent » d'« un cycle ».
  */
 let batchIteration = 0;
@@ -253,9 +253,9 @@ let batchSnapshotVersion = 0;
 /** Le jeton de la portée EN COURS. Comparé au jeton porté par chaque signal. */
 let currentBatchSnapshotVersion = 0;
 /**
- * Le seuil au-delà duquel un flush est un cycle et non un programme lent.
+ * La borne au-delà de laquelle un drainage s'arrête, et non programme lentement.
  *
- * Cent est un ORDRE DE GRANDEUR, pas une constante : la matrice fige le seuil de la baseline à
+ * Cent est un ORDRE DE GRANDEUR, pas une constante : la matrice fige la borne de la baseline à
  * 102, et SPEC §15.2 refuse explicitement de figer le nôtre. Un cycle borné doit pouvoir faire
  * cinquante tours sans lever — `effect#19` le vérifie.
  */
@@ -484,7 +484,7 @@ function reconcileBatchSnapshots() {
  *      différence entre largeur et profondeur ;
  *   4. un effet DISPOSÉ au moment où son tour arrive est sauté, sans callback.
  *
- * L'erreur retenue est la PREMIÈRE dans l'ordre de flush, pas la première chronologique, et le
+ * L'erreur retenue est la PREMIÈRE dans l'ordre de drainage, pas la première chronologique, et le
  * drainage continue malgré les erreurs — un effet qui lève n'en empêche pas dix autres de tourner.
  */
 function endBatch() {
@@ -713,13 +713,14 @@ export class Effect {
             // sans ce relâchement, `RUNNING` restait posé pour toujours, et `_dispose()` différait vers
             // une fermeture qui ne reviendrait jamais — donc le cleanup ne tournait plus jamais.
             //
-            // `NOTIFIED` n'est PAS relâché ici, et c'est `#35`. Le drainage pose ce drapeau en fin de
-            // drainage, PAS dans le run : au moment où l'effet a fini, il est encore notifié de ce qu'il
-            // vient d'écrire. Effacer ce drapeau ici effaçait cette mémoire, et l'effet se notifiait lui-même
-            // à l'écriture suivante — donc il se réempilait dans la file que le drainage venait de vider.
-            // Deux effets qui s'écrivent l'un l'autre refermaient alors la chaîne sur elle-même : la
-            // génération ne finissait plus, `batchIteration` ne montait plus, et le seuil de cycle
-            // n'arrivait jamais. La baseline `endEffect` ne relâche que `RUNNING` (`L847`).
+            // `NOTIFIED` n'est PAS relâché ici, et c'est `#35`. Personne ne le pose pendant le run non
+            // plus : au moment où l'effet a fini, il est encore marqué notifié de ce qu'il vient
+            // d'écrire, et c'est cette mémoire qui l'empêche de se réempiler dans la file que le drainage
+            // vient de vider. Effacer ce drapeau ici effaçait cette mémoire : l'effet se notifiait
+            // lui-même à l'écriture suivante, et deux effets qui s'écrivent l'un l'autre refermaient la
+            // chaîne sur elle-même — la génération ne finissait plus, `batchIteration` ne montait plus,
+            // et la borne de drainage n'arrivait jamais. La baseline `endEffect` ne relâche que
+            // `RUNNING` (`L847`).
             this._flags &= ~RUNNING;
             if ((this._flags & DISPOSED) !== 0)
                 disposeSelf(this);
@@ -794,7 +795,7 @@ export function effect(fn, options) {
  * Un `batch` appelé alors qu'une portée est DÉJÀ ouverte n'ouvre rien : il se comporte comme un
  * simple appel. Donc seul le plus externe draine — SPEC §9.1.
  *
- * L'absence de comptabilité porte sur le FLUSH et sur la valeur de retour, pas sur le
+ * L'absence de comptabilité porte sur le DRAINAGE et sur la valeur de retour, pas sur le
  * `try`/`finally` : une exception dans un batch imbriqué remonte telle quelle au batch externe, qui
  * drainage puis re-throw. Sans ce `finally`, la profondeur resterait levée et plus rien ne drainerait.
  */
