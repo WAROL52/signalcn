@@ -1,22 +1,36 @@
 /**
  * Porte d'installation.
  *
- * Ce qu'elle prouve, et seulement ça : que les items de `registry.json` sont bien installables
- * par la CLI, au bon endroit, avec `tsx: true`, sans toucher `src/`, et que le fichier installé
- * tourne dans un projet qui n'a RIEN d'autre que Node.
+ * Ce qu'elle prouve, et seulement ça : que les SIX items de `registry.json` sont installables par
+ * la CLI, à la racine du projet, par l'adressage GitHub réel — et que les items de test
+ * n'installent rien d'autre que l'item d'implémentation qu'ils déclarent.
  *
  *   node scripts/verifier-installation.mjs
  *
- * Les versions de la CLI sont les deux bornes de la matrice de documentation : la 2.x la plus
- * récente et la 3.x la plus récente. Une version de plus n'est pas une preuve de plus.
+ * Deux versions de la CLI : le PLANCHER DÉCLARÉ et la DERNIÈRE CONNUE. Pas `@latest` — un
+ * `@latest` ici rendrait le dépôt faux sans qu'aucun commit n'ait changé, et c'est pour ça que la
+ * CI porte en plus un canari non bloquant sur la dernière version publiée. Une version de plus
+ * n'est pas une preuve de plus.
  *
- * L'item est passé par CHEMIN LOCAL, pas par URL GitHub. L'adressage GitHub demande un
- * `raw.githubusercontent.com` résolvable et un nom de domaine propre : les deux appartiennent à
- * la tranche #21. Ce que cette porte teste — `type`, `target`, le contenu livré — lui
- * appartient déjà.
+ * L'ADRESSE EST RÉELLE, `owner/repo/item`. Un item passé par chemin local n'éprouverait rien de ce
+ * qui est distribué : la CLI y lit un `content` injecté, alors que sur une adresse elle lit le
+ * fichier DANS le dépôt. La différence a été mesurée — c'est elle qui avait laissé `path` et
+ * `target` confondus dans `registry.json`.
+ *
+ * LA COUTURE ENTRE LES DEUX MOITIÉS. Les contrôles de FORME portent sur l'arbre de travail, les
+ * installations portent sur ce que GitHub sert. Une pull request qui casse `registry.json` est
+ * donc vue par les contrôles de forme, qui ne coûtent rien, tandis que l'adressage lui-même est
+ * éprouvé sur la branche `master`. C'est un défaut connu, pas un oubli : une adresse publique ne
+ * peut pas,/ne veut pas, désigner une pull request.
+ *
+ * La sonde de contrat minimale qui precedait cette version est partie. Elle affirmait cinq
+ * proprietes de `signals.ts` dans un projet jetable — or les TROIS suites installees s'y executent
+ * sur un Node nu, sans `node_modules`, sans TypeScript installe, sans resolution d'alias. C'est la
+ * meme promesse, avec quatre-vingt-dix assertions au lieu de cinq.
  */
 
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises"
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { spawnSync } from "node:child_process"
@@ -25,162 +39,196 @@ import { RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 
-const CLI = [
-  { nom: "shadcn 2.x", paquet: "shadcn@2.10.0" },
-  { nom: "shadcn 3.x", paquet: "shadcn@3.8.5" },
-]
-
+/**
+ * La matrice, ou une liste fournie par `SIGNALCN_CLI`.
+ *
+ * Le canari de la CI passe la DERNIÈRE VERSION PUBLIÉE, qu'on ne peut pas épingler par nature. Il
+ * passe donc sa liste ici plutôt que de dupliquer la porte dans un second fichier : deux fichiers
+ * qui font la même chose divergent, et le canari est précisément le contrôle qu'on oublie de
+ * mettre à jour. Format : JSON, la même forme que la liste par défaut.
+ */
+const CLI = process.env.SIGNALCN_CLI
+  ? JSON.parse(process.env.SIGNALCN_CLI)
+  : [
+      { nom: "shadcn 4.10.0", paquet: "shadcn@4.10.0", plancher: true },
+      { nom: "shadcn 4.21.1", paquet: "shadcn@4.21.1" },
+    ]
 
 /**
- * Le contrat minimal qu'un fichier installé doit tenir. Ce n'est PAS la table différentielle, et
- * c'est assumé : aucun subscriber n'existe encore, il n'y a donc ni baseline ni surface commune
- * à comparer. Rien ici n'est un détail de test. C'est un SOUS-ENSEMBLE du contrat, reduit a ce
- * qu'un fichier .ts doit tenir quand il n'y a autour de lui qu'un Node nu : pas de tsconfig,
- * pas de node_modules, pas de resolution d'alias. C'est plus court que la table differentielle
- * parce qu'il n'y a ni baseline ni subscriber a comparer — pas parce qu'il en verifierait moins.
+ * Chaque item de test, l'item d'implementation qu'il doit installer, et l'ensemble de fichiers
+ * ATTENDU — pas « au moins », l'ensemble. C'est la seule forme qui prouve l'isolation : une liste
+ * de fichiers presents accepte l'installation d'un homonyme, et l'homonyme est precisement ce
+ * qu'un nom nu dans `registryDependencies` provoquerait.
  */
-const CONTRAT = `import { signal } from "./signals.ts"
-const echecs = []
-const verifie = (nom, condition) => { if (!condition) echecs.push(nom) }
+const PAIRES = [
+  { item: "signals-test", impl: "signals", fichiers: ["signals.ts", "signals.test.ts"] },
+  { item: "signals-test-js", impl: "signals-js", fichiers: ["signals.js", "signals.test.js"] },
+  { item: "signals-test-min", impl: "signals-min", fichiers: ["signals.min.js", "signals.test.min.js"] },
+]
 
-// SPEC §5.2 — NaN notifie, et chaque ecriture NaN est une notification distincte.
-const nan = signal(1)
-nan.value = NaN
-nan.value = NaN
-verifie("NaN ecrit deux fois, version 2", nan._version === 2)
-
-// SPEC §5.2 — 0 et -0 sont indiscernables : l'ecriture est ignoree.
-const versMoinsZero = signal(0)
-versMoinsZero.value = -0
-verifie("0 vers -0 ignore", Object.is(versMoinsZero.value, 0))
-
-const versZero = signal(-0)
-versZero.value = 0
-verifie("-0 vers 0 ignore", Object.is(versZero.value, -0))
-
-// SPEC §5.2 — la meme reference n'ecrit rien.
-const stable = signal(1)
-stable.value = 1
-verifie("ecriture identique ignoree", stable._version === 0)
-
-// SPEC §5.3 — l'ordre des proprietes-own est contractuel.
-verifie(
-  "ordre des proprietes",
-  JSON.stringify(Object.keys(signal(1))) ===
-    JSON.stringify(["_value","_version","_node","_targets","_batchSnapshotVersion","_watched","_unwatched","name"]),
-)
-
-if (echecs.length) { console.error(echecs.join(", ")); process.exit(1) }
-`
-
+// ---- 1. La FORME du registre. Aucun réseau, aucun coût -------------------------------------
 const registre = JSON.parse(await readFile(join(RACINE, "registry.json"), "utf8"))
-const source = await readFile(join(RACINE, "registry", "default", "signals.ts"), "utf8")
+const items = registre.items ?? []
+const parNom = new Map(items.map((item) => [item.name, item]))
 
-for (const { nom, paquet } of CLI) {
+porte("six items declares", items.length === 6, `${items.length} declares`)
+porte("les noms sont uniques", parNom.size === items.length)
+
+for (const item of items) {
+  porte(`${item.name} : type registry:file`, item.type === "registry:file", item.type)
+  for (const fichier of item.files ?? []) {
+    porte(`${item.name} : ${fichier.path} vise la racine du projet`, fichier.target?.startsWith("~/"), fichier.target)
+    porte(`${item.name} : ${fichier.path} est type registry:file`, fichier.type === "registry:file", fichier.type)
+    // `path` est un chemin DU REPO. Le confondre avec `target` est l'erreur qui a valu ce ticket :
+    // l'installation passe en local, parce que le transport par chemin lit `content`, et échoue en
+    // GitHub, parce que la CLI y lit `path`.
+    porte(
+      `${item.name} : ${fichier.path} existe dans le depot`,
+      existsSync(join(RACINE, fichier.path)),
+      fichier.path,
+    )
+  }
+}
+
+// Une dependance pleinement qualifiee porte deux barres : `owner/repo/item`. Un nom nu ne
+// designe pas CE registre, et installerait silencieusement l'homonyme d'un autre projet.
+for (const { item, impl } of PAIRES) {
+  const declare = parNom.get(item)
+  const deps = declare?.registryDependencies ?? []
+  porte(
+    `${item} declare une dependance pleinement qualifiee`,
+    deps.length === 1 && /^\S+\/\S+\/\S+$/.test(deps[0]),
+    JSON.stringify(deps),
+  )
+  porte(`${item} depend de ${impl}`, deps[0]?.endsWith(`/${impl}`), JSON.stringify(deps))
+}
+
+// ---- 2. L'INSTALLATION, sur l'adresse réelle ------------------------------------------------
+const preparer = async (dossier) => {
+  await mkdir(join(dossier, "src"), { recursive: true })
+  await writeFile(join(dossier, "src", "app.ts"), "// contenu utilisateur\n")
+  // La CLI refuse de travailler sans tsconfig.json, meme pour un item en JavaScript. Ce n'est pas
+  // un detail : c'est une exigence de la porte d'installation a consigner.
+  await writeFile(
+    join(dossier, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        target: "ES2020",
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        allowImportingTsExtensions: true,
+        rewriteRelativeImportExtensions: true,
+        verbatimModuleSyntax: true,
+        noEmit: true,
+      },
+    }),
+  )
+}
+
+const componentsJson = (tsx) =>
+  JSON.stringify({
+    $schema: "https://ui.shadcn.com/schema.json",
+    style: "new-york",
+    rsc: false,
+    tsx,
+    tailwind: { config: "", css: "", baseColor: "neutral", cssVariables: true },
+    aliases: { components: "~/components", utils: "~/lib/utils", ui: "~/components/ui" },
+  })
+
+const installer = (dossier, paquet, item) =>
+  spawnSync("npx", ["--yes", paquet, "add", `WAROL52/signalcn/${item}`, "-y"], {
+    cwd: dossier,
+    encoding: "utf8",
+  })
+
+for (const { nom, paquet, plancher } of CLI) {
   console.log(`  ${nom} (${paquet})`)
 
-  const projet = await mkdtemp(join(tmpdir(), "signalcn-porte-"))
-  try {
-    // Un projet utilisateur ordinaire : un dossier `src/` qu'il ne faut pas toucher.
-    await mkdir(join(projet, "src"), { recursive: true })
-    await writeFile(join(projet, "src", "app.ts"), "// contenu utilisateur\n")
-    await writeFile(
-      join(projet, "components.json"),
-      JSON.stringify({
-        $schema: "https://ui.shadcn.com/schema.json",
-        style: "new-york",
-        rsc: false,
-        tsx: true,
-        tailwind: { config: "", css: "", baseColor: "neutral", cssVariables: true },
-        aliases: { components: "~/components", utils: "~/lib/utils", ui: "~/components/ui" },
-      }),
-    )
-    // La CLI refuse de travailler sans tsconfig.json, même pour un item en JavaScript.
-    // Ce n'est pas un détail : c'est une exigence de la porte d'installation à consigner.
-    await writeFile(
-      join(projet, "tsconfig.json"),
-      JSON.stringify({
-        compilerOptions: {
-          target: "ES2020",
-          module: "ESNext",
-          moduleResolution: "Bundler",
-          allowImportingTsExtensions: true,
-          rewriteRelativeImportExtensions: true,
-          verbatimModuleSyntax: true,
-          noEmit: true,
-        },
-      }),
-    )
+  for (const { item, fichiers } of PAIRES) {
+    const dossier = await mkdtemp(join(tmpdir(), "signalcn-porte-"))
+    try {
+      await preparer(dossier)
+      await writeFile(join(dossier, "components.json"), componentsJson(true))
 
-    // Un item passé par chemin doit porter son CONTENU : le transport local ne résout pas un
-    // chemin de fichier. C'est une limite du transport, pas du schéma — et c'est pourquoi
-    // `target` reste obligatoire et c'est lui qui décide de l'atterrissage.
-    // L'item est DÉRIVÉ de `registry.json`, pas recopié ici. Comparer une constante à elle-même
-    // ne prouve rien : si `registry.json` se trompait de `target`, cette porte le dirait quand
-    // même. Le seul ajout est `content`, que le transport par chemin exige et qu'aucun registre
-    // distant n'a besoin de porter.
-    const item = structuredClone(registre.items[0])
-    porte(`${nom} : registry.json declare un item`, item !== undefined)
-    if (!item) continue
-    item.$schema = "https://ui.shadcn.com/schema/registry-item.json"
-    item.registryDependencies = item.registryDependencies ?? []
-    for (const fichier of item.files ?? []) {
-      porte(`${nom} : ${fichier.path} porte un target`, typeof fichier.target === "string")
-      fichier.content = source
-    }
-    const cheminItem = join(projet, "item.json")
-    await writeFile(cheminItem, JSON.stringify(item, null, 2))
+      const ajout = installer(dossier, paquet, item)
+      if (ajout.status !== 0) {
+        porte(`${nom} : ${item} s'installe`, false, (ajout.stderr || ajout.stdout).replace(/\s+/g, " ").slice(0, 300))
+        continue
+      }
+      porte(`${nom} : ${item} s'installe`, true)
 
-    const ajout = spawnSync("npx", ["--yes", paquet, "add", "./item.json", "-y"], {
-      cwd: projet,
-      encoding: "utf8",
-    })
-
-    if (ajout.status !== 0) {
-      porte(`${nom} : installation`, false, (ajout.stderr || ajout.stdout).replace(/\s+/g, " ").slice(0, 300))
-      continue
-    }
-    porte(`${nom} : installation`, true)
-
-    // À la racine du projet, pas dans `src/` : c'est `target` qui le décide, et non le nom.
-    const aLaRacine = await readFile(join(projet, "signals.ts"), "utf8").catch(() => null)
-    porte(`${nom} : signals.ts atterrit a la racine`, aLaRacine !== null)
-    porte(
-      `${nom} : src/ intact`,
-      (await readFile(join(projet, "src", "app.ts"), "utf8")) === "// contenu utilisateur\n",
-    )
-
-    // Zéro dépendance d'exécution : c'est une promesse de la distribution, pas un souhait.
-    const importsExternes = [...(aLaRacine ?? "").matchAll(/from\s*"([^"]+)"/g)]
-      .map(m => m[1])
-      .filter(spec => !spec.startsWith(".") && !spec.startsWith("node:"))
-    porte(`${nom} : zero dependance d'execution`, importsExternes.length === 0, importsExternes.join(", "))
-
-    // La CLI REÉCRIT le fichier qu'elle installe, et pas toutes les versions pareil : 2.x
-    // supprime les commentaires, 3.x les garde. On ne compare donc pas les octets — comparer les
-    // octets ferait échouer la porte sur une différence qui n'a aucun effet sur le moteur, et
-    // surtout la laisserait passer si le réécriture cassait quelque chose. Ce qu'on compare,
-    // c'est le CONTRAT.
-    if (aLaRacine !== source) {
-      const commentaires = (source.match(/\/\*[\s\S]*?\*\//g) ?? []).length
-      const gardes = (aLaRacine.match(/\/\*[\s\S]*?\*\//g) ?? []).length
-      console.log(
-        `  note ${nom} : la CLI a reecrit le fichier (${commentaires} -> ${gardes} commentaire(s))`,
+      // L'ensemble, pas un sous-ensemble. Le dossier de travail du projet est le seul endroit où
+      // une installation laisse des traces, donc c'est la seule mesure possible.
+      const presents = (await readdir(dossier)).filter((f) => !["components.json", "tsconfig.json", "src"].includes(f)).sort()
+      porte(
+        `${nom} : ${item} installe exactement ${fichiers.join(", ")}`,
+        JSON.stringify(presents) === JSON.stringify([...fichiers].sort()),
+        presents.join(", "),
       )
-    }
 
-    // Et il tourne, dans ce projet qui n'a que Node : pas de `node_modules`, pas de TypeScript
-    // installé, pas de résolution d'alias. C'est la promesse du code distribué.
-    await writeFile(join(projet, "sonde.mjs"), CONTRAT)
-    porte(`${nom} : le projet n'a pas de node_modules`, !(await readdir(projet)).includes("node_modules"))
-    const tourne = spawnSync(process.execPath, ["sonde.mjs"], { cwd: projet, encoding: "utf8" })
-    porte(
-      `${nom} : le fichier installe tient le contrat sur Node nu`,
-      tourne.status === 0,
-      tourne.status === 0 ? "" : (tourne.stderr || "").replace(/\s+/g, " ").slice(0, 300),
-    )
-  } finally {
-    await rm(projet, { recursive: true, force: true })
+      // Zéro dépendance d'exécution : c'est une promesse de la distribution, pas un souhait. Elle
+      // est VÉRIFIÉE, pas supposee, et la preuve est la suite qui tourne ci-dessous.
+      porte(`${nom} : le projet n'a pas de node_modules`, !presents.includes("node_modules"))
+
+      // `src/` intact : c'est `target` qui decide de l'atterrissage, et non le nom de l'item.
+      porte(
+        `${nom} : src/ intact`,
+        (await readFile(join(dossier, "src", "app.ts"), "utf8")) === "// contenu utilisateur\n",
+      )
+
+      // La suite installee, sur ce Node nu. Et son COMPTE.
+      const { NB_TESTS, scenarios } = await import(join(dossier, fichiers[1]))
+      const suite = spawnSync(process.execPath, ["--test", "--test-reporter=tap", fichiers[1]], {
+        cwd: dossier,
+        encoding: "utf8",
+      })
+      const nombre = (cle) => Number(suite.stdout.match(new RegExp(`^# ${cle} (\\d+)$`, "m"))?.[1] ?? -1)
+      porte(
+        `${nom} : ${item} — ${nombre("pass")} succes sur ${NB_TESTS} attendus`,
+        suite.status === 0 && nombre("pass") === NB_TESTS && nombre("fail") === 0,
+        suite.status === 0 ? "" : (suite.stderr || "").replace(/\s+/g, " ").slice(0, 300),
+      )
+
+      // Le compte de SCENARIOS, distinct du compte de tests : une suite peut(display) tous ses
+      // tests et n'en jouer aucun. On recompte donc les noms de scenarios attendus dans la sortie.
+      const noms = new Set([...suite.stdout.matchAll(/^ok \d+ - (.+)$/gm)].map((m) => m[1]))
+      const joues = scenarios.filter((s) => noms.has(s.name)).length
+      porte(
+        `${nom} : ${item} joue les ${scenarios.length} scenarios de la table`,
+        joues === scenarios.length,
+        `${joues} joues`,
+      )
+    } finally {
+      await rm(dossier, { recursive: true, force: true })
+    }
+  }
+
+  // ---- 3. `tsx: false` doit ECHOUER BRUYAMMENT ---------------------------------------------
+  //
+  // Un `tsx: false` impose l'extension : l'item TypeScript arrive en `signals.js` contenant du
+  // TypeScript. Ce n'est pas un cas d'erreur de la distribution mais un EXIGENCE documentée
+  // (SPEC §17.3, docs/distribution.md §4) — et une exigence qui se manifeste par un silence
+  // serait pire qu'une exigence non documentée. On vérifie donc qu'il y a du bruit, et que ce
+  // bruit vient bien du TypeScript. Mesuré une fois : sur la version plancher seulement, qui est
+  // celle que la documentation déclare comme le plancher.
+  if (plancher) {
+    const dossier = await mkdtemp(join(tmpdir(), "signalcn-porte-tsx-faux-"))
+    try {
+      await preparer(dossier)
+      await writeFile(join(dossier, "components.json"), componentsJson(false))
+      const ajout = installer(dossier, paquet, "signals")
+      porte(`${nom} : tsx:false installe quand meme signals`, ajout.status === 0)
+      const installe = join(dossier, "signals.js")
+      porte(`${nom} : tsx:false impose signals.js`, existsSync(installe))
+      const tourne = spawnSync(process.execPath, [installe], { cwd: dossier, encoding: "utf8" })
+      porte(
+        `${nom} : tsx:false echoue bruyamment`,
+        tourne.status !== 0 && (tourne.stderr || "").trim().length > 0,
+        "le fichier installe a reussi : l'exigence documentee ne tient plus",
+      )
+    } finally {
+      await rm(dossier, { recursive: true, force: true })
+    }
   }
 }
 

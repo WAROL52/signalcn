@@ -75,7 +75,7 @@ function passer(cible) {
     fail: nombre("fail"),
     skipped: nombre("skipped"),
     todo: nombre("todo"),
-    noms: [...sortie.stdout.matchAll(/^ok \d+ - (.+?) \(/gm)].map((m) => m[1]),
+    noms: [...sortie.stdout.matchAll(/^ok \d+ - (.+)$/gm)].map((m) => m[1].trim()),
   }
 }
 
@@ -105,6 +105,16 @@ for (const [cible, fichier] of CIBLES) {
     `${cible} : succes exactement egal au nombre de tests enregistres`,
     resultat.pass === NB_TESTS && resultat.code === 0,
     `${resultat.pass} succes, ${NB_TESTS} attendus`,
+  )
+
+  // Le PARSING des noms ne doit pas pouvoir reussir dans le vide. Si la forme du TAP change, on
+  // compare trois ensembles vides, et la porte passe sans rien prouver — ce qui est arrivé : le
+  // motif exigeait une durée sur la ligne `ok`, or le TAP la place dans un sous-bloc YAML.
+  // Comparer le nombre de noms au nombre de tests rend cette porte non-contournable.
+  porte(
+    `${cible} : tous les noms de tests sont parses`,
+    resultat.noms.length === resultat.pass + resultat.fail,
+    `${resultat.noms.length} noms pour ${resultat.pass} succes et ${resultat.fail} echecs`,
   )
 
   // L'exigence de comptage se paie ici. Deux verdicts qu'un runner seul peut donner sans faire

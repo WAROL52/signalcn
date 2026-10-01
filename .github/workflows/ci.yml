@@ -74,3 +74,22 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verifier-installation
+
+  # Le canari ne BLOQUE pas. Il répond à une seule question : la version publiée de la CLI fait-elle
+  # encore ce que la nôtre fait ? Elle le fera ne plus à un moment, et le jour où elle casse, une
+  # alerte non bloquante donne le temps de reagIR au lieu de subir.
+  canari:
+    name: canari / derniere CLI publiee
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: installation avec la derniere CLI publiee
+        run: npm run verifier-installation
+        env:
+          SIGNALCN_CLI: '[{"nom":"shadcn latest","paquet":"shadcn@latest"}]' 

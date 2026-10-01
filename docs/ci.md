@@ -13,25 +13,25 @@ Mesuré, à froid, sans cache.
 
 | Contrôle | Coût |
 |---|---|
-| Harnais différentiel | 0,04 s |
-| Suite source + couverture + seuils | 0,25 s |
-| Parité, trois exécutions | 0,22 s |
-| Zéro-dépendance, metafile + grep | 0,39 s |
-| Typecheck | 1,07 s |
-| Base recalculée dans un worktree | 2,06 s |
-| Build + minify + réécriture | 1,78 s |
-| **Installation des six items** | **25,1 s** |
+| Harnais différentiel | 0,06 s |
+| Suite source | 0,06 s |
+| Typecheck | 0,24 s |
+| Zéro-dépendance, reproductibilité, tailles | 0,30 s |
+| Build + minify + réécriture | 0,28 s |
+| Couverture : seuils, code mort, non-régression | 1,58 s |
+| **Parité, quatre cibles** | **2,47 s** |
+| **Installation des six items** | **97 s** |
 
-Tous les contrôles rapides réunis coûtent **1,1 s**. L'installation en coûte **vingt fois
+Tous les contrôles rapides réunis coûtent **5,1 s**. L'installation en coûte **dix-neuf fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
-Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Sept jobs
-représentent sept démarrages pour sept contrôles qui coûtent ensemble 1,1 seconde.
+Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Trois jobs
+représentent trois démarrages pour neuf contrôles qui coûtent ensemble 5,1 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
-L'ordre est **par sévérité, pas par coût**. Un job de six secondes exécute tout de toute
+L'ordre est **par sévérité, pas par coût**. Un job de dix secondes exécute tout de toute
 façon : l'ordre ne coûte rien et décide seulement du premier message lu.
 
 | # | Contrôle | Ce qu'il attrape |
@@ -39,7 +39,7 @@ façon : l'ordre ne coûte rien et décide seulement du premier message lu.
 | 1 | **Conformité** — le harnais différentiel contre la baseline | Le produit est faux. Le seul échec qui le dit. |
 | 2 | **Couverture** — suite, seuils, garde du code mort, base recalculée | Une couverture qui baisse, du code mort livré |
 | 3 | **Build** — `tsc`, `esbuild`, réécriture, **puis diff vide** | Un artefact committé périmé |
-| 4 | **Parité** — trois exécutions, comptage, forme des artefacts | Le build ne reproduit pas la source |
+| 4 | **Parité** — quatre cibles, comptage, noms, surface, renommage | Le build ne reproduit pas la source ; la suite perd des tests en route |
 | 5 | **Zéro-dépendance** — metafile, grep sur le minifié | Une dépendance ou une construction interdite |
 | 6 | **Typecheck** | Le code ne compile pas |
 
