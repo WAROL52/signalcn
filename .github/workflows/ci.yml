@@ -19,6 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # L'historique COMPLET, pour un seul motif : la non-régression de couverture se mesure
+          # contre le MERGE-BASE, recalculé dans un worktree secondaire. Sans `fetch-depth: 0` le
+          # merge-base n'existe pas et la porte se rabat sur « non applicable » — c'est-à-dire
+          # qu'elle disparaît silencieusement, ce qui est le pire mode de défaillance pour une
+          # garde censée être la seule chose qui empêche une baisse.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -30,6 +37,10 @@ jobs:
       # runtime minifié. L'ordre est donc aussi un ordre de dépendance.
       - name: conformite — harnais differentiel contre la baseline
         run: npm run harnais
+      # Position 2 comme dans docs/ci.md §2 : apres la conformite, qui est le seul echec qui dit
+      # que le produit est faux, et avant tout ce qui depend du build.
+      - name: couverture — seuils natifs, code mort, non-regression face au merge-base
+        run: npm run couverture
       - name: typecheck
         run: npm run typecheck
       - name: suite source
@@ -46,6 +57,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # L'historique COMPLET, pour un seul motif : la non-régression de couverture se mesure
+          # contre le MERGE-BASE, recalculé dans un worktree secondaire. Sans `fetch-depth: 0` le
+          # merge-base n'existe pas et la porte se rabat sur « non applicable » — c'est-à-dire
+          # qu'elle disparaît silencieusement, ce qui est le pire mode de défaillance pour une
+          # garde censée être la seule chose qui empêche une baisse.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
