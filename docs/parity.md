@@ -77,7 +77,7 @@ pas de l'inscrire.
   couverture de la source, pas par la parité.
 - **Que le minifié est plus rapide.** Aucun critère de performance n'est dans le contrat.
 - **Que la couverture des artefacts est mesurée.** Elle ne l'est pas, et ne doit pas l'être :
-  ce sont des dérivés de la source, dont la couverture est déjà imposée à cent pour cent.
+  ce sont des dérivés de la source, dont la couverture est déjà gardée par le seuil mesuré.
 
 ## 7. Vérifié
 

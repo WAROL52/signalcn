@@ -223,11 +223,16 @@ branches
 fonctions
 ```
 
-Le seuil est de **100 % sur les trois au moment du tag**, et c'est 100 % absolus — pas « sauf
-les gardes défensives ». Sur une pull request, la barrière n'est pas le 100 % : c'est
-l'**absence de régression** face au merge-base, base recalculée sur place, jamais stockée. Une
-barrière de non-régression stockée dans un fichier se forge dans la pull request même qui la
-viole.
+Le seuil de release est **la valeur mesurée** : `99 / 98 / 100`. Ce n'est pas 100, et la raison
+tient en une phrase — **les trois branches restantes sont des gardes que la bibliothèque de
+référence ne sait pas atteindre non plus**, dont une morte par construction dans son propre code.
+Les atteindre supposerait de changer le comportement, donc de casser la promesse du projet. Elles
+sont nommées ligne par ligne dans
+[`docs/adr/0011-reliquat-de-couverture-non-atteignable.md`](docs/adr/0011-reliquat-de-couverture-non-atteignable.md).
+
+Sur une pull request, la barrière est de toute façon l'**absence de régression** face au
+merge-base — base recalculée sur place, jamais stockée. Une base stockée dans un fichier se forge
+dans la pull request même qui la viole.
 
 Deux trous qu'aucun pourcentage ne voit sont gardés à part : un fichier source jamais chargé par
 la suite, et une exclusion de couverture posée dans le dépôt. Les deux sont interdits.

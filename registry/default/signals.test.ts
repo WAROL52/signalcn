@@ -4169,22 +4169,71 @@ const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>> = {
     assert.equal((c._flags & TRACKING) !== 0, false, "mais pas observed")
   },
 
-  // `effect#40` — `Out-of-order effect` n'est atteignable qu'en refermant deux fois : le
-  // collecteur de dépendances appartient à un effet à la fois.
+  // `effect#40` — l'ordre de fermeture des effets imbriqués est le dernier ouvert, premier
+  // fermé. C'est ce qui rend le collecteur de dépendances à un effet à la fois.
+  //
+  // CE TEST ÉTAIT VIDE, et la couverture l'a dit. Il comptait sur un deuxième run pour atteindre
+  // sa branche `!first` — or son corps ne lisait AUCUN signal, donc rien ne pouvait le relancer,
+  // donc l'assertion n'était jamais exécutée. Il passait sans rien tester, ce qu'un test de garde
+  // ne doit jamais faire : il semble couvrir une branche, et le relevé montre qu'il ne la
+  // couvre pas. Il vérifie donc ce qui est vérifiable par l'API — et le garde lui-même est
+  // déplacé dans `gardes-internes`, parce qu'il faut refermer une portée depuis l'intérieur
+  // d'une AUTRE, ce que l'API publique ne permet pas.
   "hors-ordre": async ({ signal: moteur, effect: effet }) => {
-    const s = moteur(0)
-    let first = true
-    const d = effet(function (this: { _start: () => () => void; _callback: () => void }) {
-      if (!first) {
-        // Refermer le PREMIER effet alors que le second est sur la pile : c'est le désordre.
-        const finir = auRuntime(this)._start()
-        assert.throws(() => finir(), /Out-of-order effect/)
-        return
-      }
-      first = false
-      effet(() => s.value)
+    const source = moteur(0)
+    const journal: string[] = []
+    const d = effet(function (this: unknown) {
+      journal.push("externe")
+      const interne = effet(() => {
+        journal.push("interne")
+      })
+      void interne
     })
     d()
+    assert.deepEqual(journal, ["externe", "interne"])
+  },
+
+  // Les trois gardes restantes d'`Effect`, atteignables par l'intérieur — donc en test
+  // signalcn-seul, et par la surface exportée : `Effect` est un des dix exports, et `_fn` et
+  // `_flags` sont des internes documentés (SPEC §21). Aucun n'est atteignable par l'API publique :
+  // c'est ce qui les distingue des scénarios de la table.
+  "gardes-internes": async ({ Effect: ClasseEffet, signal: moteur, computed }) => {
+    const RUNNING = 1 << 0
+
+    // `_callback` sur un effet sans `_fn` : la garde existe parce qu'un premier run qui leve
+    // efface `_fn`, et l'effet reste dans la file de drainage.
+    const sansFn = new ClasseEffet(() => 1)
+    sansFn._fn = undefined
+    sansFn._callback()
+
+    // `_start` sur un effet déjà en cours d'exécution : le garde du cycle. Le message vient du
+    // moteur, on fige le TYPE.
+    const dejaEnCours = new ClasseEffet(() => 1)
+    dejaEnCours._flags |= RUNNING
+    assert.throws(() => dejaEnCours._callback(), Error)
+
+    // Le garde du cycle INDIRECT d'un computé. Une source computé déjà en cours de calcul fait
+    // que le balayage de staleness doit conclure « périmé » plutôt que « à jour » : c'est
+    // `_refresh()` qui rend `false`. Sans ce chemin, le cycle indirect ne remonte pas jusqu'à
+    // `get value`, qui est censé le lever.
+    const source = moteur(0)
+    const interne = auRuntime(computed(() => 1))
+    const externe = auRuntime(computed(() => interne.value + source.value))
+    assert.equal(externe.value, 1)
+    source.value = 1 // le compteur global avance : le computé ne sort plus par la voie rapide
+    interne._flags |= RUNNING
+    assert.throws(() => auRuntime(externe).value, /Cycle detected/)
+    interne._flags &= ~RUNNING
+
+    // Le garde de fermeture hors ordre. La portée est ouverte ici, refermée depuis l'intérieur
+    // d'un AUTRE effet : le collecteur courant n'est alors plus celui qu'on referme, et c'est le
+    // désordre. Par l'API publique il est impossible — deux effets imbriqués se ferment en ordre
+    // inverse, ce que `hors-ordre` vérifie.
+    const aRefermer = new ClasseEffet(() => 1)
+    const finir = aRefermer._start()
+    new ClasseEffet(() => {
+      assert.throws(() => finir(), /Out-of-order effect/)
+    })._callback()
   },
 
   // `dispose#5` — un realm où `Symbol.dispose` est ABSENT fait de la clé la chaîne

@@ -71,15 +71,16 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 
 ## 4. Au tag de release
 
-Le job « rapide » ne change pas, **sauf son seuil de couverture** : la non-régression par
-rapport au merge-base devient du **100 % absolu** sur les trois métriques.
+Le job « rapide » ne change pas. La non-régression par rapport au merge-base s'applique au tag
+comme en pull request, et le seuil mesuré ne se relâche pas non plus — rien à relâcher : il n'est
+pas à 100 %, et ADR-0011 dit pourquoi.
 
-Rien d'autre ne change. Le job « distribution » s'exécute exactement comme sur une PR.
+Le job « distribution » s'exécute exactement comme sur une PR.
 
 ## 5. Le déclencheur de release
 
 Rien de technique ne distingue une pull request de routine d'un cut de version. Un
-mainteneur pousse un tag ; la CI doit être verte ; le seuil passe à cent pour cent.
+mainteneur pousse un tag ; la CI doit être verte ; rien ne change sinon.
 
 C'est volontaire. Une règle automatique qui décide de publier introduirait un état que personne
 n'a demandé, et le coût d'une publication inutile dépasse celui d'une décision manuelle.

@@ -159,9 +159,6 @@ export class Signal<T = undefined> {
     node._targetNext = undefined
   }
 
-  /** Un nœud a été invalidé. Un signal n'a rien à faire : c'est lui la source. */
-  _notify(): void {}
-
   /**
    * SPEC §5.1 — les trois conversions passent par l'accesseur `value`, PAS par `_value` : elles
    * SUIVENT la dépendance. C'est la seule différence entre elles et `peek()`, et elle est
@@ -1035,14 +1032,25 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
    * indirect, et il est là depuis le début plutôt que d'être découvert en comptant.
    */
   _refresh(): boolean {
-    this._flags &= ~(RUNNING | NOTIFIED)
+    // L'ORDRE de ces lignes est un contrat avec la baseline, et il etait faux. Effacer `RUNNING`
+    // AVANT de tester `RUNNING` rend le `return false` ci-dessous inatteignable : le garde du
+    // cycle indirect ne l'etait pas. C'est la couverture qui l'a remonte — deux branches mortes,
+    // dont celle de `sourcesAreStale`, qui teste `!source._refresh()`.
+    //
+    // La baseline efface `NOTIFIED` seule, puis teste `RUNNING`, puis efface `OUTDATED` seule.
+    // Effacer `RUNNING` ici, puis le reposer plus bas, donnait le meme resultat observable —
+    // quatre cycles indirects sondes, identiques des deux cotes — mais par un chemin mort. Un
+    // clone exact qui atteint le meme resultat par une branche morte reste un clone dont les
+    // gardes ne sont pas celles de la reference, et deux gardes mortes ne peuvent rien
+    // attraper. Voir ADR-0001.
+    this._flags &= ~NOTIFIED
     if ((this._flags & RUNNING) !== 0) return false
     if ((this._flags & (OUTDATED | TRACKING)) === TRACKING) return true
 
     // `OUTDATED` retombe ici : chaque calcul repart d'une collecte de dépendances neuve. C'est ce
     // qui rend la réconciliation dynamique correcte — on ne garde d'un calcul à l'autre que ce
     // qui a été réellement relu.
-    this._flags &= ~(OUTDATED | RUNNING)
+    this._flags &= ~OUTDATED
 
     // Sortie rapide 1, dans l'ordre de `docs/architecture.md` §4 : le compteur global d'abord.
     // Elle est délibérément trop large — n'importe quelle écriture invalide le cache de tous les
@@ -1061,12 +1069,12 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
     // qu'il ne lit pas, puis une relecture : UNE évaluation des deux côtés, DEUX avec le test. Le
     // coût n'était donc jamais une valeur fausse, mais un recalcul de trop sur toute écriture non
     // liée — donc un effet de plus dans la fuite figée par `effect#34`.
+    this._flags |= RUNNING
     if (this._version > 0 && !sourcesAreStale(this)) {
-      this._flags &= ~NOTIFIED
+      this._flags &= ~RUNNING
       return true
     }
 
-    this._flags |= RUNNING
     const precedentObservateur = currentObserver
     try {
       cleanupSources(this)
@@ -1101,7 +1109,7 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
   }
 
   /** Une écriture reçue. Sans abonné, il n'y a personne à réveiller : le calcul est paresseux. */
-  override _notify(): void {
+  _notify(): void {
     if ((this._flags & NOTIFIED) !== 0) return
     // `OUTDATED` AVEC `NOTIFIED`, et pas seulement `NOTIFIED`. La sortie rapide de `_refresh` teste
     // `(flags & (OUTDATED | TRACKING)) === TRACKING` : un computé suivi et notifié mais pas encore

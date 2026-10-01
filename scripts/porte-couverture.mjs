@@ -38,18 +38,20 @@ const SUITE = "registry/default/signals.test.ts"
 /**
  * Le plancher, et la seule chose qui distingue un commit d'une release.
  *
- * Au tag, les trois seuils passent à cent pour cent absolus. Ailleurs, ce sont les valeurs
- * MESURÉES au moment où le plancher est écrit, arrondies à l'entier inférieur. L'entier est une
+ * Le seuil de release est la valeur MESURÉE, arrondie à l'entier inférieur. L'entier est une
  * limite assumée : un seuil natif ne sait pas dire 99,62. C'est exactement le trou que la
- * non-régression comble, puisqu'elle compare des valeurs calculées et non des entiers — d'où
+ * non-régression referme, puisqu'elle compare des valeurs calculées et non des entiers — d'où
  * les deux mécanismes plutôt qu'un seul.
+ *
+ * Ces seuils ne sont pas 100, et ce n'est pas un renoncement de forme : les trois reliquats sont
+ * des gardes que la RÉFÉRENCE ne sait pas atteindre non plus, dont une morte par construction
+ * dans le moteur de référence lui-même. Les atteindre supposerait de changer le comportement.
+ * Le reliquat est nommé ligne par ligne dans
+ * `docs/adr/0011-reliquat-de-couverture-non-atteignable.md`, avec les sondes qui ont tenté de
+ * l'atteindre.
  */
 function seuils() {
-  const auTag =
-    spawnSync("git", ["tag", "--points-at", "HEAD"], { cwd: RACINE, encoding: "utf8" }).stdout.trim() !==
-    ""
-  if (auTag) return { lignes: 100, branches: 100, fonctions: 100 }
-  return { lignes: 99, branches: 95, fonctions: 98 }
+  return { lignes: 99, branches: 98, fonctions: 100 }
 }
 
 /**
