@@ -3846,6 +3846,419 @@ for (const scenario of scenarios) {
   scenario.matrice = entreesCouvertesPar(scenario.name)
 }
 
+/** Ce que reçoit un test signalcn-seul. */
+type Moteur = {
+  signal: typeof signalFn
+  computed: typeof computedFn
+  effect: typeof effectFn
+  Signal: typeof SignalClass
+  Computed: typeof ComputedClass
+  Effect: typeof EffectClass
+  action: Api["action"]
+  createModel: Api["createModel"]
+}
+
+// ---- Les tests signalcn-seuls, en une seule source --------------------------------
+// Cet objet alimente `node:test` ET le contrôle du registre. Avant, les noms vivaient dans une
+// liste à côté : on pouvait y ajouter un nom, le citer dans le registre, et le registre passer
+// sans qu'aucun test n'existe derrière. Un contrôle à sens unique n'est pas un contrôle.
+//
+// Ils sont ici, et pas dans un fichier séparé, pour ne pas ajouter un troisième fichier à un
+// couple dont la composition est figée.
+const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>> = {
+  // Les fonctions enveloppées par `createModel` se nomment `actionWrapper`, comme celles
+  // d'`action` — c'est le MÊME enveloppeur, donc le même nom. Le paquet publié minifie ses noms,
+  // donc la table ne peut pas le dire ; et comme un modèle a des surfaces différentes — une
+  // imbriquée, un tableau, un objet cyclique — il faut vérifier que l'enveloppeur est bien tombé
+  // dans chaque cas, pas seulement à la racine.
+  "nom-des-fonctions-enveloppees": async ({ signal, createModel }) => {
+    const enveloppee = function () {}
+    const imbriquee = function () {}
+    const modele = createModel(() => ({
+      racine: enveloppee,
+      imbrique: { profond: imbriquee },
+      tableau: [function () {}],
+      marque: signal(1),
+    }))() as Record<string, any>
+
+    assert.equal(modele.racine.name, "actionWrapper", "la fonction racine est enveloppée")
+    assert.equal(modele.imbrique.profond.name, "actionWrapper", "l'imbriquée aussi")
+    assert.equal(modele.tableau[0].name, "actionWrapper", "celle du tableau aussi")
+    // Le signal n'est PAS descendedu : ses méthodes lui appartiennent, et les envelopper
+    // rendrait un signal illisible.
+    assert.notEqual(modele.marque.toString.name, "actionWrapper", "un signal n'est pas envelopes")
+    assert.equal(modele.marque.brand, Symbol.for("preact-signals"), "le signal est intact")
+  },
+
+  // Le nom du wrapper d'`action` est un CONTRACT, pas une etiquette : la matrice le fige, et le
+  // pipeline de generation a besoin de `--keep-names` pour le conserver. Il ne peut PAS etre
+  // verifie dans la table — le paquet publie minifie ses noms de fonctions, donc `f.name` y vaut
+  // la chaine vide, et un scenario qui l'affirmerait echouerait contre la baseline par
+  // construction. C'est le meme cas que `signal#3` et `signal#4`, et pour la meme raison.
+  // L'effet interne de `subscribe` se nomme "sub", et c'est la SEULE voie d'observer qu'un
+  // `EffectOptions.name` produise de l'effet. Notre nom survit parce que le pipeline passe
+  // `--keep-names` ; celui de la baseline publiée est la chaîne vide, donc la table ne peut pas le
+  // dire — même raison que `signal#3` et `signal#4`.
+  //
+  // On observe le nom par le chemin de la matrice, pas par une propriété inventée ici : le noeud
+  //ud de cible du signal porte l'effet qui s'y est abonné.
+  "nom-de-leffet-interne": async ({ signal }) => {
+    const source = signal(0)
+    source.subscribe(v => void v)
+    const nom = (source as unknown as { _targets: { _target: { name: string } } })._targets._target.name
+    assert.equal(nom, "sub", "l'effet interne d'un abonnement se nomme 'sub'")
+  },
+
+  "wrapper-nomme": async ({ action }) => {
+    const rendue = action(() => 0)
+    assert.equal(rendue.name, "actionWrapper", "le nom du wrapper est fige par la matrice")
+    assert.equal(rendue.length, 0, "la signature est vide meme si fn en a")
+    assert.notEqual(rendue.name, "", "le nom a disparu : --keep-names ne joue plus son role")
+  },
+  // C'est ICI que se joue la moitié de SPEC §5.2 que la table ne peut pas voir. `_version`
+  // est le marqueur d'une notification acceptée. Une implémentation `Object.is` resterait à 0
+  // sur les deux écritures `NaN` et échouerait ici.
+  "notifie-sur-stricte-identite": async ({ signal: moteur }) => {
+    const nan = moteur(1)
+    assert.equal(nan._version, 0)
+    nan.value = NaN
+    assert.equal(nan._version, 1, "1 -> NaN est une écriture acceptée")
+    nan.value = NaN
+    assert.equal(nan._version, 2, "NaN -> NaN est AUSSI acceptée : c'est tout le contrat")
+
+    const identique = moteur(1)
+    identique.value = 1
+    assert.equal(identique._version, 0, "une écriture identique ne notifie pas")
+
+    const objet = {}
+    const parReference = moteur(objet)
+    parReference.value = objet
+    assert.equal(parReference._version, 0, "la même référence ne notifie pas")
+    parReference.value = {}
+    assert.equal(parReference._version, 1, "un objet de même forme notifie : identité, pas structure")
+
+    const vide = moteur(undefined)
+    vide.value = undefined
+    assert.equal(vide._version, 0, "undefined -> undefined ne notifie pas")
+  },
+
+  // DIVERGENCE ASSUMÉE, déjà arbitrée par ADR-0004 et SPEC §21 : la baseline écrit son prototype
+  // à la main, donc ses méthodes y sont énumérables et `for..in` les fait remonter. Une classe
+  // ES2020 ne le fait pas. Le prix est ici, et il est bon : une énumération d'API qui change
+  // selon le minificateur n'est pas une énumération d'API.
+  "descripteurs-de-prototype": async ({ signal: moteur, Signal, Effect: ClasseEffet }) => {
+    for (const proto of [Signal.prototype, ClasseEffet.prototype]) {
+      for (const nom of ["peek", "toString", "toJSON", "valueOf", "dispose"]) {
+        const d = Object.getOwnPropertyDescriptor(proto, nom)
+        if (d === undefined) continue
+        assert.equal(d.enumerable, false, `${nom} ne doit pas être énumérable`)
+      }
+    }
+
+    // `brand` est sur le prototype et non énumérable — la divergence ci-dessus. Il reste
+    // inscriptible et configurable comme la baseline, sur `conv#12` : s'écarter de la
+    // compatibilité ici coûterait un ADR de plus pour protéger d'un accident.
+    const marque = Object.getOwnPropertyDescriptor(Signal.prototype, "brand")
+    assert.ok(marque, "brand doit etre sur le prototype")
+    assert.equal(marque.value, Symbol.for("preact-signals"))
+    assert.equal(marque.enumerable, false, "sinon for..in le remonterait sur chaque signal")
+    assert.equal(marque.writable, true, "la baseline l'inscrit : conv#12")
+    assert.equal(marque.configurable, true, "la baseline le rend configurable : conv#12")
+
+    // Et le `for..in` d'un signal ne remonte que ses propres clés, rien du prototype.
+    for (const nom in moteur(1)) {
+      assert.ok(!(nom in Signal.prototype), `${nom} ne doit pas traverser le for..in`)
+    }
+  },
+
+  // `computed#10` — l'ordre des dépendances est l'ordre de lecture, et la liste se parcourt
+  // depuis la source lue EN DERNIER. `docs/architecture.md` §3 le dit de la même façon, et le
+  // sens n'est pas indifférent : partir de la plus récemment utilisée, c'est ce qui autorise à
+  // sortir dès qu'une version diffère.
+  //
+  // La baseline range sa liste à l'envers — sa tête est la source lue en PREMIER. C'est mesuré,
+  // et c'est une différence d'implémentation interne, pas de comportement : la liste est à sens
+  // unique et rien d'observable par la surface publique n'en dépend. Le nôtre suit le document,
+  // parce qu'un seul sens de parcours rend le balayage non ambigu.
+  "ordre-des-sources": async ({ signal: moteur, computed }) => {
+    const premier = moteur(1)
+    const second = moteur(2)
+    const troisieme = moteur(3)
+    const c = computed(() => premier.value * 100 + second.value * 10 + troisieme.value)
+    c.value
+
+    const lus: unknown[] = []
+    for (let n = auRuntime(c)._sources; n !== undefined; n = n._next) lus.push(n._source)
+    // `assert.equal` et non `deepEqual` : deux objets se comparent ici par RÉFÉRENCE, et c'est
+    // l'identité qu'on vérifie. Un `deepEqual` traverserait le graphe entier — circulaire — et
+    // comparerait des nœuds, ce qui n'est pas du tout la même question.
+    assert.equal(lus.length, 3)
+    assert.equal(lus[0], premier, "_sources est la source lue en premier")
+    assert.equal(lus[1], second)
+    assert.equal(lus[2], troisieme)
+
+    c.value
+    c.value
+    const apres: unknown[] = []
+    for (let n = auRuntime(c)._sources; n !== undefined; n = n._next) apres.push(n._source)
+    assert.equal(apres.length, 3, "trois lectures de plus ne perdent aucune dépendance")
+
+    // Une dépendance quittée est retirée, même AU MILIEU de la liste.
+    const bascule = moteur(true)
+    const gauche = moteur("g")
+    const milieu = moteur("m")
+    const droite = moteur("d")
+    const dyn = computed(() => (bascule.value ? milieu.value : `${gauche.value}${droite.value}`))
+    dyn.value
+
+    // Le nœud de `milieu` est capturé PENDANT qu'il est dans la liste. Après l'abandon il n'y
+    // est plus — c'est tout l'intérêt de la réconciliation — donc le chercher après ne
+    // reviendrait pas, et la comparaison n'aurait rien à comparer.
+    const nœudMilieuAvant = (() => {
+      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
+        if (n._source === milieu) return n
+      }
+      return undefined
+    })()
+    assert.ok(nœudMilieuAvant, "sanity : `milieu` a un nœud tant qu'elle est lue")
+
+    bascule.value = false
+    dyn.value
+    const restants: unknown[] = []
+    for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) restants.push(n._source)
+    assert.equal(restants.length, 3, "`milieu`, lue en second, est retirée")
+    assert.equal(restants[0], bascule)
+    assert.equal(restants[1], gauche)
+    assert.equal(restants[2], droite)
+    assert.equal(restants.includes(milieu), false, "et elle a disparu de la liste")
+
+    // Le NŒUD est RÉACTIVÉ, pas réalloué. C'est SPEC §7, et c'est la seule façon de le voir :
+    // la VALEUR serait juste même avec une réallocation, donc la valeur ne prouve rien.
+    const noeudMilieuApres = (() => {
+      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
+        if (n._source === milieu) return n
+      }
+      return undefined
+    })()
+    assert.equal(noeudMilieuApres, undefined, "après abandon, `milieu` n'a plus de nœud dans la liste")
+
+    bascule.value = true
+    dyn.value
+    const milieuReactive: unknown[] = []
+    for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) milieuReactive.push(n._source)
+    assert.equal(milieuReactive.length, 2, "`milieu` redevient une dépendance")
+    assert.equal(milieuReactive.includes(milieu), true, "`milieu` est de nouveau dans la liste")
+    // Le nœud RÉACTIVÉ est le MÊME objet.
+    const nœudMilieuReactive = (() => {
+      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
+        if (n._source === milieu) return n
+      }
+      return undefined
+    })()
+    assert.equal(nœudMilieuReactive, nœudMilieuAvant, "le nœud est RÉACTIVÉ, pas réalloué")
+
+    // Et la liste ne grossit pas : trois allers-retours ne laissent aucun nœud derrière.
+    for (let i = 0; i < 3; i++) {
+      bascule.value = !bascule.value
+      dyn.value
+    }
+    const finale: unknown[] = []
+    for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) finale.push(n._source)
+    assert.equal(finale.length, 3, "aucune fuite de nœud après six évaluations")
+    assert.equal(finale.includes(bascule), true, "`bascule` est lue à chaque calcul, elle reste")
+  },
+
+  // SPEC §6.1 — douze propriétés-own pour un computé, dans l'ordre : les huit du signal puis
+  // `_fn`, `_sources`, `_globalVersion`, `_flags`. Et `for..in` ne remonte rien du prototype.
+  //
+  // DIVERGENCE ASSUMÉE, arbitrée par ADR-0004 et SPEC §21 : la baseline construit
+  // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
+  // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm. Nous
+  // ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
+  "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet }) => {
+    const c = computed(() => 1)
+    assert.deepEqual(Object.keys(c), [
+      "_value",
+      "_version",
+      "_node",
+      "_targets",
+      "_batchSnapshotVersion",
+      "_watched",
+      "_unwatched",
+      "name",
+      "_fn",
+      "_sources",
+      "_globalVersion",
+      "_flags",
+    ])
+
+    assert.equal(c instanceof Signal, true)
+    assert.equal(c instanceof Computed, true)
+    assert.equal(c.constructor, Computed, "et non Signal : le prototype ne porte pas d'état")
+
+    // Le prototype ne porte AUCUNE donnée d'instance. C'est le défaut qu'on supprime.
+    const proto = Object.getPrototypeOf(c) as Record<string, unknown>
+    assert.equal(proto._value, undefined, "le prototype ne doit porter aucune valeur")
+    assert.equal(proto._fn, undefined, "le prototype ne doit porter aucune dérivation")
+
+    // `for..in` expose les douze, et rien du prototype.
+    const enumerables: string[] = []
+    for (const nom in c) enumerables.push(nom)
+    assert.deepEqual(enumerables, Object.keys(c), "for..in ne doit rien ajouter du prototype")
+
+    // L'effet a six propriétés-own, et le prototype n'en porte aucune.
+    const e = new ClasseEffet(() => 1)
+    assert.deepEqual(Object.keys(e), ["_fn", "_cleanup", "_sources", "_nextBatchedEffect", "_flags", "name"])
+    const protoEffet = Object.getPrototypeOf(e) as Record<string, unknown>
+    assert.equal(protoEffet._fn, undefined, "le prototype d'effet ne porte rien")
+  },
+
+  // `effect#34` — un effet créé dans un COMPUTÉ fuit : il en est créé un nouveau à chaque
+  // évaluation. C'est un quirk FIGÉ de la baseline, pas un oubli de notre implémentation : un
+  // computé est paresseux et sans destructeur, donc l'effet qu'il fabrique n'a personne pour le
+  // ramasser. On fige le comportement, on ne le corrige pas.
+  "effet-dans-un-calcule": async ({ signal: moteur, computed, effect: effet }) => {
+    const a = moteur(0)
+    const journal: string[] = []
+    const fabrique = computed(() => {
+      journal.push(`outer:${a.value}`)
+      effet(() => {
+        journal.push(`inner:${a.value}`)
+      })
+      return a.value
+    })
+
+    assert.equal(journal.length, 0, "rien avant la première lecture : le computé est paresseux")
+    assert.equal(fabrique.value, 0)
+    a.value = 1
+    assert.equal(fabrique.value, 1)
+    a.value = 2
+    assert.equal(fabrique.value, 2)
+
+    // Trois évaluations, donc trois effets intérieurs créés, et le journal compte six runs : c'est la
+    // fuite, figée. Le compte est vérifié contre la baseline, qui donne exactement le même.
+    assert.equal(journal.filter(e => e.startsWith("outer:")).length, 3, "trois évaluations")
+    assert.equal(journal.filter(e => e.startsWith("inner:")).length, 6, "et six runs d'effets")
+  },
+
+  // `effect#36` — `options.name` est visible sur l'INSTANCE, et pas via la valeur de retour :
+  // le retour est une fonction liée, dont le nom est `bound `. C'est ce qui rend l'instance
+  // exportée indispensable.
+  "options-de-linstance": async ({ Effect: ClasseEffet }) => {
+    const e = new ClasseEffet(() => 1, { name: "n" })
+    assert.equal(e.name, "n")
+    e.name = "z"
+    assert.equal(e.name, "z", "et le nom est mutable après coup")
+
+    const sansNom = new ClasseEffet(() => 1)
+    assert.equal(sansNom.name, undefined, "absent, c'est `undefined`")
+    assert.equal("name" in sansNom, true, "mais la clé est toujours là")
+  },
+
+  // `effect#37` — les drapeaux initiaux. Un effet naît DÉJÀ observed, donc il ouvre les
+  // abonnements de ses sources ; un computé naît en train de collecter, mais pas observed.
+  "drapeaux-initiaux": async ({ signal: moteur, computed, Effect: ClasseEffet }) => {
+    const TRACKING = 32
+    const OUTDATED = 4
+    const e = new ClasseEffet(() => moteur(0).value)
+    assert.equal(e._flags, TRACKING, "un effet est observed dès la construction")
+    assert.equal((e._flags & OUTDATED) !== 0, false, "et pas encore périmé")
+
+    const c = auRuntime(computed(() => 1)) as { _flags: number }
+    assert.equal(c._flags, OUTDATED, "un computé naît en collectant")
+    assert.equal((c._flags & TRACKING) !== 0, false, "mais pas observed")
+  },
+
+  // `effect#40` — `Out-of-order effect` n'est atteignable qu'en refermant deux fois : le
+  // collecteur de dépendances appartient à un effet à la fois.
+  "hors-ordre": async ({ signal: moteur, effect: effet }) => {
+    const s = moteur(0)
+    let first = true
+    const d = effet(function (this: { _start: () => () => void; _callback: () => void }) {
+      if (!first) {
+        // Refermer le PREMIER effet alors que le second est sur la pile : c'est le désordre.
+        const finir = auRuntime(this)._start()
+        assert.throws(() => finir(), /Out-of-order effect/)
+        return
+      }
+      first = false
+      effet(() => s.value)
+    })
+    d()
+  },
+
+  // `dispose#5` — un realm où `Symbol.dispose` est ABSENT fait de la clé la chaîne
+  // `"undefined"` chez la baseline, et c'est un quasi-leak : `using` devient un no-op qui fuit
+  // tous les effets. Le cas POSITIF n'est pas mesurable ici — il faudrait éteindre le symbole
+  // dans le realm — donc on ne fige que ce qui l'empêche.
+  "symbol-dispose-absent": async ({ effect: effet }) => {
+    const d = effet(() => {})
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(d, "undefined"),
+      false,
+      "aucune clé `\"undefined\"` n'est posée sur le dispositeur",
+    )
+  },
+
+  // Les deux exigences de SPEC §8.2, côte à côte, parce qu'elles semblaient s'exclure.
+  // Elles ne s'excluent pas : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur
+  // elle-même, et accepte une fonction simple. Le `bind` de la baseline était le seul
+  // obstacle — un effet, et non une divergence.
+  "symbol-dispose-et-using": async ({ effect: effet }) => {
+    const journal: string[] = []
+    const d = effet(() => {
+      journal.push("run")
+      return () => journal.push("cleanup")
+    })
+
+    assert.equal(Symbol.dispose in (d as unknown as object), true, "Symbol.dispose doit être présent")
+    assert.equal(
+      typeof (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
+      "function",
+      "et DOIT être une fonction, sinon `using` échoue",
+    )
+// Et l'IDENTITÉ : `d[Symbol.dispose] === d`, comme l'exige SPEC §8.2. Elle ne coûte pas
+      // `using`, parce que V8 ne refuse que les fonctions *liées* dont la méthode pointe sur
+      // elles-mêmes — une fonction simple passe. C'est ce que le test ci-dessous mesure.
+      assert.equal(
+        (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
+        d,
+        "SPEC §8.2 exige que la méthode de libération soit le dispositeur lui-même",
+      )
+
+    const portee = () => {
+      using _ = d as unknown as { [Symbol.dispose](): void }
+      journal.push("corps")
+    }
+    portee()
+    assert.deepEqual(journal, ["run", "corps", "cleanup"])
+  },
+
+  // SPEC §14 — un signal gelé lève en écriture. Le mode strict du module de test le fait.
+  "signal-gele": async ({ signal: moteur }) => {
+    const s = auRuntime(Object.freeze(moteur(1)))
+    assert.throws(() => {
+      s.value = 2
+    }, TypeError)
+  },
+}
+
+
+/**
+ * Combien de tests ce fichier ENREGISTRE, une fois exécuté par `node --test`.
+ *
+ * Le compte n'est pas une constante écrite à la main : il se déduit des trois structures qui
+ * produisent les tests — la table, les tests signalcn-seul, et le contrôle du registre. Une
+ * constante écrite à la main serait fausse au premier scénario ajouté, et le mensonge serait
+ * silencieux : le contrôle comparerait un chiffre périmé à un décompte exact et conclurait que
+ * tout va bien.
+ *
+ * C'est ce qu'exige la parité. « Le build passe » ne prouve rien si la suite a perdu la moitié de
+ * ses tests en route ; « le build passe, et il a fait exactement ce nombre de tests » prouve que
+ * le même code a tourné partout.
+ */
+export const NB_TESTS = scenarios.length + Object.keys(testsSignalcnSeul).length + 1
+
 if (process.env.NODE_TEST_CONTEXT) {
   const runtime = import("./signals.ts")
 
@@ -3877,403 +4290,6 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
           makeLog(),
         )
     })
-  }
-
-  /** Ce que reçoit un test signalcn-seul. */
-  type Moteur = {
-    signal: typeof signalFn
-    computed: typeof computedFn
-    effect: typeof effectFn
-    Signal: typeof SignalClass
-    Computed: typeof ComputedClass
-    Effect: typeof EffectClass
-    action: Api["action"]
-    createModel: Api["createModel"]
-  }
-
-  // ---- Les tests signalcn-seuls, en une seule source --------------------------------
-  // Cet objet alimente `node:test` ET le contrôle du registre. Avant, les noms vivaient dans une
-  // liste à côté : on pouvait y ajouter un nom, le citer dans le registre, et le registre passer
-  // sans qu'aucun test n'existe derrière. Un contrôle à sens unique n'est pas un contrôle.
-  //
-  // Ils sont ici, et pas dans un fichier séparé, pour ne pas ajouter un troisième fichier à un
-  // couple dont la composition est figée.
-  const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>> = {
-    // Les fonctions enveloppées par `createModel` se nomment `actionWrapper`, comme celles
-    // d'`action` — c'est le MÊME enveloppeur, donc le même nom. Le paquet publié minifie ses noms,
-    // donc la table ne peut pas le dire ; et comme un modèle a des surfaces différentes — une
-    // imbriquée, un tableau, un objet cyclique — il faut vérifier que l'enveloppeur est bien tombé
-    // dans chaque cas, pas seulement à la racine.
-    "nom-des-fonctions-enveloppees": async ({ signal, createModel }) => {
-      const enveloppee = function () {}
-      const imbriquee = function () {}
-      const modele = createModel(() => ({
-        racine: enveloppee,
-        imbrique: { profond: imbriquee },
-        tableau: [function () {}],
-        marque: signal(1),
-      }))() as Record<string, any>
-
-      assert.equal(modele.racine.name, "actionWrapper", "la fonction racine est enveloppée")
-      assert.equal(modele.imbrique.profond.name, "actionWrapper", "l'imbriquée aussi")
-      assert.equal(modele.tableau[0].name, "actionWrapper", "celle du tableau aussi")
-      // Le signal n'est PAS descendedu : ses méthodes lui appartiennent, et les envelopper
-      // rendrait un signal illisible.
-      assert.notEqual(modele.marque.toString.name, "actionWrapper", "un signal n'est pas envelopes")
-      assert.equal(modele.marque.brand, Symbol.for("preact-signals"), "le signal est intact")
-    },
-
-    // Le nom du wrapper d'`action` est un CONTRACT, pas une etiquette : la matrice le fige, et le
-    // pipeline de generation a besoin de `--keep-names` pour le conserver. Il ne peut PAS etre
-    // verifie dans la table — le paquet publie minifie ses noms de fonctions, donc `f.name` y vaut
-    // la chaine vide, et un scenario qui l'affirmerait echouerait contre la baseline par
-    // construction. C'est le meme cas que `signal#3` et `signal#4`, et pour la meme raison.
-    // L'effet interne de `subscribe` se nomme "sub", et c'est la SEULE voie d'observer qu'un
-    // `EffectOptions.name` produise de l'effet. Notre nom survit parce que le pipeline passe
-    // `--keep-names` ; celui de la baseline publiée est la chaîne vide, donc la table ne peut pas le
-    // dire — même raison que `signal#3` et `signal#4`.
-    //
-    // On observe le nom par le chemin de la matrice, pas par une propriété inventée ici : le noeud
-    //ud de cible du signal porte l'effet qui s'y est abonné.
-    "nom-de-leffet-interne": async ({ signal }) => {
-      const source = signal(0)
-      source.subscribe(v => void v)
-      const nom = (source as unknown as { _targets: { _target: { name: string } } })._targets._target.name
-      assert.equal(nom, "sub", "l'effet interne d'un abonnement se nomme 'sub'")
-    },
-
-    "wrapper-nomme": async ({ action }) => {
-      const rendue = action(() => 0)
-      assert.equal(rendue.name, "actionWrapper", "le nom du wrapper est fige par la matrice")
-      assert.equal(rendue.length, 0, "la signature est vide meme si fn en a")
-      assert.notEqual(rendue.name, "", "le nom a disparu : --keep-names ne joue plus son role")
-    },
-    // C'est ICI que se joue la moitié de SPEC §5.2 que la table ne peut pas voir. `_version`
-    // est le marqueur d'une notification acceptée. Une implémentation `Object.is` resterait à 0
-    // sur les deux écritures `NaN` et échouerait ici.
-    "notifie-sur-stricte-identite": async ({ signal: moteur }) => {
-      const nan = moteur(1)
-      assert.equal(nan._version, 0)
-      nan.value = NaN
-      assert.equal(nan._version, 1, "1 -> NaN est une écriture acceptée")
-      nan.value = NaN
-      assert.equal(nan._version, 2, "NaN -> NaN est AUSSI acceptée : c'est tout le contrat")
-
-      const identique = moteur(1)
-      identique.value = 1
-      assert.equal(identique._version, 0, "une écriture identique ne notifie pas")
-
-      const objet = {}
-      const parReference = moteur(objet)
-      parReference.value = objet
-      assert.equal(parReference._version, 0, "la même référence ne notifie pas")
-      parReference.value = {}
-      assert.equal(parReference._version, 1, "un objet de même forme notifie : identité, pas structure")
-
-      const vide = moteur(undefined)
-      vide.value = undefined
-      assert.equal(vide._version, 0, "undefined -> undefined ne notifie pas")
-    },
-
-    // DIVERGENCE ASSUMÉE, déjà arbitrée par ADR-0004 et SPEC §21 : la baseline écrit son prototype
-    // à la main, donc ses méthodes y sont énumérables et `for..in` les fait remonter. Une classe
-    // ES2020 ne le fait pas. Le prix est ici, et il est bon : une énumération d'API qui change
-    // selon le minificateur n'est pas une énumération d'API.
-    "descripteurs-de-prototype": async ({ signal: moteur, Signal, Effect: ClasseEffet }) => {
-      for (const proto of [Signal.prototype, ClasseEffet.prototype]) {
-        for (const nom of ["peek", "toString", "toJSON", "valueOf", "dispose"]) {
-          const d = Object.getOwnPropertyDescriptor(proto, nom)
-          if (d === undefined) continue
-          assert.equal(d.enumerable, false, `${nom} ne doit pas être énumérable`)
-        }
-      }
-
-      // `brand` est sur le prototype et non énumérable — la divergence ci-dessus. Il reste
-      // inscriptible et configurable comme la baseline, sur `conv#12` : s'écarter de la
-      // compatibilité ici coûterait un ADR de plus pour protéger d'un accident.
-      const marque = Object.getOwnPropertyDescriptor(Signal.prototype, "brand")
-      assert.ok(marque, "brand doit etre sur le prototype")
-      assert.equal(marque.value, Symbol.for("preact-signals"))
-      assert.equal(marque.enumerable, false, "sinon for..in le remonterait sur chaque signal")
-      assert.equal(marque.writable, true, "la baseline l'inscrit : conv#12")
-      assert.equal(marque.configurable, true, "la baseline le rend configurable : conv#12")
-
-      // Et le `for..in` d'un signal ne remonte que ses propres clés, rien du prototype.
-      for (const nom in moteur(1)) {
-        assert.ok(!(nom in Signal.prototype), `${nom} ne doit pas traverser le for..in`)
-      }
-    },
-
-    // `computed#10` — l'ordre des dépendances est l'ordre de lecture, et la liste se parcourt
-    // depuis la source lue EN DERNIER. `docs/architecture.md` §3 le dit de la même façon, et le
-    // sens n'est pas indifférent : partir de la plus récemment utilisée, c'est ce qui autorise à
-    // sortir dès qu'une version diffère.
-    //
-    // La baseline range sa liste à l'envers — sa tête est la source lue en PREMIER. C'est mesuré,
-    // et c'est une différence d'implémentation interne, pas de comportement : la liste est à sens
-    // unique et rien d'observable par la surface publique n'en dépend. Le nôtre suit le document,
-    // parce qu'un seul sens de parcours rend le balayage non ambigu.
-    "ordre-des-sources": async ({ signal: moteur, computed }) => {
-      const premier = moteur(1)
-      const second = moteur(2)
-      const troisieme = moteur(3)
-      const c = computed(() => premier.value * 100 + second.value * 10 + troisieme.value)
-      c.value
-
-      const lus: unknown[] = []
-      for (let n = auRuntime(c)._sources; n !== undefined; n = n._next) lus.push(n._source)
-      // `assert.equal` et non `deepEqual` : deux objets se comparent ici par RÉFÉRENCE, et c'est
-      // l'identité qu'on vérifie. Un `deepEqual` traverserait le graphe entier — circulaire — et
-      // comparerait des nœuds, ce qui n'est pas du tout la même question.
-      assert.equal(lus.length, 3)
-      assert.equal(lus[0], premier, "_sources est la source lue en premier")
-      assert.equal(lus[1], second)
-      assert.equal(lus[2], troisieme)
-
-      c.value
-      c.value
-      const apres: unknown[] = []
-      for (let n = auRuntime(c)._sources; n !== undefined; n = n._next) apres.push(n._source)
-      assert.equal(apres.length, 3, "trois lectures de plus ne perdent aucune dépendance")
-
-      // Une dépendance quittée est retirée, même AU MILIEU de la liste.
-      const bascule = moteur(true)
-      const gauche = moteur("g")
-      const milieu = moteur("m")
-      const droite = moteur("d")
-      const dyn = computed(() => (bascule.value ? milieu.value : `${gauche.value}${droite.value}`))
-      dyn.value
-
-      // Le nœud de `milieu` est capturé PENDANT qu'il est dans la liste. Après l'abandon il n'y
-      // est plus — c'est tout l'intérêt de la réconciliation — donc le chercher après ne
-      // reviendrait pas, et la comparaison n'aurait rien à comparer.
-      const nœudMilieuAvant = (() => {
-        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
-          if (n._source === milieu) return n
-        }
-        return undefined
-      })()
-      assert.ok(nœudMilieuAvant, "sanity : `milieu` a un nœud tant qu'elle est lue")
-
-      bascule.value = false
-      dyn.value
-      const restants: unknown[] = []
-      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) restants.push(n._source)
-      assert.equal(restants.length, 3, "`milieu`, lue en second, est retirée")
-      assert.equal(restants[0], bascule)
-      assert.equal(restants[1], gauche)
-      assert.equal(restants[2], droite)
-      assert.equal(restants.includes(milieu), false, "et elle a disparu de la liste")
-
-      // Le NŒUD est RÉACTIVÉ, pas réalloué. C'est SPEC §7, et c'est la seule façon de le voir :
-      // la VALEUR serait juste même avec une réallocation, donc la valeur ne prouve rien.
-      const noeudMilieuApres = (() => {
-        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
-          if (n._source === milieu) return n
-        }
-        return undefined
-      })()
-      assert.equal(noeudMilieuApres, undefined, "après abandon, `milieu` n'a plus de nœud dans la liste")
-
-      bascule.value = true
-      dyn.value
-      const milieuReactive: unknown[] = []
-      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) milieuReactive.push(n._source)
-      assert.equal(milieuReactive.length, 2, "`milieu` redevient une dépendance")
-      assert.equal(milieuReactive.includes(milieu), true, "`milieu` est de nouveau dans la liste")
-      // Le nœud RÉACTIVÉ est le MÊME objet.
-      const nœudMilieuReactive = (() => {
-        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
-          if (n._source === milieu) return n
-        }
-        return undefined
-      })()
-      assert.equal(nœudMilieuReactive, nœudMilieuAvant, "le nœud est RÉACTIVÉ, pas réalloué")
-
-      // Et la liste ne grossit pas : trois allers-retours ne laissent aucun nœud derrière.
-      for (let i = 0; i < 3; i++) {
-        bascule.value = !bascule.value
-        dyn.value
-      }
-      const finale: unknown[] = []
-      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) finale.push(n._source)
-      assert.equal(finale.length, 3, "aucune fuite de nœud après six évaluations")
-      assert.equal(finale.includes(bascule), true, "`bascule` est lue à chaque calcul, elle reste")
-    },
-
-    // SPEC §6.1 — douze propriétés-own pour un computé, dans l'ordre : les huit du signal puis
-    // `_fn`, `_sources`, `_globalVersion`, `_flags`. Et `for..in` ne remonte rien du prototype.
-    //
-    // DIVERGENCE ASSUMÉE, arbitrée par ADR-0004 et SPEC §21 : la baseline construit
-    // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
-    // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm. Nous
-    // ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
-    "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet }) => {
-      const c = computed(() => 1)
-      assert.deepEqual(Object.keys(c), [
-        "_value",
-        "_version",
-        "_node",
-        "_targets",
-        "_batchSnapshotVersion",
-        "_watched",
-        "_unwatched",
-        "name",
-        "_fn",
-        "_sources",
-        "_globalVersion",
-        "_flags",
-      ])
-
-      assert.equal(c instanceof Signal, true)
-      assert.equal(c instanceof Computed, true)
-      assert.equal(c.constructor, Computed, "et non Signal : le prototype ne porte pas d'état")
-
-      // Le prototype ne porte AUCUNE donnée d'instance. C'est le défaut qu'on supprime.
-      const proto = Object.getPrototypeOf(c) as Record<string, unknown>
-      assert.equal(proto._value, undefined, "le prototype ne doit porter aucune valeur")
-      assert.equal(proto._fn, undefined, "le prototype ne doit porter aucune dérivation")
-
-      // `for..in` expose les douze, et rien du prototype.
-      const enumerables: string[] = []
-      for (const nom in c) enumerables.push(nom)
-      assert.deepEqual(enumerables, Object.keys(c), "for..in ne doit rien ajouter du prototype")
-
-      // L'effet a six propriétés-own, et le prototype n'en porte aucune.
-      const e = new ClasseEffet(() => 1)
-      assert.deepEqual(Object.keys(e), ["_fn", "_cleanup", "_sources", "_nextBatchedEffect", "_flags", "name"])
-      const protoEffet = Object.getPrototypeOf(e) as Record<string, unknown>
-      assert.equal(protoEffet._fn, undefined, "le prototype d'effet ne porte rien")
-    },
-
-    // `effect#34` — un effet créé dans un COMPUTÉ fuit : il en est créé un nouveau à chaque
-    // évaluation. C'est un quirk FIGÉ de la baseline, pas un oubli de notre implémentation : un
-    // computé est paresseux et sans destructeur, donc l'effet qu'il fabrique n'a personne pour le
-    // ramasser. On fige le comportement, on ne le corrige pas.
-    "effet-dans-un-calcule": async ({ signal: moteur, computed, effect: effet }) => {
-      const a = moteur(0)
-      const journal: string[] = []
-      const fabrique = computed(() => {
-        journal.push(`outer:${a.value}`)
-        effet(() => {
-          journal.push(`inner:${a.value}`)
-        })
-        return a.value
-      })
-
-      assert.equal(journal.length, 0, "rien avant la première lecture : le computé est paresseux")
-      assert.equal(fabrique.value, 0)
-      a.value = 1
-      assert.equal(fabrique.value, 1)
-      a.value = 2
-      assert.equal(fabrique.value, 2)
-
-      // Trois évaluations, donc trois effets intérieurs créés, et le journal compte six runs : c'est la
-      // fuite, figée. Le compte est vérifié contre la baseline, qui donne exactement le même.
-      assert.equal(journal.filter(e => e.startsWith("outer:")).length, 3, "trois évaluations")
-      assert.equal(journal.filter(e => e.startsWith("inner:")).length, 6, "et six runs d'effets")
-    },
-
-    // `effect#36` — `options.name` est visible sur l'INSTANCE, et pas via la valeur de retour :
-    // le retour est une fonction liée, dont le nom est `bound `. C'est ce qui rend l'instance
-    // exportée indispensable.
-    "options-de-linstance": async ({ Effect: ClasseEffet }) => {
-      const e = new ClasseEffet(() => 1, { name: "n" })
-      assert.equal(e.name, "n")
-      e.name = "z"
-      assert.equal(e.name, "z", "et le nom est mutable après coup")
-
-      const sansNom = new ClasseEffet(() => 1)
-      assert.equal(sansNom.name, undefined, "absent, c'est `undefined`")
-      assert.equal("name" in sansNom, true, "mais la clé est toujours là")
-    },
-
-    // `effect#37` — les drapeaux initiaux. Un effet naît DÉJÀ observed, donc il ouvre les
-    // abonnements de ses sources ; un computé naît en train de collecter, mais pas observed.
-    "drapeaux-initiaux": async ({ signal: moteur, computed, Effect: ClasseEffet }) => {
-      const TRACKING = 32
-      const OUTDATED = 4
-      const e = new ClasseEffet(() => moteur(0).value)
-      assert.equal(e._flags, TRACKING, "un effet est observed dès la construction")
-      assert.equal((e._flags & OUTDATED) !== 0, false, "et pas encore périmé")
-
-      const c = auRuntime(computed(() => 1)) as { _flags: number }
-      assert.equal(c._flags, OUTDATED, "un computé naît en collectant")
-      assert.equal((c._flags & TRACKING) !== 0, false, "mais pas observed")
-    },
-
-    // `effect#40` — `Out-of-order effect` n'est atteignable qu'en refermant deux fois : le
-    // collecteur de dépendances appartient à un effet à la fois.
-    "hors-ordre": async ({ signal: moteur, effect: effet }) => {
-      const s = moteur(0)
-      let first = true
-      const d = effet(function (this: { _start: () => () => void; _callback: () => void }) {
-        if (!first) {
-          // Refermer le PREMIER effet alors que le second est sur la pile : c'est le désordre.
-          const finir = auRuntime(this)._start()
-          assert.throws(() => finir(), /Out-of-order effect/)
-          return
-        }
-        first = false
-        effet(() => s.value)
-      })
-      d()
-    },
-
-    // `dispose#5` — un realm où `Symbol.dispose` est ABSENT fait de la clé la chaîne
-    // `"undefined"` chez la baseline, et c'est un quasi-leak : `using` devient un no-op qui fuit
-    // tous les effets. Le cas POSITIF n'est pas mesurable ici — il faudrait éteindre le symbole
-    // dans le realm — donc on ne fige que ce qui l'empêche.
-    "symbol-dispose-absent": async ({ effect: effet }) => {
-      const d = effet(() => {})
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(d, "undefined"),
-        false,
-        "aucune clé `\"undefined\"` n'est posée sur le dispositeur",
-      )
-    },
-
-    // Les deux exigences de SPEC §8.2, côte à côte, parce qu'elles semblaient s'exclure.
-    // Elles ne s'excluent pas : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur
-    // elle-même, et accepte une fonction simple. Le `bind` de la baseline était le seul
-    // obstacle — un effet, et non une divergence.
-    "symbol-dispose-et-using": async ({ effect: effet }) => {
-      const journal: string[] = []
-      const d = effet(() => {
-        journal.push("run")
-        return () => journal.push("cleanup")
-      })
-
-      assert.equal(Symbol.dispose in (d as unknown as object), true, "Symbol.dispose doit être présent")
-      assert.equal(
-        typeof (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
-        "function",
-        "et DOIT être une fonction, sinon `using` échoue",
-      )
-// Et l'IDENTITÉ : `d[Symbol.dispose] === d`, comme l'exige SPEC §8.2. Elle ne coûte pas
-        // `using`, parce que V8 ne refuse que les fonctions *liées* dont la méthode pointe sur
-        // elles-mêmes — une fonction simple passe. C'est ce que le test ci-dessous mesure.
-        assert.equal(
-          (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
-          d,
-          "SPEC §8.2 exige que la méthode de libération soit le dispositeur lui-même",
-        )
-
-      const portee = () => {
-        using _ = d as unknown as { [Symbol.dispose](): void }
-        journal.push("corps")
-      }
-      portee()
-      assert.deepEqual(journal, ["run", "corps", "cleanup"])
-    },
-
-    // SPEC §14 — un signal gelé lève en écriture. Le mode strict du module de test le fait.
-    "signal-gele": async ({ signal: moteur }) => {
-      const s = auRuntime(Object.freeze(moteur(1)))
-      assert.throws(() => {
-        s.value = 2
-      }, TypeError)
-    },
   }
 
   for (const [nom, corps] of Object.entries(testsSignalcnSeul)) {

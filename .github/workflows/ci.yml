@@ -49,6 +49,10 @@ jobs:
         run: npm run build
       - name: portes du build
         run: npm run verifier-build
+      # Apres le build, comme dans docs/ci.md §2 : la parite juge les ARTEFACTS, donc elle n'a
+      # rien a dire avant qu'ils existent.
+      - name: parite — la meme table sur les quatre cibles
+        run: npm run parite
       - name: derive — le build ne touche aucun artefact commite
         run: npm run verifier-derive
 
