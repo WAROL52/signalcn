@@ -401,6 +401,46 @@ export const scenarios = [
         },
     },
     {
+        // SPEC §6 — une écriture d'un signal que le computé ne lit PAS ne le fait pas réévaluer. C'est
+        // le pendant exact du scénario précédent : là, les écritures portent sur sa source et il DOIT
+        // recalculer ; ici, elles ne le concernent pas et il ne doit PAS le faire. Les deux ensemble
+        // disent ce que vaut « périmé », et un seul des deux laisserait la moitié de la règle libre.
+        //
+        // C'est l'entrée 47 de la matrice, « le compteur d'évaluations d'un computed invalidé puis relu
+        // dépend de la version globale ». Une voie rapide qui exigeait un abonné passait ici sans
+        // rejouer ce compte : elle ne servait jamais de valeur périmée, seulement un recalcul de trop.
+        // Aucun test ne le voyait, parce que la plupart des scénarios observent une VALEUR, et qu'ici la
+        // valeur est juste des deux côtés — seul le compte change.
+        name: "computed/evaluation-dune-ecriture-non-liee",
+        matrice: [],
+        run(api, log) {
+            let calls = 0;
+            const a = api.signal(1);
+            const sansLien = api.signal(0);
+            const c = api.computed(() => {
+                calls++;
+                return a.value + 1;
+            });
+            log("1re lecture", `${c.value} evaluations:${calls}`);
+            // Deux écritures sur un signal que `c` ne lit pas. Elles font avancer le compteur global,
+            // donc elles invalident le cache de TOUS les computeds — et c'est justement ce compteur, trop
+            // large, que la voie rapide est censée absorber quand les nœuds sont tous à jour.
+            sansLien.value = 1;
+            sansLien.value = 2;
+            log("apres deux ecritures non liees", `evaluations:${calls}`);
+            log("relue", `${c.value} evaluations:${calls}`);
+            // Et l'écriture qui, ELLE, compte : le calcul doit repartir.
+            a.value = 10;
+            log("apres une ecriture liee", `${c.value} evaluations:${calls}`);
+            assert.deepEqual(log.entries, [
+                "1re lecture 2 evaluations:1",
+                "apres deux ecritures non liees evaluations:1",
+                "relue 2 evaluations:1",
+                "apres une ecriture liee 11 evaluations:2",
+            ]);
+        },
+    },
+    {
         // SPEC §6 — invalidation puis recalcul, et `peek()` qui passe par la voie de lecture. Le
         // recalcul n'a lieu qu'à la lecture : c'est ce qui rend le computé paresseux.
         name: "computed/invalidation-et-recalcul",
@@ -1511,6 +1551,98 @@ export const scenarios = [
         },
     },
     {
+        // SPEC §9.1 — écrire une source puis RELIRE son computé, dans le même batch, réveille quand
+        // même l'effet à la sortie du batch. La notification d'un computé l'empilait dans la file des
+        // drainages, donc sa lecture CONSOMMAIT cette file, et plus rien n'était à drainer en sortant du
+        // batch : l'effet ne tournait jamais. La baseline (`L737-749`) pose les drapeaux et prévient ses
+        // cibles par un parcours, sans empiler le computé.
+        //
+        // La lecture est dans le corps du batch, et c'est ce qui rend le cas minimal : hors batch le
+        // setter imbrique son propre batch et referme, donc la lecture arrive APRÈS le drainage et la
+        // différence ne s'observe pas. Le `untracked` autour de la lecture rend la même garantie — il
+        // neutralise le suivi, pas le rafraîchissement — donc il doit réveiller l'effet lui aussi.
+        name: "batch/relecture-reveille-malgre-la-lecture",
+        matrice: [],
+        run(api, log) {
+            const a = api.signal("a");
+            const journal = [];
+            const A = api.computed(() => `A:${a.value}`);
+            api.effect(() => journal.push(`e:${A.value}`));
+            A.value;
+            api.batch(() => {
+                a.value = "T";
+                log("pendant le batch", String(A.value));
+            });
+            log("journal", JSON.stringify(journal));
+            // Relire APRÈS le batch ne doit rien changer de plus : l'effet a déjà tourné.
+            A.value;
+            log("journal apres relecture", JSON.stringify(journal));
+            // Le même avec un `untracked` autour de la lecture.
+            const b = api.signal("b");
+            const journalUntracked = [];
+            const B = api.computed(() => `B:${b.value}`);
+            api.effect(() => journalUntracked.push(`e:${B.value}`));
+            B.value;
+            api.batch(() => {
+                b.value = "T";
+                log("untracked dans le batch", String(api.untracked(() => B.value)));
+            });
+            log("journal untracked", JSON.stringify(journalUntracked));
+            // Et le témoin NÉGATIF : sans écriture dans le batch, rien ne doit bouger. Sans lui, le
+            // scénario ne prouverait qu'une seule chose — que l'effet tourne.
+            const c = api.signal("c");
+            const journalSansEcriture = [];
+            const C = api.computed(() => `C:${c.value}`);
+            api.effect(() => journalSansEcriture.push(`e:${C.value}`));
+            C.value;
+            api.batch(() => {
+                log("batch sans ecriture", String(C.value));
+            });
+            log("journal sans ecriture", JSON.stringify(journalSansEcriture));
+            assert.deepEqual(log.entries, [
+                "pendant le batch A:T",
+                'journal ["e:A:a","e:A:T"]',
+                'journal apres relecture ["e:A:a","e:A:T"]',
+                "untracked dans le batch B:T",
+                'journal untracked ["e:B:b","e:B:T"]',
+                "batch sans ecriture C:c",
+                'journal sans ecriture ["e:C:c"]',
+            ]);
+        },
+    },
+    {
+        // SPEC §13.4 — l'ordre de drainage. Deux computés INDÉPENDANTS et deux effets : le journal
+        // alterne computé puis effet, `c1 e1 c2 e2`. L'ordre inverse `c1 c2 e2 e1` venait de l'empilement
+        // des computés dans la file : le computé était rafraîchi comme une génération à part entière,
+        // donc il passait devant l'effet qui l'avait déclenché. La matrice l'avait observé
+        // (`computed#18`) sans qu'aucun scénario ne le rejoue — le même trou de registre que
+        // `computed#5` et `computed#6`.
+        name: "computed/ordre-alterne-compute-et-effet",
+        matrice: [],
+        run(api, log) {
+            const a = api.signal(0);
+            const journal = [];
+            const c1 = api.computed(() => {
+                journal.push(`c1:${a.value}`);
+                return a.value + 1;
+            });
+            const c2 = api.computed(() => {
+                journal.push(`c2:${a.value}`);
+                return a.value + 2;
+            });
+            api.effect(() => journal.push(`e1:${c1.value}`));
+            api.effect(() => journal.push(`e2:${c2.value}`));
+            log("initial", JSON.stringify(journal));
+            journal.length = 0;
+            a.value = 1;
+            log("apres ecriture", JSON.stringify(journal));
+            assert.deepEqual(log.entries, [
+                'initial ["c1:0","e1:1","c2:0","e2:2"]',
+                'apres ecriture ["c1:1","e1:2","c2:1","e2:3"]',
+            ]);
+        },
+    },
+    {
         // SPEC §9.3 — la reconciliation compare les VALEURS avec `===`, pas avec `Object.is`. Lu dans la
         // baseline ligne 180 : `source._value === snapshots._value`.
         //
@@ -1960,6 +2092,10 @@ export const COUVERTURE = {
     "computed#1": "computed/paresseux-et-cache",
     "computed#2": "computed/paresseux-et-cache",
     "computed#3": "computed/sans-abonne",
+    // computed#3b : une écriture NON liée ne fait pas réévaluer un computé nu, alors qu'une écriture
+    // liée le fait (#3). Les deux ensemble disent ce que vaut « périmé » ; un seul laisserait la
+    // moitié de la règle libre.
+    "computed#3b": "computed/evaluation-dune-ecriture-non-liee",
     "computed#4": "computed/invalidation-et-recalcul",
     // computed#5 et #6 : un résultat identique ne notifie pas les dépendants. Elles pointaient sur le
     // ticket #24, clos, et n'étaient couvertes par AUCUN test — un numéro de ticket est accepté comme
@@ -1980,6 +2116,11 @@ export const COUVERTURE = {
     "computed#16": "computed/erreur-stockee",
     "computed#17": TICHETS.effet,
     "computed#18": TICHETS.effet,
+    // computed#18b, et non #18 : l'entrée #18 note l'ordre bottom-up de deux computés CHAÎNÉS, qui
+    // n'a jamais divergé. Le cas ici est deux computés INDÉPENDANTS, dont l'ordre alterne — une autre
+    // question. Ré mapper #18 sur ce scénario aurait couvert une entrée sans la rejouer, ce qui est
+    // exactement le trou que ce scenario vient de refermer.
+    "computed#18b": "computed/ordre-alterne-compute-et-effet",
     // computed#19, #20, #21, #22 : le prototype partagé de la baseline est un écart ASSUMÉ, voir
     // SPEC §21 et ADR-0004. Notre prototype ne porte pas d'état, nos noms sont lisibles, et
     // `constructor` vaut `Computed` et non `Signal` — le correctif que SPEC §21 enregistre. Ces
@@ -2092,6 +2233,9 @@ export const COUVERTURE = {
     "batch#24": "batch/cycle-borne-et-non-borne",
     "batch#25": "batch/cycle-borne-et-non-borne",
     "batch#26": "batch/cycle-borne-et-non-borne",
+    // batch#27 : relire un computé invalidé PENDANT le batch ne doit pas consommer la file de
+    // drainage, sinon l'effet ne tourne jamais à la sortie. Trouvé en #38.
+    "batch#27": "batch/relecture-reveille-malgre-la-lecture",
     // `untracked#10` a `#11` et `#12` portent sur la portee de capture d'effets d'un modele : ils
     // ne sont atteignables qu'avec `createModel`, qui est #28. `untracked#13` est un usage INTERNE —
     // `peek` est deja couvert par `untracked/aucune-dependance`, `watched`/`unwatched` arrivent avec
@@ -2131,15 +2275,21 @@ export const COUVERTURE = {
  * Les entrées de matrice des cinq groupes traités ici. Les COMPTES sont écrits en dur, et c'est
  * une faiblesse connue : une entrée ajoutée à la matrice laisserait `registre-complet`
  * vert. Le durcissement — lire la matrice pour en dériver la liste — est [#33](#33), qui a trouvé
- * le problème en冲着 les entrées structurelles.
+ * le problème sur les entrées structurelles.
  */
 export const ENTREES_ATTENDUES = [
     ...Array.from({ length: 23 }, (_, i) => `signal#${i + 1}`),
     ...Array.from({ length: 15 }, (_, i) => `conv#${i + 1}`),
     ...Array.from({ length: 27 }, (_, i) => `computed#${i + 1}`),
+    // Les deux entrées suffixées sont de vraies entrées de matrice, ajoutées en #38 : `research`
+    // les numérote `3b` et `18b` pour les insérer PRÈS de l'entrée qu'elles prolongent, parce que
+    // leur sujet est plus étroit et non un comportement supplémentaire. Un `Array.from` les
+    // produirait jamais, donc elles sont nommées.
+    "computed#3b",
+    "computed#18b",
     ...Array.from({ length: 41 }, (_, i) => `effect#${i + 1}`),
     ...Array.from({ length: 10 }, (_, i) => `dispose#${i + 1}`),
-    ...Array.from({ length: 26 }, (_, i) => `batch#${i + 1}`),
+    ...Array.from({ length: 27 }, (_, i) => `batch#${i + 1}`),
     ...Array.from({ length: 13 }, (_, i) => `untracked#${i + 1}`),
 ];
 // Le reliquat : il n'a aucune raison d'exister ailleurs.

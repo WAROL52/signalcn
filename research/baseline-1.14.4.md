@@ -260,6 +260,7 @@ par probe**.
 | 1 | Paresseux : rien ne s'exécute avant la première lecture | `L640-641`,`L661-697` | `callsBefore === 0`, `callsAfter === 1` | oui (README « lazy ») | — |
 | 2 | Valeur mise en cache si résultat identique | `L679-687` | 3 lectures consécutives → **1** évaluation | oui (CHANGELOG 1.1.1) | — |
 | 3 | Sans abonné, une écriture ne relance rien | `L737-749` | après `a=1`, `calls === 1`, `c.value === 2`, `calls === 2` | oui (README) | — |
+| 3b | Sans abonné, une écriture **non liée** ne fait pas non plus réévaluer | `L669` | `c(a)` puis `z=1; z=2`, puis `c.value` → `calls === 1` ; puis `a=10` puis `c.value` → `calls === 2`, valeur `11` | non | la voie rapide absorbe le compteur global quand tous les nœuds sont à jour |
 | 4 | Invalidation par écriture, mais invalidé-puis-relu ≠ 1 évaluation | `L646-697` | `c.value` ×2 → 1 ; `a=1;b=2` ; `c.value` → `calls === 2`, valeur `12` | non | la version globale force un recalcul |
 | 5 | Un résultat identique ne notifie pas les dépendants | `L679-687` | computed `%2`, effect : `a=2` → `cCalls: 2, eRuns: 1` | non | l'effet est notifié puis sauté par `needsToRecompute` |
 | 6 | Le cas symétrique notifie | `L679-687` | `a=1` → `cCalls: 2, eRuns: 2` | non | — |
@@ -275,6 +276,7 @@ par probe**.
 | 16 | L'erreur ne se résout que si une dépendance change | `L646-697` | après `s=1` : `c.value === 20`, `calls === 2` | non | pas de nouvelle tentative sur simple relecture |
 | 17 | Propagation de l'erreur vers l'effect qui la lit | `L761-763` | `["create threw derived boom2","runs=1","c=1"]` : l'effect est **disposé** à la création, `s=1` ne le relance pas | non | l'effect ne survit pas à l'erreur du computé |
 | 18 | 2 computeds → les 2 re-évaluent dans le même flush | `L737-749` | `["c1:0","c2:1","e1:2","e2:2"]` puis après `a=1` `["c1:1","c2:2","e1:3","e2:3"]` | non | ordre **bottom-up** : c1, c2, puis l'effet |
+| 18b | 2 computeds **indépendants** et 2 effets : l'ordre alterne, pas bottom-up | `L737-749` | `["c1:0","e1:1","c2:0","e2:2"]` puis après `a=1` `["c1:1","e1:2","c2:1","e2:3"]` | non | un computé n'est pas une génération de drainage : chaque effet suit le computé qu'il lit |
 | 19 | `Computed.prototype` est une `instance` de `Signal` partagée | `L644` | `Object.getPrototypeOf(c1) === Object.getPrototypeOf(c2) === true` | non | singleton mutable |
 | 20 | `Object.keys(computed)` = 12 clés d'instance | `L635-642` | `["_value","_version","_node","_targets","_batchSnapshotVersion","_watched","_unwatched","name","_fn","_sources","_globalVersion","_flags"]` | non | liste exacte |
 | 21 | `for…in` sur un computed = 22 clés | `L644` | + `["_refresh","_subscribe","_unsubscribe","_notify","brand","subscribe","valueOf","toString","toJSON","peek"]` | non | 22 = 12 + 10 |
@@ -365,6 +367,7 @@ par probe**.
 | 24 | Ping-pong de 2 effets : 52 / 51 runs puis `Cycle detected` | `L463` | `{"an":52,"bn":51,"a":102,"b":101}` | non | chiffres exacts |
 | 25 | Ping-pong à 3 effets : 35 / 35 / 34 puis `Cycle detected` | `L463` | `{"an":35,"bn":35,"cn":34}` | non | chiffres exacts |
 | 26 | `batchIteration` remis à 0 après une erreur | `L75` | un effect auto-écrivant créé après un flush en erreur fait bien 102 runs | non | sinon le seuil serait consommé |
+| 27 | Lire un computé invalidé **pendant** le batch ne consomme pas la file de drainage | `L737-749` | `["e:A:a","mid:A:T","e:A:T"]` : l'effet tourne à la sortie du batch | non | un computé ne s'empile PAS dans la file ; il pose les drapeaux et prévient par un parcours |
 
 ---
 

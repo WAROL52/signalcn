@@ -118,10 +118,16 @@ un computed.
 
 La voie rapide de lecture d'un computed a deux sorties successives :
 
-1. si le computed a des abonnés et n'a pas été signalé périmé, sa valeur ne peut pas avoir
-   changé — court-circuite sans même lire le compteur global ;
+1. si le computed n'a pas été signalé périmé et qu'aucune de ses sources n'est en retard, sa
+   valeur ne peut pas avoir changé — court-circuite sans recalculer ;
 2. sinon, si le compteur global n'a pas bougé depuis le dernier rafraîchissement, rien n'a pu
    changer.
+
+La première sortie ne demande **aucun abonné**. Une version de ce paragraphe en exigeait un, au
+motif que « sans abonné, aucune source ne prévient, donc court-circuiter rendrait une valeur
+périmée ». C'était faux : la comparaison des versions se fait nœud par nœud et ne dépend d'aucun
+abonnement. Ce que le test coûtait : un computed nu réévaluait sur toute écriture non liée. La
+preuve est le scénario `computed/evaluation-dune-ecriture-non-liee`.
 
 La seconde sortie est **délibérément trop large** : n'importe quelle écriture de n'importe quel
 signal invalide le cache de tous les computeds du programme. Le pire cas est un recalcul

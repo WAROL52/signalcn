@@ -221,19 +221,11 @@ let batchIteration = 0;
  * Elle est à la fois tête de PILE et tête de liste chaînée : la liste EST la pile, donc aucune
  * allocation à l'empilement et le drainage sort dans l'ordre inverse — LIFO. Cet ordre est
  * normatif, SPEC §13.4.
+ *
+ * Elle ne porte QUE des effets, et la raison est dans `Computed._notify`. Voir l'entrée de matrice
+ * `batch#27`.
  */
 let batchedEffect = undefined;
-/**
- * Le drainage est-il en cours ?
- *
- * Un effect ouvre sa propre portée — c'est ce qui borne son cycle d'auto-écriture — et la referme en
- * appelant `endBatch`. S'il appelle `endBatch` depuis l'intérieur d'un drainage, il ne doit pas
- * lancer un second drainage IMBRIQUÉ : deux drains imbriqués décrémenteraient deux fois la
- * profondeur, et chacun viderait une génération que l'autre vide aussi. Le drapeau dit au drainage
- * en cours de s'en charger : la file est déjà détachée, donc tout ce qui est empilé pendant ce
- * temps sera pris au tour suivant de SA boucle.
- */
-let enDrain = false;
 /**
  * Les écritures faites pendant le corps d'un `batch` utilisateur, pour pouvoir les REVERTIR.
  *
@@ -497,14 +489,8 @@ function endBatch() {
         batchDepth--;
         return;
     }
-    if (enDrain) {
-        // Profondeur rendue, mais le drainage en cours reprendra ce qui a été empilé entre-temps.
-        batchDepth--;
-        return;
-    }
     let premiereErreur;
     let aErreur = false;
-    enDrain = true;
     try {
         // La réconciliation passe AVANT la boucle, jamais dedans : elle avance la version des nœuds
         // qui ont vu l'état pré-batch, et le drainage les CONSOMMERait avant qu'elle puisse le faire.
@@ -520,23 +506,8 @@ function endBatch() {
                 generation._nextBatchedEffect = undefined;
                 generation._flags &= ~(RUNNING | NOTIFIED);
                 try {
-                    if (generation instanceof Effect) {
-                        if ((generation._flags & DISPOSED) === 0 && sourcesAreStale(generation)) {
-                            generation._callback();
-                        }
-                    }
-                    else {
-                        const calcule = generation;
-                        // Un computé se RÉACTUALISE, et ne réveille ses abonnés que si sa valeur a changé.
-                        // C'est ce notify qui fait avancer la chaîne d'un maillon.
-                        const versionAvant = calcule._version;
-                        if (sourcesAreStale(calcule))
-                            calcule._refresh();
-                        if (calcule._version !== versionAvant) {
-                            for (let noeud = calcule._targets; noeud !== undefined; noeud = noeud._targetPrev) {
-                                noeud._target._notify();
-                            }
-                        }
+                    if ((generation._flags & DISPOSED) === 0 && sourcesAreStale(generation)) {
+                        generation._callback();
                     }
                 }
                 catch (erreur) {
@@ -553,7 +524,6 @@ function endBatch() {
         // L'état est rendu ICI, et l'erreur est levée APRÈS. Un `throw` depuis le `finally`
         // ÉCRASERAIT celle d'un effet — et SPEC §15.6 le veut : l'erreur d'un effet passe avant celle du
         // corps du `batch`. Rendre l'état d'abord est donc ce qui rend cet écrasement VOLONTAIRE.
-        enDrain = false;
         batchIteration = 0;
         batchDepth--;
         // Le jeton meurt avec la portée. Le remettre à zéro est sûr pour la déduplication parce que
@@ -882,13 +852,18 @@ export class Computed extends Signal {
         if (this._globalVersion === globalVersion)
             return true;
         this._globalVersion = globalVersion;
-        // Sortie rapide 2 : des abonnés, et aucune source en retard. Court-circuite sans même lire le
-        // compteur global — un computé observé ne peut pas avoir changé.
+        // Sortie rapide 2 : aucune source en retard. Court-circuite sans recalculer — et sans même lire
+        // le compteur global au-delà du test ci-dessus, qui l'a déjà fait.
         //
-        // Le test d'abonné n'est pas une optimisation, c'est une CORRECTION. Sans abonné, aucune
-        // source ne prévient : la seule chose qui dise que le cache est périmé, c'est le compteur
-        // global. Court-circuiter ici rendrait une valeur périmée, silencieusement.
-        if ((this._flags & TRACKING) !== 0 && this._version > 0 && !sourcesAreStale(this)) {
+        // AUCUN test de cible ici, comme la baseline (`L669`). Une version de ce code en exigeait un, au
+        // motif que « sans cible, aucune source ne prévient, donc court-circuiter servirait une valeur
+        // périmée ». C'était faux : `sourcesAreStale` compare les versions nœud par nœud, et ce parcours
+        // ne dépend d'aucun abonnement. La preuve est le scénario
+        // `computed/evaluation-dune-ecriture-non-liee` — un computé nu, deux écritures sur un signal
+        // qu'il ne lit pas, puis une relecture : UNE évaluation des deux côtés, DEUX avec le test. Le
+        // coût n'était donc jamais une valeur fausse, mais un recalcul de trop sur toute écriture non
+        // liée — donc un effet de plus dans la fuite figée par `effect#34`.
+        if (this._version > 0 && !sourcesAreStale(this)) {
             this._flags &= ~NOTIFIED;
             return true;
         }
@@ -936,8 +911,9 @@ export class Computed extends Signal {
         // marqué périmé s'en sort par là, et ne se recalcule jamais. C'est ce drapeau qui distingue
         // « suivi » de « suivi et périmé » — voir `docs/architecture.md` §10.
         this._flags |= NOTIFIED | OUTDATED;
-        this._nextBatchedEffect = batchedEffect;
-        batchedEffect = this;
+        for (let node = this._targets; node !== undefined; node = node._targetPrev) {
+            node._target._notify();
+        }
     }
     /**
      * Le PREMIER abonné est ce qui raccorde le computé à ses sources.
