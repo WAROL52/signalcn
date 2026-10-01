@@ -49,6 +49,7 @@ export type Api = {
 effect: typeof effectFn
     batch: <T>(fn: () => T) => T
     untracked: <T>(fn: () => T) => T
+    action: <TArgs extends unknown[], TReturn>(fn: (...args: TArgs) => TReturn) => (...args: TArgs) => TReturn
     Effect: typeof EffectClass
   Signal: typeof SignalClass
   Computed: typeof ComputedClass
@@ -2363,6 +2364,162 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    // SPEC §10 — `action(fn)` EXACTEMENT `batch` autour de `untracked`, et rien de plus. La
+    // baseline (`L991-993`) ne fait rien d'autre : pas d'état, pas de mode, pas de journal. Donc
+    // ce scénario ne teste pas une fonction, il teste une COMPOSITION — et c'est ce qui autorise
+    // `createModel` à s'en servir pour envelopper chaque fonction d'un modèle.
+    //
+    // Les quatre premiers faits sont la composition elle-même : deux écritures ne produisent
+    // qu'un flush, la valeur de retour traverse, les arguments traversent, et une lecture faite
+    // dans le corps n'abonne personne. Les deux derniers sont les consequences qu'on ne verrait
+    // pas si l'implantation était autre chose : les actions imbriquées ne flushent qu'une fois,
+    // et une erreur traverse tout en flushant.
+    name: "action/batch-autour-duntracked",
+    matrice: [],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`e:${s.value}`)
+      })
+      api.action(() => {
+        s.value = 1
+        s.value = 2
+      })()
+      log("deux ecritures, un seul flush", JSON.stringify(journal))
+
+      log("valeur de retour", String(api.action(() => "ret")()))
+      log("une promesse traverse", typeof api.action(() => Promise.resolve(1))())
+      log("arguments", String(api.action((a: number, c: number) => a + c)(1, 2)))
+
+      // L'`untracked` ne se voit que si l'action est APPELÉE DEPUIS un effet : c'est le seul moment
+      // où elle a un contexte de suivi à neutraliser. L'effet appelle l'action, l'action lit une
+      // source, et cette source ne doit pas abonner l'effet appelant — sans quoi il se réveillerait
+      // tout seul. Un seul run : le `untracked` est là.
+      //
+      // La forme naïve — un effet qui lit une source et une action qui en écrit une AUTRE — ne
+      // prouverait rien : elle passe aussi sans `untracked`, donc elle ne figerait pas le `batch`
+      // plus le `untracked`, elle figerait seulement le `batch`.
+      const source = api.signal(0)
+      const lireLaSource = api.action(() => {
+        void source.value
+      })
+      let runs = 0
+      api.effect(() => {
+        runs++
+        lireLaSource()
+      })
+      const avantEcriture = runs
+      source.value = 1
+      log("runs de l'effet appelant", `${avantEcriture} puis ${runs}`)
+
+      const imbriquee = api.signal(0)
+      const journalImbrique: string[] = []
+      api.effect(() => {
+        journalImbrique.push(`e:${imbriquee.value}`)
+      })
+      api.action(() => {
+        api.action(() => {
+          imbriquee.value = 1
+          imbriquee.value = 2
+        })()
+      })()
+      log("actions imbriquees, un seul flush", JSON.stringify(journalImbrique))
+
+      const enErreur = api.signal(0)
+      const journalErreur: string[] = []
+      api.effect(() => {
+        journalErreur.push(`e:${enErreur.value}`)
+      })
+      try {
+        api.action(() => {
+          enErreur.value = 1
+          throw new Error("x")
+        })()
+        log("erreur", "aucune erreur")
+      } catch (erreur) {
+        journalErreur.push(`caught:${erreur instanceof Error ? erreur.constructor.name : "autre"}`)
+      }
+      log("l'erreur traverse, le flush a lieu", JSON.stringify(journalErreur))
+
+      assert.deepEqual(log.entries, [
+        'deux ecritures, un seul flush ["e:0","e:2"]',
+        "valeur de retour ret",
+        "une promesse traverse object",
+        "arguments 3",
+        "runs de l'effet appelant 1 puis 1",
+        'actions imbriquees, un seul flush ["e:0","e:2"]',
+        'l\'erreur traverse, le flush a lieu ["e:0","e:1","caught:Error"]',
+      ])
+    },
+  },
+  {
+    // SPEC §10 — `this` ET LES ARGUMENTS. Un appel membre voit le `this` du membre ; un appel
+    // détaché ne voit rien, parce que le module est en ESM et que `this` y vaut `undefined`. C'est
+    // la même règle que pour le callback d'un effect, et elle est déjà figée par `effect#10`.
+    //
+    // La fonction rendue est une fonction ordinaire : pas de marque, et le prototype de
+    // `Function`. Une action n'est donc ni un signal ni un objet du modèle — ce qui est exactement
+    // ce que la détection de sous-objet de `createModel` doit pouvoir constater.
+    name: "action/this-et-arguments",
+    matrice: [],
+    run(api, log) {
+      const objet = {
+        n: 5,
+        run: api.action(function (this: { n: number }) {
+          return this.n
+        }),
+      }
+      log("appel membre, this preserve", String(objet.run()))
+
+      const detache = api.action(function (this: unknown) {
+        return this === undefined ? "undefined" : "autre"
+      })
+      log("appel detache, this ESM", detache())
+
+      const rendue = api.action(() => 0)
+      log("marque presente", String("brand" in rendue))
+      log("prototype de Function", String(Object.getPrototypeOf(rendue) === Function.prototype))
+
+      assert.deepEqual(log.entries, [
+        "appel membre, this preserve 5",
+        "appel detache, this ESM undefined",
+        "marque presente false",
+        "prototype de Function true",
+      ])
+    },
+  },
+  {
+    // SPEC §10.4 — UNE ÉCRITURE FAITE DEPUIS UN EFFECT EST DIFFÉRÉE À LA FIN DE L'EFFET. L'action
+    // ouvre son propre batch, qui s'imbrique dans celui du drainage ; l'effet `d1` se réveille donc
+    // d'abord, et `d2` ne voit la valeur qu'APRÈS — jamais pendant le run de `d1`.
+    //
+    // C'est le seul endroit où l'ordre se voit sans batch explicite, et c'est pourquoi il a son
+    // propre scénario plutôt qu'une ligne de plus dans `action/batch-autour-duntracked`.
+    name: "action/ecriture-depuis-un-effect",
+    matrice: [],
+    run(api, log) {
+      const declencheur = api.signal(0)
+      const cible = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`d1:${declencheur.value}`)
+        if (declencheur.value > 0) {
+          api.action(() => {
+            cible.value = 9
+          })()
+        }
+      })
+      api.effect(() => {
+        journal.push(`d2:${cible.value}`)
+      })
+      declencheur.value = 1
+      log("journal", JSON.stringify(journal))
+
+      assert.deepEqual(log.entries, ['journal ["d1:0","d2:0","d1:1","d2:9"]'])
+    },
+  },
+  {
     // SPEC §10 — une lecture sous `untracked` n'etablit AUCUNE dependance. Et c'est exactement
     // equivalent a `peek`. Les deux effects lisent `x` par des chemins differents, et ni l'un ni
     // l'autre ne se reveille.
@@ -2760,6 +2917,22 @@ export const COUVERTURE: Record<string, string> = {
   // batch#27 : relire un computé invalidé PENDANT le batch ne doit pas consommer la file de
   // drainage, sinon l'effet ne tourne jamais à la sortie. Trouvé en #38.
   "batch#27": "batch/relecture-reveille-malgre-la-lecture",
+  // --- groupe `action` : 11 entrees
+  // `action#6`, le nom du wrapper, est le SEUL cas que la table ne peut pas dire : le paquet publie
+  // minifie ses noms de fonctions, donc `f.name` y vaut la chaine vide. Le notre survit parce que
+  // le pipeline passe `--keep-names`, et c'est ce que verifie `signalcn-seul/wrapper-nomme`.
+  "action#1": "action/batch-autour-duntracked",
+  "action#2": "action/batch-autour-duntracked",
+  "action#3": "action/this-et-arguments",
+  "action#4": "action/this-et-arguments",
+  "action#5": "action/this-et-arguments",
+  "action#6": "signalcn-seul/wrapper-nomme",
+  "action#7": "action/batch-autour-duntracked",
+  "action#8": "action/batch-autour-duntracked",
+  "action#9": "action/batch-autour-duntracked",
+  "action#10": "action/ecriture-depuis-un-effect",
+  "action#11": "action/this-et-arguments",
+
   // `untracked#10` a `#11` et `#12` portent sur la portee de capture d'effets d'un modele : ils
   // ne sont atteignables qu'avec `createModel`, qui est #28. `untracked#13` est un usage INTERNE —
   // `peek` est deja couvert par `untracked/aucune-dependance`, `watched`/`unwatched` arrivent avec
@@ -2819,6 +2992,10 @@ export const ENTREES_ATTENDUES = [
   ...Array.from({ length: 10 }, (_, i) => `dispose#${i + 1}`),
   ...Array.from({ length: 27 }, (_, i) => `batch#${i + 1}`),
   ...Array.from({ length: 13 }, (_, i) => `untracked#${i + 1}`),
+  // `action#12` et `#13` ne sont pas nommes ici : ils portent sur la portee de capture d'effets
+  // d'une fabrique de modele, donc sur `createModel` — #28. Les nommer maintenant laisserait
+  // `registre-complet` rouge sur une destination qui n'existe pas encore.
+  ...Array.from({ length: 11 }, (_, i) => `action#${i + 1}`),
 ]
 
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
@@ -2860,7 +3037,7 @@ if (process.env.NODE_TEST_CONTEXT) {
 
   for (const { name, run } of scenarios) {
     test(name, async () => {
-const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect } = await runtime
+const { signal: s, computed, effect, batch, untracked, action, Signal, Computed, Effect } = await runtime
         run(
           {
             signal: s,
@@ -2871,6 +3048,7 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
             Effect,
             batch,
             untracked,
+            action,
           },
           makeLog(),
         )
@@ -2885,6 +3063,7 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
     Signal: typeof SignalClass
     Computed: typeof ComputedClass
     Effect: typeof EffectClass
+    action: Api["action"]
   }
 
   // ---- Les tests signalcn-seuls, en une seule source --------------------------------
@@ -2895,6 +3074,17 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
   // Ils sont ici, et pas dans un fichier séparé, pour ne pas ajouter un troisième fichier à un
   // couple dont la composition est figée.
   const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>> = {
+    // Le nom du wrapper d'`action` est un CONTRACT, pas une etiquette : la matrice le fige, et le
+    // pipeline de generation a besoin de `--keep-names` pour le conserver. Il ne peut PAS etre
+    // verifie dans la table — le paquet publie minifie ses noms de fonctions, donc `f.name` y vaut
+    // la chaine vide, et un scenario qui l'affirmerait echouerait contre la baseline par
+    // construction. C'est le meme cas que `signal#3` et `signal#4`, et pour la meme raison.
+    "wrapper-nomme": async ({ action }) => {
+      const rendue = action(() => 0)
+      assert.equal(rendue.name, "actionWrapper", "le nom du wrapper est fige par la matrice")
+      assert.equal(rendue.length, 0, "la signature est vide meme si fn en a")
+      assert.notEqual(rendue.name, "", "le nom a disparu : --keep-names ne joue plus son role")
+    },
     // C'est ICI que se joue la moitié de SPEC §5.2 que la table ne peut pas voir. `_version`
     // est le marqueur d'une notification acceptée. Une implémentation `Object.is` resterait à 0
     // sur les deux écritures `NaN` et échouerait ici.

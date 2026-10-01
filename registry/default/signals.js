@@ -979,3 +979,23 @@ export class Computed extends Signal {
 export function computed(fn, options) {
     return new Computed(fn, options);
 }
+/**
+ * `action(fn)` rend une fonction qui, à chaque appel, regroupe ses écritures et les détache du
+ * contexte de suivi courant.
+ *
+ * C'EST EXACTEMENT `batch` autour de `untracked`, et c'est tout — la baseline (`L991-993`) ne fait
+ * rien d'autre. Aucune sémantique propre, donc aucun état propre à justifiesimplement, et c'est ce
+ * qui permet à `createModel` de s'en servir pour envelopper chaque fonction d'un modèle.
+ *
+ * Le `fn` est appelé avec le `this` et les arguments reçus, et sa valeur de retour traverse — y
+ * compris une promesse, l'appel n'en fait rien de particulier.
+ */
+export function action(fn) {
+    // Le nom est un CONTRACT, pas une étiquette : la matrice de conformité le fige, et le pipeline de
+    // génération a besoin de `--keep-names` pour le conserver. Sans lui il devient la chaîne vide,
+    // et la trace d'erreur qui le cite devient fausse.
+    const actionWrapper = function (...args) {
+        return batch(() => untracked(() => fn.apply(this, args)));
+    };
+    return actionWrapper;
+}

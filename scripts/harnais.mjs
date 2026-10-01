@@ -31,6 +31,7 @@ const baselineApi = {
   effect: baseline.effect,
   batch: baseline.batch,
   untracked: baseline.untracked,
+  action: baseline.action,
   Effect: baseline.Effect,
   Signal: baseline.Signal,
   Computed: baseline.Computed,
