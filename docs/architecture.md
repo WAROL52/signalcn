@@ -76,20 +76,22 @@ champ `_source` est un `Signal`, son champ `_target` un `Computed` ou un `Effect
 
 | Liste | Tête | Insertion | Parcours | Raison |
 |---|---|---|---|---|
-| `signal._targets` — les abonnés | le plus récent | en tête, O(1) | `_targetPrev`, vers les plus anciens | seule la longueur compte |
-| `node._sources` — les dépendances | le plus récent | en tête, O(1) | `_prev`, vers les plus anciens | l'ordre d'utilisation est sémantique |
+| `signal._targets` — les abonnés | la cible la plus récente | en tête, O(1) | `_targetPrev`, vers les plus anciennes | seule la longueur compte |
+| `node._sources` — les dépendances | la source lue en premier | en tête, O(1) | `_next`, vers les plus récentes | l'ordre d'utilisation est sémantique |
 
-Les deux listes ont la **même** géométrie, et c'est celle-ci qu'il faut écrire sans se tromper :
-l'insertion se fait en tête, la tête est le nœud le plus récemment utilisé, et le parcours descend
-`_prev` vers les plus anciennes. L'asymétrie n'est pas entre les deux listes — elle est **avec la
-baseline**, dont la liste des dépendances est le miroir : chez elle la tête est la plus ancienne et
-le parcours passe par `_nextSource`. Cette divergence est un arbitrage en cours, #36.
+**La règle est dans [ADR-0009](./adr/0009-geometrie-de-la-liste-des-dependances.md)**, qui donne le
+sens de chaque maillon et pourquoi le mauvais est silencieux. Ce tableau ne fait que nommer les
+colonnes.
 
-Ce qui autorise la sortie anticipée de `sourcesAreStale` dès qu'une version diffère, et le balayage de
-`cleanupSources`, c'est que la tête est en tête de liste, et que le parcours suit `_prev`. Le piège
-est symétrique : `_next` part de la tête, où il vaut `undefined`, donc un parcours par `_next` ne rend
-**qu'un seul nœud**, silencieusement. C'est ce qui a produit les quatre traversages faux corrigés en
-`0d61427` — `sourcesAreStale`, `disposeSelf`, et les deux surcharges de `Computed`.
+Les deux listes ont la même géométrie, celle de la baseline : insertion en tête, tête à l'opposé du
+parcours. Une version de ce paragraphe affirmait le contraire — que nous étions le miroir, et que
+l'asymétrie était avec la baseline — sur la foi d'un argument `O(1)` qui est vrai des deux côtés.
+L'écart a duré jusqu'à ce correctif et il a produit une divergence observable, celle de l'ordre de
+`unwatched`.
+
+Le piège que l'ADR-0009 décrit est toujours là pour qui parcourt la liste par le mauvais maillon : il
+ne lève rien, il rend un nœud. C'est ce qui a produit les quatre traversages corrigés en `0d61427` —
+`sourcesAreStale`, `disposeSelf`, et les deux surcharges de `Computed`.
 
 ### La sentinelle de recyclage
 
@@ -571,9 +573,11 @@ pourquoi une valeur ne doit pas être observée.
 
 
 
-Sept écarts avec l'architecture de la baseline, tous couverts par
-[ADR-0004 — Classes ES2020 plutôt que prototypes ES5](./adr/0004-classes-es2020-plutot-que-prototypes-es5.md)
-et [ADR-0005 — Les défauts non figés de `createModel` sont corrigés](./adr/0005-defauts-non-figes-de-createmodel.md).
+Cinq écarts avec l'architecture de la baseline : les quatre premiers sont couverts par
+[ADR-0004 — Classes ES2020 plutôt que prototypes ES5](./adr/0004-classes-es2020-plutot-que-prototypes-es5.md),
+le cinquième par `SPEC.md` §15.2. [ADR-0005 — Les défauts non figés de `createModel` sont
+corrigés](./adr/0005-defauts-non-figes-de-createmodel.md) couvre les sept écarts de `createModel`
+ci-dessous, qui sont d'une autre nature.
 
 | Écart | Effet observable |
 |---|---|

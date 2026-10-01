@@ -108,7 +108,7 @@ interface EffectOptions {
 
 - `SignalOptions.name` est un champ public, mutable après coup, toujours présent dans l'énumération des clés d'instance, `undefined` s'il est absent. Il est lisible dans `watched` / `unwatched` via `this.name`.
 - `SignalOptions.watched` est déclenché à l'ajout du **premier** abonné. `unwatched` est déclenché à la perte du **dernier**. Les deux s'exécutent dans un `untracked` : les lectures de signal qu'ils font n'abonnent personne.
-- Le `watched` d'un computed se déclenche **avant** ceux de ses sources ; `unwatched` dans l'ordre inverse.
+- Le `watched` d'un computed se déclenche **avant** ceux de ses sources, et `unwatched` dans le même ordre que `watched`. C'est l'inverse qui était écrit ici, et c'était notre écart, pas celui de la baseline — voir [ADR-0009](docs/adr/0009-geometrie-de-la-liste-des-dependances.md).
 - `EffectOptions.name` **n'a aucun effet observable via la valeur de retour de `effect()`** : la fonction retournée est une fonction liée dont `.name` vaut `"bound "`. Le nom n'est visible que sur l'instance `Effect`, donc via le constructeur exporté.
 
 ## 5. Signal

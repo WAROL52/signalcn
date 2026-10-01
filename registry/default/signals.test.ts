@@ -961,9 +961,28 @@ export const scenarios: Scenario[] = [
         })
         d3()
         log("deux sources", JSON.stringify(hooks))
+        // Le MÊME cas, mais via un COMPUTÉ à deux sources. C'est là que la géométrie se voit : un
+        // computé branche ses sources à l'abonnement et les débranche au dernier abonné perdu, donc
+        // l'ordre de ses crochets suit le sens de parcours de sa liste de dépendances. La matrice
+        // l'a observé — entrée 52, `["c:unwatched","a:unwatched","b:unwatched"]`, et entrée 9 du
+        // tableau de vérification, `["a+","b+","a-","b-"]` — donc l'ordre de libération est celui de
+        // LECTURE. C'est ce que la géométrie miroir faisait, et pas l'inverse : ADR-0009.
+        const ordre: string[] = []
+        const a = api.signal(0, { watched: () => ordre.push("a+"), unwatched: () => ordre.push("a-") })
+        const b = api.signal(0, { watched: () => ordre.push("b+"), unwatched: () => ordre.push("b-") })
+        const derive = api.computed(() => a.value + b.value, {
+          watched: () => ordre.push("c+"),
+          unwatched: () => ordre.push("c-"),
+        })
+        derive.value
+        const d4 = api.effect(() => derive.value)
+        ordre.length = 0
+        d4()
+        log("crochets d un computé", JSON.stringify(ordre))
         assert.deepEqual(log.entries, [
           'journal ["watched W","unwatched W"]',
           'deux sources ["+p","+q","-p","-q"]',
+          'crochets d un computé ["c-","a-","b-"]',
         ])
       },
   },
@@ -2206,19 +2225,19 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
       c.value
 
       const lus: unknown[] = []
-      for (let n = auRuntime(c)._sources; n !== undefined; n = n._prev) lus.push(n._source)
+      for (let n = auRuntime(c)._sources; n !== undefined; n = n._next) lus.push(n._source)
       // `assert.equal` et non `deepEqual` : deux objets se comparent ici par RÉFÉRENCE, et c'est
       // l'identité qu'on vérifie. Un `deepEqual` traverserait le graphe entier — circulaire — et
       // comparerait des nœuds, ce qui n'est pas du tout la même question.
       assert.equal(lus.length, 3)
-      assert.equal(lus[0], troisieme, "_sources est la source lue en dernier")
+      assert.equal(lus[0], premier, "_sources est la source lue en premier")
       assert.equal(lus[1], second)
-      assert.equal(lus[2], premier)
+      assert.equal(lus[2], troisieme)
 
       c.value
       c.value
       const apres: unknown[] = []
-      for (let n = auRuntime(c)._sources; n !== undefined; n = n._prev) apres.push(n._source)
+      for (let n = auRuntime(c)._sources; n !== undefined; n = n._next) apres.push(n._source)
       assert.equal(apres.length, 3, "trois lectures de plus ne perdent aucune dépendance")
 
       // Une dépendance quittée est retirée, même AU MILIEU de la liste.
@@ -2233,7 +2252,7 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
       // est plus — c'est tout l'intérêt de la réconciliation — donc le chercher après ne
       // reviendrait pas, et la comparaison n'aurait rien à comparer.
       const nœudMilieuAvant = (() => {
-        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) {
+        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
           if (n._source === milieu) return n
         }
         return undefined
@@ -2243,17 +2262,17 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
       bascule.value = false
       dyn.value
       const restants: unknown[] = []
-      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) restants.push(n._source)
+      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) restants.push(n._source)
       assert.equal(restants.length, 3, "`milieu`, lue en second, est retirée")
-      assert.equal(restants[0], droite)
+      assert.equal(restants[0], bascule)
       assert.equal(restants[1], gauche)
-      assert.equal(restants[2], bascule)
+      assert.equal(restants[2], droite)
       assert.equal(restants.includes(milieu), false, "et elle a disparu de la liste")
 
       // Le NŒUD est RÉACTIVÉ, pas réalloué. C'est SPEC §7, et c'est la seule façon de le voir :
       // la VALEUR serait juste même avec une réallocation, donc la valeur ne prouve rien.
       const noeudMilieuApres = (() => {
-        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) {
+        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
           if (n._source === milieu) return n
         }
         return undefined
@@ -2263,12 +2282,12 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
       bascule.value = true
       dyn.value
       const milieuReactive: unknown[] = []
-      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) milieuReactive.push(n._source)
+      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) milieuReactive.push(n._source)
       assert.equal(milieuReactive.length, 2, "`milieu` redevient une dépendance")
       assert.equal(milieuReactive.includes(milieu), true, "`milieu` est de nouveau dans la liste")
       // Le nœud RÉACTIVÉ est le MÊME objet.
       const nœudMilieuReactive = (() => {
-        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) {
+        for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) {
           if (n._source === milieu) return n
         }
         return undefined
@@ -2281,7 +2300,7 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
         dyn.value
       }
       const finale: unknown[] = []
-      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._prev) finale.push(n._source)
+      for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) finale.push(n._source)
       assert.equal(finale.length, 3, "aucune fuite de nœud après six évaluations")
       assert.equal(finale.includes(bascule), true, "`bascule` est lue à chaque calcul, elle reste")
     },
