@@ -2364,6 +2364,206 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    // SPEC §11 — S'ABONNER, C'EST CRÉER UN EFFET INTERNE. La baseline (`L427-435`) fait
+    // exactement cela : un `effect` nommé `"sub"` qui lit `this.value` puis appelle le rappel sous
+    // `untracked`. Aucun état propre, donc rien qui distingue un abonné d'un effet.
+    //
+    // Le premier appel est SYNCHRONE et précède la ligne suivante — c'est ce qui rend un abonné
+    // utilisable sans attendre. Le rappel reçoit la valeur, et rien d'autre : un seul argument,
+    // vérifié ici parce qu'un rappel qui en recevrait deux serait un autre contrat.
+    //
+    // ET LE RAPPEL N'EST PAS SUIVI. C'est le point que la forme naïve ne prouve pas : un rappel qui
+    // lit la source qu'on subscriptionnerait de toute façon, puisque l'effet interne la lit pour lui
+    // passer la valeur. La forme qui discrimine est un rappel qui lit un AUTRE signal et en écrit
+    // un autre. Vérifié par contre-test : sans `untracked`, cette forme lève `Cycle detected` ; avec,
+    // elle donne le journal ci-dessous. Sans ce contre-test, ce scénario figerait le `batch` et
+    // laisserait le `untracked` libre — le même défaut que `action#7`, et pour la même raison.
+    name: "subscribe/rappel-non-suivi",
+    matrice: [],
+    run(api, log) {
+      const source = api.signal(0)
+      const journal: string[] = []
+      source.subscribe((v) => {
+        journal.push(`got ${v}`)
+      })
+      journal.push("after")
+      log("appel immediat, avant la ligne suivante", JSON.stringify(journal))
+
+      const compte: string[] = []
+      api.signal(0).subscribe(function () {
+        compte.push(String(arguments.length))
+      })
+      log("arguments recus", compte.join(","))
+
+      // Le rappel non suivi. Le rappel lit `autre` et en écrit deux fois : sans `untracked` il
+      // s'abonnerait à `autre` et son propre écriture le réveillerait.
+      const lu = api.signal(0)
+      const ecrit = api.signal(0)
+      const suivi: string[] = []
+      lu.subscribe((v) => {
+        suivi.push(`sub ${v} e now ${ecrit.value}`)
+        ecrit.value = v + 1
+        ecrit.value = v + 2
+      })
+      lu.value = 1
+      log("rappel qui lit et ecrit un autre signal", JSON.stringify(suivi))
+
+      assert.deepEqual(log.entries, [
+        'appel immediat, avant la ligne suivante ["got 0","after"]',
+        "arguments recus 1",
+        'rappel qui lit et ecrit un autre signal ["sub 0 e now 0","sub 1 e now 2"]',
+      ])
+    },
+  },
+  {
+    // SPEC §11 — LE DÉSABONNEMENT, ET CE QUI SE PASSE QUAND LE RAPPEL LÈVE.
+    //
+    // Le désabonnement est idempotent : deux appels n'en valent qu'un, et c'est le même `dispose`
+    // que celui d'un effet — `name === "bound "`, `length === 0`, `Object.keys` vide. Rien de dédié
+    // à l'abonnement, donc rien à maintenir en plus.
+    //
+    // L'erreur au PREMIER appel dispose l'effet interne et remonte : `subscribe` ne rend rien. L'erreur
+    // à un appel SUIVANT remonte depuis l'ÉCRITURE, et l'effet SURVIT — l'appel suivant a lieu. C'est
+    // l'asymétrie que `effect/erreurs` fige déjà pour le cas général ; ici elle porte sur un rappel,
+    // donc la source de l'erreur est l'écriture et non la création.
+    name: "subscribe/desabonnement-et-erreurs",
+    matrice: [],
+    run(api, log) {
+      const forme: string[] = []
+      const rendu = api.signal(0).subscribe(() => {})
+      forme.push(rendu.name, String(rendu.length), String(Object.keys(rendu).length))
+      forme.push(typeof rendu[Symbol.dispose])
+      log("forme du retour", JSON.stringify(forme))
+
+      const s1 = api.signal(0)
+      const j1: string[] = []
+      const un1 = s1.subscribe((v) => j1.push(`got ${v}`))
+      s1.value = 1
+      un1()
+      s1.value = 2
+      log("plus rien apres desenvoi", JSON.stringify(j1))
+
+      const s2 = api.signal(0)
+      const j2: string[] = []
+      const un2 = s2.subscribe((v) => j2.push(`v:${v}`))
+      un2()
+      un2()
+      s2.value = 1
+      log("double desenvoi, sans effet", JSON.stringify(j2))
+
+      const s3 = api.signal(0)
+      const j3: string[] = []
+      try {
+        s3.subscribe((v) => {
+          j3.push(`sub:${v}`)
+          if (v === 0) throw new Error("sub boom")
+        })
+        j3.push("subscribe: aucune erreur")
+      } catch (erreur) {
+        j3.push(`threw:${erreur instanceof Error ? erreur.constructor.name : "autre"}`)
+      }
+      s3.value = 1
+      log("erreur au premier appel", JSON.stringify(j3))
+
+      const s4 = api.signal(0)
+      const j4: string[] = []
+      s4.subscribe((v) => {
+        j4.push(`sub:${v}`)
+        if (v === 1) throw new Error("later boom")
+      })
+      try {
+        s4.value = 1
+        j4.push("ecriture: aucune erreur")
+      } catch (erreur) {
+        j4.push(`caught:${erreur instanceof Error ? erreur.constructor.name : "autre"}`)
+      }
+      s4.value = 2
+      log("erreur plus tard, l'effet survit", JSON.stringify(j4))
+
+      assert.deepEqual(log.entries, [
+        'forme du retour ["bound ","0","0","function"]',
+        'plus rien apres desenvoi ["got 0","got 1"]',
+        'double desenvoi, sans effet ["v:0"]',
+        'erreur au premier appel ["sub:0","threw:Error"]',
+        'erreur plus tard, l\'effet survit ["sub:0","sub:1","caught:Error","sub:2"]',
+      ])
+    },
+  },
+  {
+    // SPEC §11 — OÙ L'ABONNEMENT EST CRÉÉ, ET `this`. Le rappel n'est pas une flèche : `this` y vaut
+    // `undefined` en ESM, donc il n'est PAS l'effet — contrairement au callback d'un `effect`, que
+    // `effect#10` fige déjà. C'est une des trois choses que la matrice relève et qui distingue
+    // l'abonné de l'effet.
+    //
+    // Créé dans un EFFET, l'abonnement n'ajoute pas la source à cet effet : l'effet parent ne se
+    // réveille pas sur une écriture de la source. Créé dans un COMPUTÉ, l'effet interne suit la
+    // source normalement. Créé sous `untracked`, il fonctionne comme ailleurs — c'est le seul des
+    // trois contextes où la différence ne se voit pas, et il est ici pour le dire.
+    //
+    // L'ordre entre deux abonnés est celui de la CRÉATION, pas celui d'une liste : c'est le même
+    // parcours que pour n'importe quelle cible.
+    name: "subscribe/ou-il-est-cree",
+    matrice: [],
+    run(api, log) {
+      let thisDuRappel = "?"
+      api.signal(0).subscribe(function (this: unknown) {
+        thisDuRappel = this === undefined ? "undefined" : typeof this
+      })
+      log("this du rappel", thisDuRappel)
+
+      const source = api.signal(0)
+      const autre = api.signal(0)
+      let runs = 0
+      const abonnements: string[] = []
+      api.effect(() => {
+        runs++
+        source.subscribe((v) => abonnements.push(`sub:${v}`))
+      })
+      autre.value = 1
+      log("cree dans un effect, la source n'abonne pas l'effet parent", String(runs))
+      log("rappel appele une seule fois", abonnements.join(","))
+
+      // Le computé est rejoué par l'ecriture de `autre`, donc son abonné interne tourne AVANT la
+      // creation du suivant : le journal alterne `sub`, `computed sub`, et le dernier `sub:1`
+      // prouve que l'ancien abonné a suivi l'ecriture de la source.
+      const c = api.computed(() => {
+        source.subscribe((v) => abonnements.push(`computed sub${v}`))
+        return autre.value
+      })
+      c.value
+      source.value = 1
+      log("cree dans un computed, l'effet interne suit la source", abonnements.join(","))
+
+      const sousUntracked = api.signal(0)
+      const jSousUntracked: string[] = []
+      api.untracked(() => {
+        sousUntracked.subscribe((v) => jSousUntracked.push(`v${v}`))
+      })
+      sousUntracked.value = 1
+      log("cree sous untracked", JSON.stringify(jSousUntracked))
+
+      const deux = api.signal(0)
+      const ordre: string[] = []
+      deux.subscribe(() => {
+        ordre.push(`1:${deux.value}`)
+      })
+      deux.subscribe(() => {
+        ordre.push(`2:${deux.value}`)
+      })
+      deux.value = 1
+      log("ordre de creation", JSON.stringify(ordre))
+
+      assert.deepEqual(log.entries, [
+        "this du rappel undefined",
+        "cree dans un effect, la source n'abonne pas l'effet parent 1",
+        "rappel appele une seule fois sub:0",
+        "cree dans un computed, l'effet interne suit la source sub:0,computed sub0,sub:1,computed sub1",
+        'cree sous untracked ["v0","v1"]',
+        'ordre de creation ["1:0","2:0","1:1","2:1"]',
+      ])
+    },
+  },
+  {
     // SPEC §10 — `action(fn)` EXACTEMENT `batch` autour de `untracked`, et rien de plus. La
     // baseline (`L991-993`) ne fait rien d'autre : pas d'état, pas de mode, pas de journal. Donc
     // ce scénario ne teste pas une fonction, il teste une COMPOSITION — et c'est ce qui autorise
@@ -2917,6 +3117,32 @@ export const COUVERTURE: Record<string, string> = {
   // batch#27 : relire un computé invalidé PENDANT le batch ne doit pas consommer la file de
   // drainage, sinon l'effet ne tourne jamais à la sortie. Trouvé en #38.
   "batch#27": "batch/relecture-reveille-malgre-la-lecture",
+  // --- groupe `subscribe` : 15 entrees
+  // `subscribe#12` est le SEUL cas que la table ne peut pas dire : l'effet interne se nomme "sub",
+  // et le paquet publie minifie ses noms de fonctions, donc `name` y vaut la chaine vide.
+  "subscribe#1": "subscribe/rappel-non-suivi",
+  "subscribe#2": "subscribe/desabonnement-et-erreurs",
+  "subscribe#3": "subscribe/desabonnement-et-erreurs",
+  "subscribe#4": "subscribe/desabonnement-et-erreurs",
+  "subscribe#5": "subscribe/desabonnement-et-erreurs",
+  "subscribe#6": "subscribe/rappel-non-suivi",
+  "subscribe#7": "subscribe/desabonnement-et-erreurs",
+  "subscribe#8": "subscribe/desabonnement-et-erreurs",
+  "subscribe#9": "subscribe/ou-il-est-cree",
+  "subscribe#10": "subscribe/rappel-non-suivi",
+  "subscribe#11": "subscribe/ou-il-est-cree",
+  "subscribe#12": "signalcn-seul/nom-de-leffet-interne",
+  "subscribe#13": "subscribe/ou-il-est-cree",
+  "subscribe#14": "subscribe/ou-il-est-cree",
+  "subscribe#15": "subscribe/desabonnement-et-erreurs",
+  // subscribe#16 : la forme interne differee et le nom "sub" sont nôtres seuls.
+  "subscribe#16": "signalcn-seul/nom-de-leffet-interne",
+  // subscribe#17 (ordre avec plusieurs abonnes) et #18 (utilisable avec `using`) : le premier est
+  // deja couvert par la fin de `subscribe/ou-il-est-cree`, le second par la forme du retour dans
+  // `subscribe/desabonnement-et-erreurs`.
+  "subscribe#17": "subscribe/ou-il-est-cree",
+  "subscribe#18": "subscribe/desabonnement-et-erreurs",
+
   // --- groupe `action` : 11 entrees
   // `action#6`, le nom du wrapper, est le SEUL cas que la table ne peut pas dire : le paquet publie
   // minifie ses noms de fonctions, donc `f.name` y vaut la chaine vide. Le notre survit parce que
@@ -2996,6 +3222,11 @@ export const ENTREES_ATTENDUES = [
   // d'une fabrique de modele, donc sur `createModel` — #28. Les nommer maintenant laisserait
   // `registre-complet` rouge sur une destination qui n'existe pas encore.
   ...Array.from({ length: 11 }, (_, i) => `action#${i + 1}`),
+  // `subscribe#16` est la seule voie d'observer un `EffectOptions.name` — l'effet interne est
+  // nomme "sub" — et sa forme interne differee. Les deux sont nôtres seules : la baseline minifie
+  // les noms, donc `name` y vaut la chaine vide. Voir `signalcn-seul/nom-de-leffet-interne`.
+  // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
+  ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
 ]
 
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
@@ -3079,6 +3310,20 @@ const { signal: s, computed, effect, batch, untracked, action, Signal, Computed,
     // verifie dans la table — le paquet publie minifie ses noms de fonctions, donc `f.name` y vaut
     // la chaine vide, et un scenario qui l'affirmerait echouerait contre la baseline par
     // construction. C'est le meme cas que `signal#3` et `signal#4`, et pour la meme raison.
+    // L'effet interne de `subscribe` se nomme "sub", et c'est la SEULE voie d'observer qu'un
+    // `EffectOptions.name` produise de l'effet. Notre nom survit parce que le pipeline passe
+    // `--keep-names` ; celui de la baseline publiée est la chaîne vide, donc la table ne peut pas le
+    // dire — même raison que `signal#3` et `signal#4`.
+    //
+    // On observe le nom par le chemin de la matrice, pas par une propriété inventée ici : le noeud
+    //ud de cible du signal porte l'effet qui s'y est abonné.
+    "nom-de-leffet-interne": async ({ signal }) => {
+      const source = signal(0)
+      source.subscribe(v => void v)
+      const nom = (source as unknown as { _targets: { _target: { name: string } } })._targets._target.name
+      assert.equal(nom, "sub", "l'effet interne d'un abonnement se nomme 'sub'")
+    },
+
     "wrapper-nomme": async ({ action }) => {
       const rendue = action(() => 0)
       assert.equal(rendue.name, "actionWrapper", "le nom du wrapper est fige par la matrice")

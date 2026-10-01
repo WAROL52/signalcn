@@ -180,6 +180,38 @@ export class Signal<T = undefined> {
   toJSON(): T {
     return this.value
   }
+
+  /**
+   * SPEC §11 — s'abonner aux changements de ce signal.
+   *
+   * C'EST UN EFFECT INTERNE, et c'est ce que fait la baseline (`L427-435`) : un `effect` nommé
+   * `"sub"` qui lit `this.value` puis appelle le rappel sous `untracked`. Aucun état propre, donc
+   * rien qui distingue un abonné d'un effet — et c'est ce qui rend le rappel NON suivi.
+   *
+   * Le `untracked` autour du rappel est normatif : sans lui, une lecture faite dans le rappel
+   * abonnerait l'appelant, et une écriture y propagerait. Le CHANGELOG 1.2.0 appelle ça
+   * « subscribe unexpectedly tracking ».
+   *
+   * Le retour est le DISPOSITEUR de cet effet interne, pas une fonction dédiée : même forme que
+   * celui de `effect()`, donc `name === "bound "` et `length === 0`.
+   *
+   * Lisons la valeur DANS le callback, avant le `untracked` : c'est cette lecture qui abonne
+   * l'effet interne à ce signal. La poser à l'intérieur l'abonnerait aussi, mais par un chemin
+   * qui n'a pas de nom ici — donc une seule lecture, avant, et le `untracked` ne couvre que le
+   * rappel.
+   */
+  subscribe(fn: (value: T) => void): Dispositeur {
+    const source = this
+    return effect(
+      function (this: unknown) {
+        const value = source.value
+        untracked(() => {
+          fn(value)
+        })
+      },
+      { name: "sub" },
+    ) as Dispositeur
+  }
 }
 
 /**
