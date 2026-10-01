@@ -432,6 +432,68 @@ export const scenarios = [
         },
     },
     {
+        // SPEC §15.3 — un calcul qui rend la MÊME valeur ne notifie personne, mais le computé reste
+        // parfaitement relisible. Les deux moitiés sont une seule garantie : le drapeau `RUNNING` doit
+        // être relâché à la SORTIE du calcul, inconditionnellement, pas dans la branche « la valeur a
+        // changé ». Relâché dans cette branche seulement, il restait posé après un calcul à valeur
+        // identique, et la LECTURE SUIVANTE levait `Cycle detected` — un Cycle sans auto-rentrée, donc
+        // exactement ce que le glossaire interdit : un `Cycle` détecté « sans aucun comptage ».
+        //
+        // Le cas du ticket #38 — un computé nu dont la branche change deux fois — ne le prouve PAS : la
+        // valeur y change à chaque bascule, donc la branche inconditionnelle n'a pas lieu. Le
+        // déclencheur est la valeur INCHANGÉE, et `a % 2` est le calcul minimal qui la produit. C'est
+        // aussi pour ça que le cas est ici, dans un SCÉNARIO, et pas dans le bloc signalcn-seul : seul
+        // le harnais rejoue la table des deux côtés, donc seul un scénario reverra cette garantie.
+        name: "computed/valeur-identique-relisible",
+        matrice: [],
+        run(api, log) {
+            // `computed#5` et `computed#6`, dans leur forme exacte : le résultat identique ne notifie
+            // pas, le résultat symétrique notifie.
+            const a = api.signal(2);
+            let cCalls = 0;
+            let eRuns = 0;
+            const c = api.computed(() => {
+                cCalls++;
+                return a.value % 2;
+            });
+            api.effect(() => {
+                eRuns++;
+                log("effet", String(c.value));
+            });
+            log("etat initial", `cCalls:${cCalls} eRuns:${eRuns}`);
+            a.value = 4; // pairs -> pairs : la valeur dérivée ne bouge pas, donc personne n'est notifié
+            log("apres une ecriture sans changement", `cCalls:${cCalls} eRuns:${eRuns}`);
+            a.value = 3; // pairs -> impairs : elle bouge
+            log("apres une ecriture avec changement", `cCalls:${cCalls} eRuns:${eRuns}`);
+            // Le computé NU, relu autant de fois qu'on veut. C'est la moitié que la matrice ne voyait pas :
+            // aucun abonné, donc aucune voie rapide, donc le calcul repasse par `RUNNING` à chaque
+            // relecture après une écriture.
+            const nu = api.signal(1);
+            const k = api.computed(() => nu.value % 2);
+            log("nu, 1re lecture", String(k.value));
+            nu.value = 3;
+            log("nu, apres une ecriture sans changement", String(k.value));
+            log("nu, relu", String(k.value));
+            log("nu, relu encore", String(k.value));
+            // Et l'écriture suivante DOIT rester prise en compte : un computé bloqué ne serait pas un
+            // Cycle, ce serait pire — une valeur figée.
+            nu.value = 4;
+            log("nu, apres une ecriture avec changement", String(k.value));
+            assert.deepEqual(log.entries, [
+                "effet 0",
+                "etat initial cCalls:1 eRuns:1",
+                "apres une ecriture sans changement cCalls:2 eRuns:1",
+                "effet 1",
+                "apres une ecriture avec changement cCalls:3 eRuns:2",
+                "nu, 1re lecture 1",
+                "nu, apres une ecriture sans changement 1",
+                "nu, relu 1",
+                "nu, relu encore 1",
+                "nu, apres une ecriture avec changement 0",
+            ]);
+        },
+    },
+    {
         // SPEC §7 — une dépendance abandonnée cesse de notifier. Le journal montre que `a` n'est
         // plus lue du tout, donc plus consultée.
         name: "computed/dependances-dynamiques",
@@ -1899,10 +1961,11 @@ export const COUVERTURE = {
     "computed#2": "computed/paresseux-et-cache",
     "computed#3": "computed/sans-abonne",
     "computed#4": "computed/invalidation-et-recalcul",
-    // computed#5 et #6 : un résultat identique n'a pas de versions différentes à comparer sans
-    // observateur. Un effet les rend visibles.
-    "computed#5": TICHETS.effet,
-    "computed#6": TICHETS.effet,
+    // computed#5 et #6 : un résultat identique ne notifie pas les dépendants. Elles pointaient sur le
+    // ticket #24, clos, et n'étaient couvertes par AUCUN test — un numéro de ticket est accepté comme
+    // destination par `registre-complet`, donc le vide Passait pour une couverture. #38 est passé par là.
+    "computed#5": "computed/valeur-identique-relisible",
+    "computed#6": "computed/valeur-identique-relisible",
     "computed#7": "computed/invalidation-et-recalcul",
     "computed#8": "computed/dependances-dynamiques",
     "computed#9": "computed/reactivation-apres-abandon",

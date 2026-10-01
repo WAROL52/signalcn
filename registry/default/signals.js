@@ -902,24 +902,29 @@ export class Computed extends Signal {
             // et invaliderait les abonnés, alors que rien n'a changé.
             if ((this._flags & HAS_ERROR) !== 0 || this._value !== valeur || this._version === 0) {
                 this._value = valeur;
-                this._flags &= ~(HAS_ERROR | RUNNING);
+                this._flags &= ~HAS_ERROR;
                 this._version++;
             }
         }
         catch (erreur) {
-            // L'erreur est STOCKÉE dans `_value` et `CALCUL` relâché. Relâché est ce qui compte : le
+            // L'erreur est STOCKÉE dans `_value`, et `RUNNING` est relâché plus bas comme partout : le
             // compteur global ayant été mis à jour avant le calcul, la voie rapide 2 court-circuite
             // ensuite, donc une deuxième lecture RELANCE l'erreur stockée sans réévaluer une seule fois.
             // Six lectures d'une dérivation qui jette coûtent une évaluation, pas six.
             this._value = erreur;
-            this._flags = (this._flags & ~RUNNING) | HAS_ERROR;
+            this._flags |= HAS_ERROR;
             this._version++;
         }
         finally {
             currentObserver = precedentObservateur;
         }
         cleanupDependency(this);
-        this._flags &= ~NOTIFIED;
+        // `RUNNING` se relâche ICI, inconditionnellement, et NULLE PART ailleurs — la baseline aussi
+        // (`L695`). Le mettre dans le `if` « la valeur a changé » le laissait POSÉ quand la valeur
+        // restait identique, et le computé levait `Cycle detected` à la lecture SUIVANTE alors qu'il
+        // n'avait aucune auto-rentrée : un `a % 2` qui vaut toujours 1 suffisait. Le Cycle devenait
+        // donc indétectable par construction — exactement ce que le glossaire exige.
+        this._flags &= ~(RUNNING | NOTIFIED);
         return true;
     }
     /** Une écriture reçue. Sans abonné, il n'y a personne à réveiller : le calcul est paresseux. */
