@@ -3403,13 +3403,16 @@ export const COUVERTURE = {
     "signal#2": "signal/sans-argument",
     // signal#3 et #4 sont des affirmations de structure : elles ne peuvent PAS passer contre la
     // baseline, qui minifie ses noms de propriétés. Elles sont donc nôtres seules.
-    "signal#3": "signalcn-seul/structure-de-classe",
-    "signal#4": "signalcn-seul/structure-de-classe",
+    "signal#3": "signalcn-seul/structure-de-classe + source:src/index.ts#L368-377",
+    "signal#4": "signalcn-seul/structure-de-classe + source:src/index.ts#L376",
     // La notification demande un observateur : c'est un effet, et le scénario fige son journal.
     "signal#5": "signal/notification-synchrone",
-    "signal#6": "signal/egalite-stricte-nan + signalcn-seul/notifie-sur-stricte-identite",
-    "signal#7": "signal/zero-et-negative-zero + signalcn-seul/notifie-sur-stricte-identite",
-    "signal#8": "signal/zero-et-negative-zero + signalcn-seul/notifie-sur-stricte-identite",
+    "signal#6": "signal/egalite-stricte-nan",
+    "signal#6b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
+    "signal#7": "signal/zero-et-negative-zero",
+    "signal#7b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
+    "signal#8": "signal/zero-et-negative-zero",
+    "signal#8b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
     "signal#9": "signal/egalite-stricte-objet",
     "signal#10": "signal/egalite-stricte-objet",
     "signal#11": "signal/egalite-stricte-objet",
@@ -3467,7 +3470,7 @@ export const COUVERTURE = {
     "computed#9": "computed/reactivation-apres-abandon",
     // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
     // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
-    "computed#10": "signalcn-seul/ordre-des-sources",
+    "computed#10": "signalcn-seul/ordre-des-sources + source:src/index.ts#L508-531",
     // computed#11 : la relecture paresseuse dans un batch ne relance rien, et le compteur
     // d'évaluations le dit. Elle pointait sur #26, clos.
     "computed#11": "computed/lecture-reentrante-dans-batch",
@@ -3488,9 +3491,10 @@ export const COUVERTURE = {
     // `constructor` vaut `Computed` et non `Signal` — le correctif que SPEC §21 enregistre. Ces
     // quatre entrées ne sont donc pas différentielles : elles sont nôtres seules.
     "computed#19": "signalcn-seul/structure-de-classe",
-    "computed#20": "signalcn-seul/structure-de-classe",
-    "computed#21": "signalcn-seul/structure-de-classe",
+    "computed#20": "signalcn-seul/structure-de-classe + source:src/index.ts#L644",
+    "computed#21": "signalcn-seul/structure-de-classe + source:src/index.ts#L644",
     "computed#22": "signalcn-seul/structure-de-classe",
+    "computed#22b": "source:src/index.ts#L653-655",
     "computed#23": "computed/lecture-seule",
     "computed#24": "computed/lecture-seule",
     "computed#25": "computed/options-et-marque",
@@ -3541,17 +3545,18 @@ export const COUVERTURE = {
     "effect#34": "signalcn-seul/effet-dans-un-calcule",
     "effect#35": "effect/forme-du-dispositeur",
     "effect#36": "signalcn-seul/options-de-linstance",
-    "effect#37": "signalcn-seul/drapeaux-initiaux",
+    "effect#36b": "signalcn-seul/structure-de-classe + source:src/index.ts#L770",
+    "effect#37": "signalcn-seul/drapeaux-initiaux + source:src/index.ts#L776",
     "effect#38": "effect/premier-run-et-arguments",
     // effect#39 : la baseline écrit son prototype à la main, donc ses méthodes y sont énumérables.
     // ADR-0004 refuse cette énumérabilité. DIVERGENCE ASSUMÉE.
-    "effect#39": "signalcn-seul/descripteurs-de-prototype",
+    "effect#39": "signalcn-seul/descripteurs-de-prototype + source:src/index.ts#L907",
     // La matrice dit « atteignable seulement via `_start` ». `hors-ordre` montre que l'API
     // publique ferme en ordre inverse — le cas NORMAL — et n'atteint donc pas le garde ;
     // `gardes-internes` l'atteint. C'est le second qui couvre l'entrée, le premier qui
     // garantit qu'on ne l'atteint pas par accident.
-    "effect#40": "signalcn-seul/hors-ordre + signalcn-seul/gardes-internes",
-    "effect#41": "signalcn-seul/symbol-dispose-et-using",
+    "effect#40": "signalcn-seul/hors-ordre + signalcn-seul/gardes-internes + source:src/index.ts#L842",
+    "effect#41": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.3",
     // ---- `batch` et `untracked` -----------------------------------------------------------------
     //
     // Vingt-quatre des vingt-six entrées `batch` et neuf des treize `untracked` sont couvertes par
@@ -3610,20 +3615,24 @@ export const COUVERTURE = {
     // EST le sujet (`#2`, `#4`, `#5`, `#11`, `#15`) sont donc verifiees sur les deux cotes — la
     // SUBSTITUTION de la fonction est differentielle, le nom ne l'est pas.
     "modele#1": "modele/forme-et-enveloppement",
-    "modele#2": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#2": "modele/forme-et-enveloppement",
+    "modele#2b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
     "modele#3": "modele/forme-et-enveloppement",
-    "modele#4": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
-    "modele#5": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#4": "modele/forme-et-enveloppement",
+    "modele#4b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
+    "modele#5": "modele/forme-et-enveloppement",
+    "modele#5b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
     "modele#6": "modele/forme-et-enveloppement",
     "modele#7": "modele/forme-et-enveloppement",
     "modele#8": "modele/forme-et-enveloppement",
     "modele#9": "modele/forme-et-enveloppement",
     "modele#10": "modele/forme-et-enveloppement",
-    "modele#11": "modele/getter-cyclique-et-primitives + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#11": "modele/getter-cyclique-et-primitives",
+    "modele#11b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
     "modele#12": "modele/getter-cyclique-et-primitives",
     "modele#13": "modele/capture-des-effets",
     "modele#14": "modele/arguments-et-this",
-    "modele#15": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#15": "modele/forme-et-enveloppement",
     "modele#16": "modele/capture-des-effets",
     "modele#17": "modele/capture-des-effets",
     "modele#18": "modele/capture-des-effets",
@@ -3657,7 +3666,7 @@ export const COUVERTURE = {
     "subscribe#9": "subscribe/ou-il-est-cree",
     "subscribe#10": "subscribe/rappel-non-suivi",
     "subscribe#11": "subscribe/ou-il-est-cree",
-    "subscribe#12": "signalcn-seul/nom-de-leffet-interne",
+    "subscribe#12": "signalcn-seul/nom-de-leffet-interne + source:src/index.ts#L427",
     "subscribe#13": "subscribe/ou-il-est-cree",
     "subscribe#14": "subscribe/ou-il-est-cree",
     "subscribe#15": "subscribe/desabonnement-et-erreurs",
@@ -3677,7 +3686,7 @@ export const COUVERTURE = {
     "action#3": "action/this-et-arguments",
     "action#4": "action/this-et-arguments",
     "action#5": "action/this-et-arguments",
-    "action#6": "signalcn-seul/wrapper-nomme",
+    "action#6": "signalcn-seul/wrapper-nomme + divergence:SPEC.md#4",
     "action#7": "action/batch-autour-duntracked",
     "action#8": "action/batch-autour-duntracked",
     "action#9": "action/batch-autour-duntracked",
@@ -3706,7 +3715,7 @@ export const COUVERTURE = {
     // LIÉE, et V8 refuse alors cette méthode. On garde l'identité en passant par une fermeture :
     // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
     "dispose#2": "signalcn-seul/symbol-dispose-et-using",
-    "dispose#3": "signalcn-seul/symbol-dispose-et-using",
+    "dispose#3": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.3",
     // dispose#4 : `subscribe` renvoie aussi un disposeur — #25. Par `TICHETS`, jamais en clair : la
     // JSDoc de `TICHETS` interdit le numéro écrit en clair, et le registre en committait un, donc
     // l'interdiction était réelle et ce registre la violait.
@@ -3718,7 +3727,7 @@ export const COUVERTURE = {
     "dispose#7": "dispose/pendant-le-run",
     "dispose#8": "dispose/dans-la-file",
     "dispose#9": "dispose/idempotent-et-detachement",
-    "dispose#10": "signalcn-seul/descripteurs-de-prototype",
+    "dispose#10": "signalcn-seul/descripteurs-de-prototype + source:src/index.ts#L907",
 };
 /**
  * Les entrées de matrice des cinq groupes traités ici. Les COMPTES sont écrits en dur, et c'est
@@ -3750,6 +3759,19 @@ export const ENTREES_ATTENDUES = [
     // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
     ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
     ...Array.from({ length: 34 }, (_, i) => `modele#${i + 1}`),
+    // Les neuf entrées NÉES DU DÉCOUPAGE. Une entrée qui asserte un comportement vérifiable ET
+    // un nom que l'artefact minifie est deux entrées : l'une comparable, l'autre marquée. La
+    // lettre reprend le précédent de `computed#3b` et `computed#18b`, et le mot `b` signifie
+    // « branche » — le complément, jamais un doublon.
+    "signal#6b",
+    "signal#7b",
+    "signal#8b",
+    "computed#22b",
+    "effect#36b",
+    "modele#2b",
+    "modele#4b",
+    "modele#5b",
+    "modele#11b",
 ];
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
 //
@@ -4235,11 +4257,22 @@ if (process.env.NODE_TEST_CONTEXT) {
             ...Object.keys(testsSignalcnSeul).map(nom => `signalcn-seul/${nom}`),
         ]);
         const tickets = new Set(Object.values(TICHETS));
+        // Un MARQUEUR remplace un nom de test quand l'observable ne peut rien porter sur le paquet
+        // installé. Deux espèces, parce qu'elles n'ont pas la même conséquence : `source:` dit que
+        // l'observation n'existe que sur les sources de la référence, `divergence:` que signalcn fait
+        // délibérément autre chose. Les deux cites OÙ, jamais pourquoi : la raison est au §21, et
+        // c'est une porte — celle de documentation — qui vérifie qu'elle y est. Cette suite ne peut
+        // pas le faire elle-même : elle est un artefact distribué, et SPEC.md n'est pas distribué.
+        //
+        // La forme est exigee : un marqueur sans référence pointe nulle part, et une référence sans
+        // espèce n'est pas un marqueur.
+        const MARQUEUR = /^(source|divergence):\S+$/;
         for (const [id, destination] of Object.entries(COUVERTURE)) {
             for (const morceau of destination.split("+").map(d => d.trim())) {
-                assert.ok(tickets.has(morceau) || noms.has(morceau), `${id} cite "${morceau}", qui n'est ni un test ni un ticket encore ouvert. ` +
-                    `Un ticket clos n'est pas une couverture : couvrez cette entrée par un scénario, ` +
-                    `ou par un numéro de ticket qui est encore dans TICHETS.`);
+                assert.ok(tickets.has(morceau) || noms.has(morceau) || MARQUEUR.test(morceau), `${id} cite "${morceau}", qui n'est ni un test, ni un ticket encore ouvert, ni un ` +
+                    `marqueur de la forme "source:<ref>" ou "divergence:<ref>". Un ticket clos n'est pas ` +
+                    `une couverture : couvrez cette entrée par un scénario, par un numéro de ticket qui ` +
+                    `est encore dans TICHETS, ou par un marqueur.`);
             }
         }
         // L'AUTRE SENS. Ci-dessus on vérifie que toute destination nommée existe. On ne vérifiait pas

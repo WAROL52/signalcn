@@ -152,7 +152,7 @@ L'égalité est une **identité stricte `!==`**, pas une identité de valeur. Co
 _value, _version, _node, _targets, _batchSnapshotVersion, _watched, _unwatched, name
 ```
 
-Un `Signal` n'a pas de `_flags` : ce n'est pas un effet. Ces noms sont un contrat de compatibilité, pas une documentation — voir §21.
+Un `Signal` n'a pas de `_flags` : ce n'est pas un effet. Ce sont les noms de **signalcn**, pas ceux du paquet installé : là, `_version` s'appelle `i`. Le couple clés/ordre est identique des deux côtés ; le nom diverge. La ligne est au §21.
 
 ## 6. Computed
 
@@ -216,7 +216,9 @@ Ce comportement s'applique aussi aux effects. Le nœud de dépendance abandonné
 
 La fonction retournée n'est **ni une arrow, ni l'instance `Effect`** : `name === "bound "`, `length === 0`, `Object.keys()` vide, `[Symbol.dispose]` **est la même fonction**, et elle est utilisable avec `using`.
 
-Le mécanisme est une **fonction ordinaire qui ferme sur l'instance**, et non `_dispose.bind(effect)`. La forme liée satisfait l'identité et casse `using` : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même, et accepte une fonction ordinaire. Le `bind` était donc le seul obstacle — `§8.3` ne demande `this` qu'au *callback*, pas au dispositeur. Aucune divergence, aucun ADR.
+Le mécanisme est une **fonction ordinaire qui ferme sur l'instance**, et non `_dispose.bind(effect)`. La forme liée satisfait l'identité et casse `using` : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même, et accepte une fonction ordinaire. Le `bind` était donc le seul obstacle — `§8.3` ne demande `this` qu'au *callback*, pas au dispositeur.
+
+C'est une **divergence assumée**, et elle est consignée au §21 (`effect#41`, `dispose#3`) : `using` passe ici et lève `TypeError: Symbol(Symbol.dispose) is not a function` sur le paquet installé. Ce n'est pas un défaut de la référence — c'est un choix, fait parce qu'un dispositeur lié rend `using` inutilisable.
 
 ### 8.3 `this`
 
@@ -709,17 +711,23 @@ exige un seul fichier lu, et une recherche à chaîne fixe sur l'artefact minifi
 
 ## 21. Divergences assumées
 
-Les écarts suivants sont **volontaires**. Chacun est documenté ici, et aucun n'affecte le comportement observable au sens où la compatibilité le définit.
+Les écarts suivants sont **volontaires**. Aucun n'affecte le comportement observable au sens où la compatibilité le définit, et chacun est **enregistré** : une entrée de matrice qui n'est pas confrontable à l'artefact doit avoir sa ligne ici, et une porte le vérifie.
 
-| Divergence | Raison |
-|---|---|
-| Les membres internes de `Effect` et `Computed` (`_fn`, `_flags`, `_notify`, `_start`, `_dispose`, `_sources`) portent des **types internes**, dont le nœud `Node` n'est pas exporté. La baseline publie un `.d.ts` où ils sont typés sur des structures qui lui sont propres. | Ce sont des noms d'implémentation, dont la baseline elle-même ne garantit pas la stabilité. Aucun code applicatif ne les appelle. Exposer `Node` pour les typer reviendrait à figer une structure d'implémentation dans la surface publique. |
-| `EffectFn` n'est pas un type exporté nommé. | Il ne l'est pas dans la baseline. |
-| Les méthodes de prototype sont **non énumérables**. `for..in` sur un signal expose 8 clés au lieu de 17, sur un computed 12 au lieu de 22. `Object.keys(Computed.prototype)` est vide au lieu de douze noms de champs. | Le comportement normal d'une classe ES2020. Aucun outil ne s'appuie sur l'énumération des méthodes. Voir [ADR-0004](docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md). |
-| `Computed.prototype` **ne porte pas d'état**. Lire `.value` dessus échoue sans rien empoisonner. | La baseline en fait une instance de `Signal` : un prototype partagé dont une lecture `.value` condamne le prototype pour tous les computeds du même realm. Supprimer cet état supprime le quirk. Voir [ADR-0004](docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md). |
-| `Computed.prototype.constructor` vaut `Computed`, et non `Signal`. | Conséquence directe du précédent, et un correctif : l'introspection de type par `.constructor` est juste. |
-| La borne de drainage **n'est pas figée** à 102 (§15.2). | Cent est un ordre de grandeur, pas une constante sémantique. Le mécanisme est contractuel, le compte ne l'est pas. |
-| Les **sept écarts de `createModel`** (§16.6). | Le veto `brand` par valeur, les clés propres, la descension par descripteur, la mémoïsation, l'absence de clé `"undefined"`, l'avertissement asynchrone, et quatre gardes. Voir [ADR-0005](docs/adr/0005-defauts-non-figes-de-createmodel.md). |
+Le référent est **le paquet installé** (`@preact/signals-core@1.14.4` tel qu'on l'installe), pas ses sources. Une propriété s'y appelle `i`, pas `_version`. La matrice le dit par entrée, dans `COUVERTURE`, où une destination peut être un `source:<réf>` — l'observation n'existe que sur les sources — ou un `divergence:<ancre>` — signalcn fait délibérément autre chose. Ces vingt-deux entrées ne sont donc **pas** des échecs de conformité : ce sont des écarts, et les voici.
+
+| Entrées | Divergence | Raison |
+|---|---|---|
+| `signal#3`, `signal#4`, `computed#20`, `computed#21`, `effect#36b`, `effect#37`, `effect#39`, `dispose#10`, `subscribe#12` | Les propriétés **interne** portent des noms lisibles. L'artefact les minifie : `v`, `i`, `n`, `t`, `l`, `W`, `Z`. | `§5.3` fait de ces noms le contrat de **signalcn**. Le couple clés/ordre, lui, est identique des deux côtés — mesuré sur 8 clés pour un signal, 12 pour un computé, 22 en `for..in`. C'est le nom qui diverge, pas la structure. |
+| `signal#6b`, `signal#7b`, `signal#8b`, `computed#22b` | Le compteur `_version` est un **nom** ; le compte de notifications qu'il atteste est le même. | Ces entrées mêlent un comportement et d'un nom. Découpées, la branche reste confrontable au paquet, et le nom part ici. |
+| `action#6`, `modele#2b`, `modele#4b`, `modele#5b`, `modele#11b` | Les enveloppes se nomment `actionWrapper` ; l'artefact renvoie la chaîne vide. | La matrice fige ce nom, et `--keep-names` le conserve à la génération (§17.2). Le renommage du wrapper casserait la moitié des entrées de `createModel`. |
+| `computed#10`, `effect#40` | L'ordre de la liste des dépendances, et l'atteinte du garde `Out-of-order effect`, ne s'observent que par les champs `_sources` / `_start`. | Le **comportement** est identique : l'ordre de lecture des sources change, et l'API publique ne déclenche jamais le désordre. Ce qui diverge est l'instrument d'observation, pas l'observé. Voir [ADR-0009](docs/adr/0009-geometrie-de-la-liste-des-dependances.md). |
+| `effect#41`, `dispose#3` | `using` **fonctionne** chez signalcn et **lève** `TypeError: Symbol(Symbol.dispose) is not a function` sur le paquet. | Le dispositeur est une fonction ordinaire qui ferme sur l'instance, et non `effect._dispose.bind(effect)` — V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même. C'est un choix, pas un accident : il rend `using` utilisable, ce qu'un dispositeur lié ne permet pas. §8.3. |
+
+Deux lignes de ce tableau remplacent des affirmations qui se contredisaient.
+
+**§5.3** renvoyait ici pour annoncer que les huit noms own sont « un contrat de compatibilité — voir §21 ». Le renvoi était juste, la cible vide : ils n'y étaient pas. Ils y sont maintenant.
+
+**§8.3** qualifiait le dispositeur ordinaire de « Aucune divergence, aucun ADR ». C'était faux au sens où cette section l'emploie : `using` passe ici et lève là, c'est observable, et c'est consigné.
 
 Toute divergence supplémentaire exige un ADR.
 

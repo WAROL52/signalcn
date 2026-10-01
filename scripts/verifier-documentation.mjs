@@ -92,6 +92,52 @@ porte(
   "le tableau des exigences est absent ou trop court",
 )
 
+// ---- 4. Le registre et SPEC §21 : deux listes qui doivent se répondre ------------------------
+//
+// Une vingtaine d'entrées de matrice ne sont pas confrontables au paquet installé, et chacune porte
+// dans `COUVERTURE` un marqueur qui dit OÙ son observation a été faite. Aucune ne dit POURQUOI
+// elle ne l'est pas — cette raison est une prose, dans `SPEC.md` §21. Deux listes, donc : celle du
+// code et celle du contrat. Elles doivent se répondre exactement, dans les deux sens.
+//
+// C'est ici, et pas dans `signals.test.ts`, que la vérification vit. La suite est un artefact
+// DISTRIBUÉ : elle s'exécute chez un utilisateur qui n'a pas `SPEC.md`, et une assertion qui lit
+// un fichier du dépôt y lèverait. C'est aussi pourquoi `registre-complet` ne valide que la FORME
+// du marqueur, et laisse la correspondance à cette porte.
+
+const { COUVERTURE } = await import(join(RACINE, "registry", "default", "signals.test.ts"))
+const spec = await readFile(join(RACINE, "SPEC.md"), "utf8")
+
+const marquees = Object.entries(COUVERTURE)
+  .filter(([, destination]) => /source:|divergence:/.test(destination))
+  .map(([id]) => id)
+
+// La section §21, et les identifiants d'entrée que ses lignes de tableau portent.
+const section = spec.slice(spec.indexOf("\n## 21. "), spec.indexOf("\n## 22. "))
+const consignees = new Set(
+  [...section.matchAll(/`(?:signal|computed|effect|subscribe|action|dispose|modele|conv)#\d+[a-z]?`/g)].map(
+    (m) => m[0].replaceAll("`", ""),
+  ),
+)
+
+const sansLigne = marquees.filter((id) => !consignees.has(id))
+const sansMarqueur = [...consignees].filter((id) => !marquees.includes(id))
+
+porte(
+  "chaque entree non confrontable au paquet a une ligne au §21",
+  sansLigne.length === 0,
+  `${sansLigne.length} sans ligne : ${sansLigne.join(", ")}`,
+)
+porte(
+  "chaque ligne du §21 correspond a une entree reellement marquee",
+  sansMarqueur.length === 0,
+  `${sansMarqueur.length} sans marqueur : ${sansMarqueur.join(", ")}`,
+)
+porte(
+  "le §21 consigne les 22 entrees non confrontables",
+  marquees.length === 22,
+  `${marquees.length} marquees, ${consignees.size} consignees`,
+)
+
 // ---- 4. Le contrat de couverture, et la section des differences ------------------------------
 
 porte(

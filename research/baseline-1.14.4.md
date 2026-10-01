@@ -4,6 +4,23 @@ Baseline figée pour `signalcn`. Toute affirmation ci-dessous provient d'une **p
 lecture de code. La source de référence est `package/src/index.ts` (1138 lignes) du tarball
 `preact-signals-core-1.14.4.tgz` ; les numéros de ligne `L…` renvoient à ce fichier.
 
+## Où une observation a été faite
+
+Le référent est **le paquet installé**, pas ses sources. Une propriété s'y appelle `i`, pas
+`_version` : le paquet minifie les siennes. Une entrée dont l'observable ne peut rien porter sur
+l'artefact est marquée comme telle dans `COUVERTURE` — `source:<réf>` ou `divergence:<ancre>` — et
+sa raison est au [§21 de la SPEC](../SPEC.md). Elle reste ici, telle quelle : elle dit ce que la
+**référence en source** fait, ce qui reste vrai d'elle. Ce qui est faux, c'est de la présenter
+comme une observation de l'artefact — et le marqueur, désormais, le dit.
+
+Les lignes **BRANCHE** ne sont pas des doublons. Ce sont les compléments nés d'un découpage : une
+entrée qui asserte un comportement confrontable *et* un nom qui ne l'est pas a été coupée en deux.
+La branche garde l'observable de la mère — c'est le même fait observé par un autre point — et ce qui
+la sépare est **le point d'observation**, jamais le comportement. Neuf branches.
+
+La campagne qui a établi tout cela pour les 32 entrées hors harnais, verdict par verdict, est
+[`matrice-hors-harnais.md`](./matrice-hors-harnais.md).
+
 ## Méthode de reproduction
 
 1. `npm pack @preact/signals-core@1.14.4` puis décompression → `package/src/index.ts`.
@@ -229,15 +246,22 @@ par probe**.
 |---|---|---|---|---|---|
 | 1 | Crée une instance `Signal` | `L494-498` | `signal(1).value === 1`, `_version === 0` | oui | — |
 | 2 | Sans argument → `undefined` | `L494-497` | `signal().value === undefined`, identique à `signal(undefined)` | partiellement (CHANGELOG 1.7.0) | — |
+| 2b | **BRANCHE** — Sans argument → `undefined` | `L494-497` | `signal().value === undefined`, identique à `signal(undefined)` | partiellement (CHANGELOG 1.7.0) | — |
 | 3 | 8 propriétés d'instance, dans cet ordre | `L368-377` | `Object.keys(signal(1))` = `["_value","_version","_node","_targets","_batchSnapshotVersion","_watched","_unwatched","name"]` | non | ordre exact des clés |
 | 4 | Pas de `_flags` sur un `Signal` | `L368-377` | `"_flags" in signal(1) === false`, `signal(1)._flags === undefined` | non | un `Signal` n'est pas un `Effect` |
+| 4b | **BRANCHE** — Pas de `_flags` sur un `Signal` | `L368-377` | `"_flags" in signal(1) === false`, `signal(1)._flags === undefined` | non | un `Signal` n'est pas un `Effect` |
 | 5 | Écriture → notification immédiate et synchrone | `L461-485` | `["e:0","before","e:1","after"]` | oui (README §`signal`) | le flush est terminé avant la fin de l'instruction |
+| 5b | **BRANCHE** — Écriture → notification immédiate et synchrone | `L461-485` | `["e:0","before","e:1","after"]` | oui (README §`signal`) | le flush est terminé avant la fin de l'instruction |
 | 6 | Égalité `!==` stricte : `NaN` notifie | `L462` | `s = NaN`, effect re-exécuté **2 fois**, `_version === 1` | non | `Object.is` n'est **pas** utilisé |
+| 6b | **BRANCHE** — Égalité `!==` stricte : `NaN` notifie | `L462` | `s = NaN`, effect re-exécuté **2 fois**, `_version === 1` | non | `Object.is` n'est **pas** utilisé |
 | 7 | `0 → -0` ne notifie pas | `L462` | 1 run au total, `_version === 0`, `Object.is(value,-0) === false` (valeur restée `0`) | non | — |
+| 7b | **BRANCHE** — `0 → -0` ne notifie pas | `L462` | 1 run au total, `_version === 0`, `Object.is(value,-0) === false` (valeur restée `0`) | non | — |
 | 8 | `-0 → 0` ne notifie pas | `L462` | 1 run, `_version === 0`, `Object.is(value,-0) === true` (valeur restée `-0`) | non | — |
+| 8b | **BRANCHE** — `-0 → 0` ne notifie pas | `L462` | 1 run, `_version === 0`, `Object.is(value,-0) === true` (valeur restée `-0`) | non | — |
 | 9 | Nouvel objet de même forme notifie | `L462` | 2 runs, `_version === 1` ; ré-écriture de l'objet d'origine → `_version === 2` | non | identité, pas égalité structurelle |
 | 10 | `0 → undefined` notifie ; `undefined → undefined` non | `L462` | 2 runs / 1 run | non | — |
 | 11 | Écriture identique : aucune notification | `L462` | 1 run, `_version` inchangé | non | — |
+| 11b | **BRANCHE** — Écriture identique : aucune notification | `L462` | 1 run, `_version` inchangé | non | — |
 | 12 | Auto-écriture dans un effect : aucune boucle | `L462` | `effect(() => { n++; s.value = s.value })` → `n === 1` | non | — |
 | 13 | Écriture hors de tout effect : aucun flush | `L481-483` | effect sans dépendance : `n === 1` après 2 écritures | oui (README §`effect` « lazy ») | — |
 | 14 | `peek()` = `untracked(() => value)` | `L449-451` | effect lisant `s.peek()` : 1 run malgré `s=1` | oui (README + CHANGELOG 1.0.0/1.0.1) | — |
@@ -260,7 +284,7 @@ par probe**.
 | 1 | Paresseux : rien ne s'exécute avant la première lecture | `L640-641`,`L661-697` | `callsBefore === 0`, `callsAfter === 1` | oui (README « lazy ») | — |
 | 2 | Valeur mise en cache si résultat identique | `L679-687` | 3 lectures consécutives → **1** évaluation | oui (CHANGELOG 1.1.1) | — |
 | 3 | Sans abonné, une écriture ne relance rien | `L737-749` | après `a=1`, `calls === 1`, `c.value === 2`, `calls === 2` | oui (README) | — |
-| 3b | Sans abonné, une écriture **non liée** ne fait pas non plus réévaluer | `L669` | `c(a)` puis `z=1; z=2`, puis `c.value` → `calls === 1` ; puis `a=10` puis `c.value` → `calls === 2`, valeur `11` | non | la voie rapide absorbe le compteur global quand tous les nœuds sont à jour |
+| 3b | **BRANCHE** — Sans abonné, une écriture **non liée** ne fait pas non plus réévaluer | `L669` | `c(a)` puis `z=1; z=2`, puis `c.value` → `calls === 1` ; puis `a=10` puis `c.value` → `calls === 2`, valeur `11` | non | la voie rapide absorbe le compteur global quand tous les nœuds sont à jour |
 | 4 | Invalidation par écriture, mais invalidé-puis-relu ≠ 1 évaluation | `L646-697` | `c.value` ×2 → 1 ; `a=1;b=2` ; `c.value` → `calls === 2`, valeur `12` | non | la version globale force un recalcul |
 | 5 | Un résultat identique ne notifie pas les dépendants | `L679-687` | computed `%2`, effect : `a=2` → `cCalls: 2, eRuns: 1` | non | l'effet est notifié puis sauté par `needsToRecompute` |
 | 6 | Le cas symétrique notifie | `L679-687` | `a=1` → `cCalls: 2, eRuns: 2` | non | — |
@@ -276,11 +300,12 @@ par probe**.
 | 16 | L'erreur ne se résout que si une dépendance change | `L646-697` | après `s=1` : `c.value === 20`, `calls === 2` | non | pas de nouvelle tentative sur simple relecture |
 | 17 | Propagation de l'erreur vers l'effect qui la lit | `L761-763` | `["create threw derived boom2","runs=1","c=1"]` : l'effect est **disposé** à la création, `s=1` ne le relance pas | non | l'effect ne survit pas à l'erreur du computé |
 | 18 | 2 computeds → les 2 re-évaluent dans le même flush | `L737-749` | `["c1:0","c2:1","e1:2","e2:2"]` puis après `a=1` `["c1:1","c2:2","e1:3","e2:3"]` | non | ordre **bottom-up** : c1, c2, puis l'effet |
-| 18b | 2 computeds **indépendants** et 2 effets : l'ordre alterne, pas bottom-up | `L737-749` | `["c1:0","e1:1","c2:0","e2:2"]` puis après `a=1` `["c1:1","e1:2","c2:1","e2:3"]` | non | un computé n'est pas une génération de drainage : chaque effet suit le computé qu'il lit |
+| 18b | **BRANCHE** — 2 computeds **indépendants** et 2 effets : l'ordre alterne, pas bottom-up | `L737-749` | `["c1:0","e1:1","c2:0","e2:2"]` puis après `a=1` `["c1:1","e1:2","c2:1","e2:3"]` | non | un computé n'est pas une génération de drainage : chaque effet suit le computé qu'il lit |
 | 19 | `Computed.prototype` est une `instance` de `Signal` partagée | `L644` | `Object.getPrototypeOf(c1) === Object.getPrototypeOf(c2) === true` | non | singleton mutable |
 | 20 | `Object.keys(computed)` = 12 clés d'instance | `L635-642` | `["_value","_version","_node","_targets","_batchSnapshotVersion","_watched","_unwatched","name","_fn","_sources","_globalVersion","_flags"]` | non | liste exacte |
 | 21 | `for…in` sur un computed = 22 clés | `L644` | + `["_refresh","_subscribe","_unsubscribe","_notify","brand","subscribe","valueOf","toString","toJSON","peek"]` | non | 22 = 12 + 10 |
 | 22 | Lire `.value` sur le prototype throw et l'empoisonne | `L644`,`L678` | `TypeError: this._fn is not a function` ; 12 → 15 clés, `_flags === 16`, `_version === 1`, computeds réels OK | non | effet de bord **global au module** |
+| 22b | **BRANCHE** — Lire `.value` sur le prototype throw et l'empoisonne | `L644`,`L678` | `TypeError: this._fn is not a function` ; 12 → 15 clés, `_flags === 16`, `_version === 1`, computeds réels OK | non | effet de bord **global au module** |
 | 23 | `instanceof Signal` **et** `instanceof Computed` vrais, `constructor.name === "Signal"` | `L644` | `true`, `true`, `"Signal"` | non | — |
 | 24 | Pas de setter sur `value` | `L751-766` | sloppy : no-op silencieux ; strict : `TypeError: Cannot set property value …only a getter` | non | dépend de la strictness |
 | 25 | `options.name` champ public | `L636` | `computed(()=>1,{name:"c"}).name === "c"`, modifiable après coup | oui (CHANGELOG 1.12.0) | — |
@@ -329,6 +354,7 @@ par probe**.
 | 34 | Effet créé dans un computé : fuite à chaque évaluation | `L902-905` | `["inner:0","outer:0","inner:0","outer:2","inner:1","inner:1"]` | non | un nouvel effet par évaluation |
 | 35 | `options.name` non observable via le retour | `L900`,`L979` | `(d).name === "bound "`, `Object.keys(d) === []` | non | CHANGELOG 1.12.0 promet un nom pour le debug |
 | 36 | `options.name` observable via `new Effect(...)` | `L900` | `e.name === "n"`, `Object.keys(e)` = `["_fn","_cleanup","_sources","_nextBatchedEffect","_flags","name"]` | non | — |
+| 36b | **BRANCHE** — `options.name` observable via `new Effect(...)` | `L900` | `e.name === "n"`, `Object.keys(e)` = `["_fn","_cleanup","_sources","_nextBatchedEffect","_flags","name"]` | non | — |
 | 37 | Flags initiaux | `L899`,`L641` | `new Effect(fn)._flags === 32` (`TRACKING`) ; `computed(fn)._flags === 4` (`OUTDATED`), `_globalVersion === -1` | non | — |
 | 38 | Le callback ne reçoit aucun argument | `L913` | `arguments.length === 0` | non | — |
 | 39 | `Effect` exporté, méthodes énumérables sur le prototype | `L894-955` | `Object.keys(Effect.prototype)` = `["_callback","_start","_notify","_dispose","dispose"]` | non | API interne entièrement publique |
@@ -417,15 +443,19 @@ par probe**.
 |---|---|---|---|---|---|
 | 1 | Retourne une fonction-constructeur, appelable avec ou sans `new` | `L1092` | `new M(1).s.value === 1` et `M(1).s.value === 1` | oui (README utilise `new`) | appel sans `new` toléré au runtime |
 | 2 | L'instance est l'objet brut de la factory, muté en place | `L1109` | `inst === shared`, `shared.inc.name` passe de `"inc"` à `"actionWrapper"` après `new M()` | non | mutation du closure de la factory |
+| 2b | **BRANCHE** — L'instance est l'objet brut de la factory, muté en place | `L1109` | `inst === shared`, `shared.inc.name` passe de `"inc"` à `"actionWrapper"` après `new M()` | non | mutation du closure de la factory |
 | 3 | `instanceof M` faux, `constructor === Object` | `L1092-1122` | `isM: false`, `ctorName: "Object"`, `instanceof Object: true` | non | le CHANGELOG 1.13.0 parle de « classe » |
 | 4 | Toutes les fonctions own énumérables sont wrappées | `L1076-1081` | `inst.inc.name === "actionWrapper"`, `this` conservé (`inc() === inst`) | oui (CHANGELOG 1.13.0/1.14.1) | — |
+| 4b | **BRANCHE** — Toutes les fonctions own énumérables sont wrappées | `L1076-1081` | `inst.inc.name === "actionWrapper"`, `this` conservé (`inc() === inst`) | oui (CHANGELOG 1.13.0/1.14.1) | — |
 | 5 | Récursion dans les objets imbriqués | `L1081-1084` | `inst.nested.deep.inc.name === "actionWrapper"` | oui (CHANGELOG 1.14.1) | — |
+| 5b | **BRANCHE** — Récursion dans les objets imbriqués | `L1081-1084` | `inst.nested.deep.inc.name === "actionWrapper"` | oui (CHANGELOG 1.14.1) | — |
 | 6 | Descend aussi dans les tableaux | `L1077` | `createModel(() => [signal(1)])` → `Array.isArray(inst) === true`, `inst[0].brand` intact | non | — |
 | 7 | Ne descend pas dans un objet `brand` (signal/computed) | `L1081` | `String(inst.nested.s.brand) === "Symbol(preact-signals)"`, valeur intacte | non | c'est ce qui protège les signaux |
 | 8 | `for…in` ⇒ les méthodes de classe ne sont PAS wrappées | `L1077` | `class Foo { m(){} n = signal(1) }` → `inst.m.name === "m"` | non | prototype = non énumérable |
 | 9 | Les valeurs primitives sont intactes | `L1079-1084` | `{ n: 5, str: "x", nil: null, arr: [1,2] }` inchangé | non | — |
 | 10 | `Date` non touché | `L1081` | `inst.d === d` | non | — |
 | 11 | Objet cyclique → `RangeError`, mutation partielle | `L1077` | `RangeError: Maximum call stack size exceeded`, `o.m.name === "actionWrapper"` après le crash | non | — |
+| 11b | **BRANCHE** — Objet cyclique → `RangeError`, mutation partielle | `L1077` | `RangeError: Maximum call stack size exceeded`, `o.m.name === "actionWrapper"` après le crash | non | — |
 | 12 | Un getter est évalué une seule fois | `L1077-1080` | `gets === 1`, la valeur stockée est un signal (`"brand" in inst.v`) | non | le getter devient une propriété de données |
 | 13 | Effet créé dans un getter : **non possédé** | `L1109` après `L1106` | `["from getter",\|dispose\|]` puis rien | non | `wrapInAction` est hors du scope de capture |
 | 14 | Arguments transmis, `this` de la factory = sloppy global / `undefined` | `L1098` | `args: [1,2]` ; `selfType: "object"` (CJS) vs `undefined` (ESM) | non | `modelFactory(...args)` est un appel simple |
