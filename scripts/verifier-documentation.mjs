@@ -1,0 +1,108 @@
+/**
+ * Porte de documentation.
+ *
+ * Le README est le seul document qui parle à un consommateur, et il est le seul qui peut mentir
+ * sans qu'aucune machine le remarque : rien dans la suite ne dit que le bloc d'import nomme la
+ * vraie surface, ni que le chemin d'import ne demande pas un alias que le projet consommateur
+ * n'a pas. Cette porte le dit.
+ *
+ * Ce qu'elle vérifie, et pourquoi chaque chose existe :
+ *
+ *   1. LE BLOC D'IMPORT EST LA SURFACE. Les noms documentés sont comparés aux exports réels du
+ *      module CONSTRUIT, dans les deux sens. Un export non documenté est un nom de trop dans le
+ *      README ; un nom documenté qui n'existe pas est une promesse que le code ne tient pas. Le
+ *      README étant le premier obstacle d'un parcours de migration, une surface fausse y coûte une
+ *      heure à quelqu'un qui n'a aucun moyen de le savoir.
+ *
+ *   2. LE CHEMIN EST RELATIF. Ni alias, ni `paths`, ni paquet : le fichier installé est un
+ *      fichier, et un chemin qui exige une configuration est un chemin que le consommateur n'a
+ *      pas à connaître.
+ *
+ *   3. LES DEUX EXIGENCES SONT DÉCLARÉES, avec leur raison. `tsx: true` et le plancher de CLI ne
+ *      sont pas des détails d'implémentation : sans eux, l'installation réussit et le fichier
+ *      installé ne démarre pas.
+ *
+ *   4. LE CONTRAT DE COUVERTURE EST À TROIS MÉTRIQUES. Le README annonçait quatre rubriques
+ *      d'un runner qui n'en a que trois ; le contrat qu'il annonce doit être celui qu'on applique.
+ *
+ *   node scripts/verifier-documentation.mjs
+ */
+
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
+
+import { RACINE, reporter } from "./porte.mjs"
+
+const { porte, cloture } = reporter()
+
+const README = join(RACINE, "README.md")
+const texte = await readFile(README, "utf8")
+
+// ---- 1. Le bloc d'import, et la surface qu'il nomme ----------------------------------------
+
+// Un SEUL bloc porte l'import. Deux blocs permettraient d'en documenter un et d'en tester un
+// autre, et la porte choisirait le premier — donc le moins contraignant, par construction.
+const blocs = [...texte.matchAll(/```[a-z]*\n(import \{[\s\S]*?\}) from "([^"]+)"\n```/g)]
+porte("le README a exactement un bloc d'import", blocs.length === 1, `${blocs.length} blocs`)
+
+const surface = await import(join(RACINE, "registry", "default", "signals.js"))
+const reels = Object.keys(surface).sort()
+const [, corps, specifier] = blocs[0] ?? ["", "", ""]
+const documentes = [...corps.matchAll(/^\s*(\w+),?$/gm)].map((m) => m[1]).sort()
+
+const nonDocumentes = reels.filter((nom) => !documentes.includes(nom))
+const inexistants = documentes.filter((nom) => !reels.includes(nom))
+
+porte(
+  "chaque export du module construit est nomme dans le README",
+  nonDocumentes.length === 0,
+  nonDocumentes.join(", "),
+)
+porte(
+  "chaque nom du bloc d'import est un export reel",
+  inexistants.length === 0,
+  inexistants.join(", "),
+)
+
+// ---- 2. Le chemin d'import est relatif ------------------------------------------------------
+
+// Ce qui est refusé est nommé une par une, parce que « relatif » n'est pas un mot que tout le
+// monde entend de la même façon : `@/` est l'alias shadcn, `~/` son cousin, et un nom nu est un
+// paquet — donc un alias de paquet, c'est-à-dire une dépendance d'exécution qui n'est pas
+// déclarée comme telle.
+const raison = []
+if (specifier && !/^\.{1,2}\//.test(specifier)) raison.push("pas un chemin relatif")
+if (specifier.includes("@/")) raison.push("alias shadcn @/")
+if (specifier.includes("~/")) raison.push("alias ~/")
+if (specifier && !/^\.{1,2}\//.test(specifier) && !specifier.startsWith("node:")) {
+  raison.push("specifier nu, donc un paquet")
+}
+porte("le chemin d'import est relatif, sans alias", raison.length === 0, raison.join(", "))
+
+// ---- 3. Les deux exigences, et leurs raisons ------------------------------------------------
+
+porte("le README exige tsx: true", /"?tsx"?:? true|tsx`? :? `?true/i.test(texte))
+porte("le README declare le plancher de CLI", /4\.10\.0/.test(texte))
+// La raison est exigée avec l'exigence : une exigence sans raison secontredit au premier
+// utilisateur qui se plaint, et l'équipe n'a alors plus d'argument à lui opposer.
+const blocExigences = texte.slice(texte.indexOf("## Deux exigences"), texte.indexOf("## API principale"))
+porte(
+  "chaque exigence porte sa raison",
+  (blocExigences.match(/\|/g) ?? []).length >= 6,
+  "le tableau des exigences est absent ou trop court",
+)
+
+// ---- 4. Le contrat de couverture, et la section des differences ------------------------------
+
+porte(
+  "le README ne promet pas quatre rubriques de couverture",
+  !/100 ?% statements/i.test(texte),
+  "une rubrique que le runner ne produit pas",
+)
+for (const metrique of ["lignes", "branches", "fonctions"]) {
+  porte(`le contrat de couverture nomme « ${metrique} »`, new RegExp(metrique, "i").test(texte))
+}
+
+porte("le README porte une section « Différences connues »", /^## Différences connues$/m.test(texte))
+
+cloture()

@@ -18,6 +18,7 @@ Mesuré, à froid, sans cache.
 | Typecheck | 0,24 s |
 | Zéro-dépendance, reproductibilité, tailles | 0,30 s |
 | Build + minify + réécriture | 0,28 s |
+| Documentation : surface déclarée contre surface réelle | 0,09 s |
 | Couverture : seuils, code mort, non-régression | 1,58 s |
 | **Parité, quatre cibles** | **2,47 s** |
 | **Installation des six items** | **97 s** |
@@ -42,6 +43,7 @@ façon : l'ordre ne coûte rien et décide seulement du premier message lu.
 | 4 | **Parité** — quatre cibles, comptage, noms, surface, renommage | Le build ne reproduit pas la source ; la suite perd des tests en route |
 | 5 | **Zéro-dépendance** — metafile, grep sur le minifié | Une dépendance ou une construction interdite |
 | 6 | **Typecheck** | Le code ne compile pas |
+| 7 | **Documentation** — surface déclarée contre surface réelle, chemin d'import, exigences | Un README qui ment sur la surface, ou qui demande un alias |
 
 Le contrôle 4 dépend du 3 : le test minifié vise le runtime minifié. Le contrôle 5 aussi, pour
 la même raison. L'ordre n'est donc pas seulement une question de signal, il est aussi un ordre

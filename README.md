@@ -16,7 +16,7 @@ Il n'y a pas de package npm runtime à installer.
 - Installation uniquement via la CLI shadcn.
 - Chaque artefact est installable indépendamment.
 - Compatibilité comportementale visée avec `@preact/signals-core@1.14.4` comme baseline initiale.
-- Couverture de test cible : 100 % statements, branches, functions et lines.
+- Couverture mesurée sur **trois métriques** : lignes, branches, fonctions.
 
 ## Installation
 
@@ -35,12 +35,32 @@ Chaque item est indépendant. L'installation de l'un n'installe pas les cinq aut
 
 ```ts
 import {
+  Signal,
+  Computed,
+  Effect,
   signal,
   computed,
   effect,
   batch,
   untracked,
-} from "@/lib/signals"
+  action,
+  createModel,
+} from "./signals.js"
+```
+
+Le chemin d'import est **relatif** et il l'est volontairement : ni alias, ni `paths` de
+`tsconfig`, ni paquet. Le fichier installé est un fichier, et un chemin d'import qui demande une
+configuration est un fichier que le projet consommateur n'a pas à connaître.
+
+## Deux exigences, et leurs raisons
+
+| Exigence | Raison |
+|---|---|
+| `"tsx": true` dans le `components.json` | C'est ce drapeau qui décide de l'extension installée. Les items TypeScript arrivent en `.ts` seulement avec lui ; sans lui, l'extension est imposée et le fichier installé contient du TypeScript sous un nom `.js` — il échoue bruyamment à la première exécution. |
+| `shadcn` **`4.10.0`** ou plus récent | L'installation se fait par adresse `owner/repo/item`, et cet adressage n'existe pas avant cette version. Un plancher plus bas produirait une commande qui ne résout rien. |
+
+Ces deux exigences sont mesurées, pas supposées : la porte d'installation les éprouve à chaque
+pull request sur deux versions de la CLI, et le canari surveille la dernière version publiée.
 
 const count = signal(0)
 
@@ -75,19 +95,73 @@ effect(() => {
 
 ## API principale
 
-Le cœur est centré sur :
+Le cœur expose dix exports :
 
 ```text
-signal()
-computed()
-effect()
-batch()
-untracked()
+signal()      computed()   effect()      batch()      untracked()
+action()      createModel()
+Signal        Computed     Effect
 ```
 
-Il prend également en charge les comportements publics associés à la baseline de compatibilité : types de signal, `peek()`, subscriptions, cleanup/dispose et autres mécanismes retenus dans `SPEC.md`.
+Il prend en charge les comportements publics associés à la baseline de compatibilité : `peek()`,
+`subscribe()`, `peek()` sur un abonnement, cleanup/dispose, `using` et le reste des mécanismes
+retenus dans [`SPEC.md`](./SPEC.md), qui reste normatif.
+
+`peek()` est sur le prototype d'un signal, donc il est énumérable et inscriptible — c'est un
+comportement de la baseline, et il fait partie du contrat.
 
 La spécification normative complète se trouve dans [`SPEC.md`](./SPEC.md).
+
+## Différences connues
+
+Si vous migrez depuis `@preact/signals-core`, voici ce qui vous surprendra. Ce sont des **effets
+observables**, pas des raisons : les raisons restent dans les décisions, où elles ont leur place,
+et une raison dans un README devient une excuse qu'on lit sans la comprendre.
+
+Aucun de ces écarts ne change le résultat d'un scénario comportemental. Ils changent ce qu'on peut
+faire **autour** du moteur — énumérer, introspecter, ou construire un objet qui porte un `brand`.
+
+### Sur les classes
+
+- **`for..in` sur un signal expose 8 clés, pas 17. Sur un computé, 12, pas 22.** Les méthodes de
+  prototype sont non énumérables, comme dans toute classe ES2020.
+- **`Object.keys(Computed.prototype)` est vide**, là où la référence en expose douze.
+- **`Computed.prototype.constructor` vaut `Computed`**, pas `Signal`.
+- **Lire `.value` sur `Computed.prototype` échoue**, et ne condamne pas le prototype pour tous les
+  computés du même realm. Si votre code fait cette lecture pour détecter le type, il verra une
+  erreur au lieu d'un poison global.
+- Les membres internes de `Effect` et `Computed` (`_fn`, `_flags`, `_notify`, `_start`, `_dispose`,
+  `_sources`) sont typés sur des structures internes, et `Node` n'est pas exporté.
+- **`EffectFn` n'est pas un type exporté nommé.**
+
+### Sur les cycles
+
+- **Une auto-cycle dans un effet s'arrête à 102 runs ; ce nombre n'est pas figé.** Le mécanisme
+  s'arrête, le compte ne l'est pas : ne construisez pas de test qui l'affirme.
+
+### Sur `createModel`
+
+C'est le seul export dont la structure n'est pas dictée par la compatibilité, donc le seul qui en
+a. Sept écarts, tous sur la *forme* du modèle, jamais sur le comportement de ce qu'il contient :
+
+- **Un objet métier qui porte une propriété `brand` est enveloppé**, là où la référence
+  l'ignore. Un signal et un computé portent le vrai symbole, donc restent protégés — mais un
+  objet qui a sa propre notion de `brand` change de traitement.
+- **Seules les clés propres énumérables sont parcourues.** Une propriété héritée énumérable n'est
+  ni enveloppée, ni recopiée. Une pollution énumérable de `Object.prototype` n'atteint plus vos
+  modèles.
+- **Un accesseur en lecture n'est jamais écrit.** Un getter qui renvoie une fonction ne lève plus
+  de `TypeError` en mode strict.
+- **Deux clés pointant la même fonction partagent un wrapper** : `model.a === model.b`. Un
+  sous-arbre partagé n'est pas reparcouru.
+- **`Symbol.dispose` absent ne crée aucune clé.** Aucun modèle ne porte de propriété nommée
+  `"undefined"`. Sur un runtime sans le symbole, `using` est indisponible — c'est dit ; le
+  désarmement explicite reste possible.
+- **Une fonction asynchrone enveloppée déclenche un avertissement.** Le comportement reste
+  synchrone ; c'est le silence qui disparaît.
+- **Quatre gardes défensives.** Une fabrique qui ne renvoie pas un objet lève une `TypeError`
+  nommée avant toute mutation, au lieu de réussir silencieusement. Un `Symbol.dispose` fourni par
+  vous n'est plus écrasé.
 
 ## Sources et artefacts générés
 
@@ -141,14 +215,22 @@ Les dépendances utilisées par le dépôt pour développer, tester, compiler et
 
 ## Couverture de test
 
-Le projet impose :
+Le contrat porte sur **trois métriques**, et sur trois seuils opposables :
 
 ```text
-100 % statements
-100 % branches
-100 % functions
-100 % lines
+lignes
+branches
+fonctions
 ```
+
+Le seuil est de **100 % sur les trois au moment du tag**, et c'est 100 % absolus — pas « sauf
+les gardes défensives ». Sur une pull request, la barrière n'est pas le 100 % : c'est
+l'**absence de régression** face au merge-base, base recalculée sur place, jamais stockée. Une
+barrière de non-régression stockée dans un fichier se forge dans la pull request même qui la
+viole.
+
+Deux trous qu'aucun pourcentage ne voit sont gardés à part : un fichier source jamais chargé par
+la suite, et une exclusion de couverture posée dans le dépôt. Les deux sont interdits.
 
 La couverture ne remplace pas les tests comportementaux. La suite doit également vérifier les graphes de dépendances, les dépendances dynamiques, les batches, les cleanup/dispose, les cycles et les erreurs.
 
@@ -167,10 +249,10 @@ signalcn/
 │       └── signals.test.min.js
 ├── package.json
 ├── tsconfig.json
-├── vitest.config.ts
 ├── README.md
 ├── PRD.md
 ├── SPEC.md
+├── CONTEXT.md
 └── ROADMAP.md
 ```
 
@@ -196,4 +278,6 @@ signalcn
 
 ## Statut
 
-Le projet est en phase de spécification et de construction initiale. La baseline de compatibilité et les règles de distribution sont fixées ; l'implémentation du moteur et la suite de conformité restent à réaliser.
+Le moteur est implémenté et la suite de conformité est complète : les dix exports sont couverts
+par une table de scénarios rejouée contre la baseline réelle, et les portes de couverture, de
+parité et d'installation sont en place. Ce qui reste ouvert est dans [`ROADMAP.md`](./ROADMAP.md).

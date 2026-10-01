@@ -55,6 +55,10 @@ jobs:
         run: npm run parite
       - name: derive — le build ne touche aucun artefact commite
         run: npm run verifier-derive
+      # Le README est le seul document qui parle a un consommateur, et le seul qui peut mentir
+      # sans que la suite le remarque : rien ne dit que le bloc d'import nomme la vraie surface.
+      - name: documentation — le README declare la surface reelle
+        run: npm run documentation
 
   distribution:
     name: distribution / installation

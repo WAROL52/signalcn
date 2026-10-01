@@ -109,19 +109,22 @@ Les sept entrées de `SPEC.md` §21 se répartissent ainsi :
   reste suit le projet.
 - **Le contenu final du README.** Il ne peut pas être rédigé avant que l'API soit figée.
 
-## 5. Les erreurs que le README porte aujourd'hui
+## 5. Les erreurs que le README portait, et ce qui les a fermées
 
-Relevées au passage, pour qu'elles ne se perdent pas. Ce sont des fautes de **fait**, pas de
-rédaction :
+Relevées avant que le contenu final soit possible. Ce sont des fautes de **fait**, pas de
+rédaction, et les quatre sont corrigées :
 
-1. Le bloc d'import montre `@/lib/signals`. Le chemin correct est `./signals.js`.
-2. La couverture est annoncée à « 100 % statements, branches, functions and lines », **deux
+1. Le bloc d'import montrait `@/lib/signals`. Le chemin correct est `./signals.js`.
+2. La couverture était annoncée à « 100 % statements, branches, functions and lines », **deux
    fois**. Le contrat amendé est à **trois** métriques : lignes, branches, fonctions.
-3. Le bloc d'import ne nomme que cinq symboles. Le contrat v1 en exporte dix : **`action`,
-   `createModel`, `Signal`, `Effect` et `Computed` manquent**. C'est la moitié de la surface
-   publique qui n'est pas documentée.
-4. Aucune section de divergences.
+3. Le bloc d'import ne nommait que cinq symboles. Le contrat v1 en exporte dix : **`action`,
+   `createModel`, `Signal`, `Effect` et `Computed` manquaient**. C'était la moitié de la surface
+   publique qui n'était pas documentée.
+4. Il n'y avait aucune section de divergences.
 
-Les trois premières sont **détectables automatiquement** par la porte du §2, vérifié contre le
-README d'aujourd'hui : `specifier inadmissible`, `exports non documentes : action, createModel,
-Signal, Effect, Computed`. Le point 4 n'existe pas encore, et aucune porte ne peut le créer.
+Les trois premières sont **détectables automatiquement** par la porte du §2. La quatrième ne
+l'est pas et ne peut pas l'être — aucune porte n'écrit de la prose — mais son absence est
+détectable : la porte refuse de laisser passer un README sans la section, ce qui force la question
+« les divergences sont-elles documentées ? » plutôt que de la laisser se perdre. `scripts/verifier-documentation.mjs`
+vérifie les quatre, y compris l'absence de la rubrique de couverture que le runner ne produit
+pas.
