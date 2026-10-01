@@ -9,9 +9,69 @@
       "registryDependencies": [],
       "files": [
         {
-          "path": "~/signals.ts",
+          "path": "registry/default/signals.ts",
           "type": "registry:file",
           "target": "~/signals.ts"
+        }
+      ]
+    },
+    {
+      "name": "signals-js",
+      "type": "registry:file",
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/default/signals.js",
+          "type": "registry:file",
+          "target": "~/signals.js"
+        }
+      ]
+    },
+    {
+      "name": "signals-min",
+      "type": "registry:file",
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "registry/default/signals.min.js",
+          "type": "registry:file",
+          "target": "~/signals.min.js"
+        }
+      ]
+    },
+    {
+      "name": "signals-test",
+      "type": "registry:file",
+      "registryDependencies": ["WAROL52/signalcn/signals"],
+      "files": [
+        {
+          "path": "registry/default/signals.test.ts",
+          "type": "registry:file",
+          "target": "~/signals.test.ts"
+        }
+      ]
+    },
+    {
+      "name": "signals-test-js",
+      "type": "registry:file",
+      "registryDependencies": ["WAROL52/signalcn/signals-js"],
+      "files": [
+        {
+          "path": "registry/default/signals.test.js",
+          "type": "registry:file",
+          "target": "~/signals.test.js"
+        }
+      ]
+    },
+    {
+      "name": "signals-test-min",
+      "type": "registry:file",
+      "registryDependencies": ["WAROL52/signalcn/signals-min"],
+      "files": [
+        {
+          "path": "registry/default/signals.test.min.js",
+          "type": "registry:file",
+          "target": "~/signals.test.min.js"
         }
       ]
     }
