@@ -3555,7 +3555,11 @@ export const COUVERTURE = {
     // publique ferme en ordre inverse — le cas NORMAL — et n'atteint donc pas le garde ;
     // `gardes-internes` l'atteint. C'est le second qui couvre l'entrée, le premier qui
     // garantit qu'on ne l'atteint pas par accident.
-    "effect#40": "signalcn-seul/hors-ordre + signalcn-seul/gardes-internes + source:src/index.ts#L842",
+    // Deux observables distincts : le GARDE existe et l'API publique ne le déclenche jamais —
+    // `hors-ordre` le montre, et rejouable contre le paquet ; et son ATTEINTE, qui suppose
+    // `_start`, donc un interne que l'artefact n'a pas sous ce nom.
+    "effect#40": "signalcn-seul/hors-ordre",
+    "effect#40b": "signalcn-seul/gardes-internes + source:src/index.ts#L842",
     "effect#41": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.3",
     // ---- `batch` et `untracked` -----------------------------------------------------------------
     //
@@ -3772,6 +3776,7 @@ export const ENTREES_ATTENDUES = [
     "modele#4b",
     "modele#5b",
     "modele#11b",
+    "effect#40b",
 ];
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
 //
@@ -3802,7 +3807,7 @@ for (const scenario of scenarios) {
 //
 // Ils sont ici, et pas dans un fichier séparé, pour ne pas ajouter un troisième fichier à un
 // couple dont la composition est figée.
-const testsSignalcnSeul = {
+export const testsSignalcnSeul = {
     // Les fonctions enveloppées par `createModel` se nomment `actionWrapper`, comme celles
     // d'`action` — c'est le MÊME enveloppeur, donc le même nom. Le paquet publié minifie ses noms,
     // donc la table ne peut pas le dire ; et comme un modèle a des surfaces différentes — une
@@ -4209,6 +4214,22 @@ const testsSignalcnSeul = {
  * le même code a tourné partout.
  */
 export const NB_TESTS = scenarios.length + Object.keys(testsSignalcnSeul).length + 1;
+/**
+ * Les tests `signalcn-seul` que le harnais PEUT rejouer contre le paquet installé, déduits du
+ * registre — jamais écrits à la main, pour la même raison que `matrice` : deux listes divergent.
+ *
+ * LA RÈGLE, et elle est une seule : un test est rejouable si **aucune** entrée qui le cite ne
+ * porte de marqueur. Le marqueur dit « cette observation ne peut rien porter sur l'artefact », donc
+ * une seule entrée ainsi marquée suffit à rendre le test entier non rejouable — même si les autres
+ * entrées qu'il couvre seraient confrontables, parce que le test lit alors, quelque part, un champ
+ * que l'artefact a minifié.
+ *
+ * C'est le seul endroit du dépôt qui sait ça, et il le sait à partir de la source unique.
+ */
+export const REJOUABLES = Object.keys(testsSignalcnSeul).filter((nom) => {
+    const cite = `signalcn-seul/${nom}`;
+    return !Object.values(COUVERTURE).some((destination) => destination.includes(cite) && /(^|\+ )?(source|divergence):/.test(destination));
+});
 if (process.env.NODE_TEST_CONTEXT) {
     const runtime = import("./signals.js");
     // L'unique façon d'obtenir le moteur, et elle est volontairement une FONCTION.

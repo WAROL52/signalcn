@@ -359,6 +359,7 @@ par probe**.
 | 38 | Le callback ne reçoit aucun argument | `L913` | `arguments.length === 0` | non | — |
 | 39 | `Effect` exporté, méthodes énumérables sur le prototype | `L894-955` | `Object.keys(Effect.prototype)` = `["_callback","_start","_notify","_dispose","dispose"]` | non | API interne entièrement publique |
 | 40 | `"Out-of-order effect"` atteignable seulement via `_start` | `L840-843` | double appel du `finish` → `Error: Out-of-order effect` | non | inatteignable par l'API publique |
+| 40b | `"Out-of-order effect"` atteignable seulement via `_start` | `L840-843` | double appel du `finish` → `Error: Out-of-order effect` | non | inatteignable par l'API publique |
 | 41 | `effect(fn)` retourné est utilisable avec `using` | `L980` | `["run","body","cleanup"]` | oui (CHANGELOG 1.11.0) | — |
 
 ---
