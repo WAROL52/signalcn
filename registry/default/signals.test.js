@@ -2341,6 +2341,532 @@ export const scenarios = [
         },
     },
     {
+        // SPEC §16.5 — LE DISPOSE DU MODÈLE. `model[Symbol.dispose]` est une `action`, donc il groupe
+        // les disposes qu'il déclenche : le cleanup d'un re-run PRÉCÈDE le corps du run suivant, et
+        // celui du dispose est le dernier. C'est le seul endroit où l'ordre d'un cleanup et d'un corps
+        // s'observe.
+        //
+        // Le dispose est IDEMPOTENT — la liste est vidée, donc un second appel n'a rien à faire — et il
+        // ÉCRASE un `Symbol.dispose` fourni par l'utilisateur, silencieusement. Les deux sont des
+        // défauts figés.
+        //
+        // Et surtout : un cleanup qui LÈVE INTERROMPT les disposes suivants. La boucle n'a pas de
+        // `try`, donc le troisième cleanup n'est jamais lancé. Corriger cela changerait le contrat, et
+        // c'est pourquoi le commentaire de la boucle dans `signals.ts` le dit.
+        name: "modele/dispose",
+        matrice: [],
+        run(api, log) {
+            const source = api.signal(0);
+            const externe = api.signal(0);
+            const M = api.createModel(() => ({
+                e: api.effect(() => {
+                    log("run", String(source.value));
+                    externe.value = 1;
+                    return () => log("cleanup", String(source.value));
+                }),
+            }));
+            const modele = new M();
+            externe.value = 1;
+            source.value = 1;
+            log("avant dispose", "vu");
+            modele[Symbol.dispose]();
+            log("apres dispose", "vu");
+            const M2 = api.createModel(() => ({ e: api.effect(() => () => log("cleanup2", "vu")) }));
+            const m2 = new M2();
+            m2[Symbol.dispose]();
+            m2[Symbol.dispose]();
+            log("dispose deux fois", "vu");
+            const journal = [];
+            const M3 = api.createModel(() => ({
+                premier: api.effect(() => () => journal.push("cleanup1")),
+                deuxieme: api.effect(() => () => {
+                    journal.push("cleanup2 throws");
+                    throw new Error("m boom");
+                }),
+                troisieme: api.effect(() => () => journal.push("cleanup3")),
+            }));
+            const m3 = new M3();
+            try {
+                m3[Symbol.dispose]();
+                journal.push("pas d'erreur");
+            }
+            catch (erreur) {
+                journal.push(`err: ${erreur instanceof Error ? erreur.constructor.name : "autre"}`);
+            }
+            log("un cleanup qui leve interrompt les suivants", JSON.stringify(journal));
+            const journal2 = [];
+            const M4 = api.createModel(() => ({ e: api.effect(() => () => journal2.push("cleanup")) }));
+            const m4 = new M4();
+            m4.e();
+            m4[Symbol.dispose]();
+            log("un effet deja dispose ne rejoue pas son cleanup", JSON.stringify(journal2));
+            const M5 = api.createModel(() => ({ n: 1 }));
+            const m5 = new M5();
+            log("Symbol.dispose non enumerable", `${JSON.stringify(Object.keys(m5))} / ${JSON.stringify(Object.getOwnPropertySymbols(m5).map(String))}`);
+            const journal3 = [];
+            const M6 = api.createModel(() => ({
+                dispose() {
+                    journal3.push("dispose custom");
+                },
+            }));
+            const m6 = new M6();
+            m6[Symbol.dispose]();
+            log("un Symbol.dispose utilisateur est ecrase", JSON.stringify(journal3));
+            const journal4 = [];
+            const M7 = api.createModel(() => ({ e: api.effect(() => () => journal4.push("cleanup")) }));
+            {
+                const m7 = new M7();
+                journal4.push("body");
+                m7[Symbol.dispose]();
+            }
+            log("utilisable avec using", JSON.stringify(journal4));
+            assert.deepEqual(log.entries, [
+                "run 0",
+                "cleanup 1",
+                "run 1",
+                "avant dispose vu",
+                "cleanup 1",
+                "apres dispose vu",
+                "cleanup2 vu",
+                "dispose deux fois vu",
+                'un cleanup qui leve interrompt les suivants ["cleanup1","cleanup2 throws","err: Error"]',
+                'un effet deja dispose ne rejoue pas son cleanup ["cleanup"]',
+                'Symbol.dispose non enumerable ["n"] / ["Symbol(Symbol.dispose)"]',
+                "un Symbol.dispose utilisateur est ecrase []",
+                'utilisable avec using ["body","cleanup"]',
+            ]);
+        },
+    },
+    {
+        // SPEC §16.4 — DEUX MODÈLES IMBRIQUÉS. Les effets du modèleimbriqué remontent au parent : la
+        // fermeture de la portée concatène les deux listes. Le dispose du parent emporte donc les
+        // cleanups internes ET externes.
+        //
+        // Un modèleimbriqué créé sous `untracked` fait exception : l'`untracked` a vidé la portée
+        // englobante, et le modèle enfant ouvre une portée NEUVE qu'il ne rend pas au parent. Le
+        // parent ne possède donc pas ces effets — et ils survivent à son dispose. C'est la raison pour
+        // laquelle `startCapturingEffects` ouvre toujours une portée neuve, même quand le parent est
+        // supprimé.
+        name: "modele/modeles-imbriques",
+        matrice: [],
+        run(api, log) {
+            const source = api.signal(0);
+            const Interne = api.createModel(() => ({
+                effet: api.effect(() => log("imbrique", String(source.value))),
+            }));
+            const Externe = api.createModel(() => ({
+                effet: api.effect(() => log("externe", String(source.value))),
+                interne: Interne(),
+            }));
+            const externe = new Externe();
+            source.value = 1;
+            log("avant dispose du parent", "vu");
+            externe[Symbol.dispose]();
+            source.value = 2;
+            log("apres dispose du parent", "vu");
+            const autre = api.signal(0);
+            let interne;
+            const Enfant = api.createModel(() => {
+                api.effect(() => log("enfant", String(autre.value)));
+                return {};
+            });
+            const Parent = api.createModel(() => ({
+                effet: api.effect(() => log("parent", String(autre.value))),
+            }));
+            const parent = new Parent();
+            interne = api.untracked(() => Enfant());
+            autre.value = 1;
+            log("avant dispose", "vu");
+            parent[Symbol.dispose]();
+            autre.value = 2;
+            log("apres dispose", "vu");
+            void interne;
+            assert.deepEqual(log.entries, [
+                "externe 0",
+                "imbrique 0",
+                "externe 1",
+                "imbrique 1",
+                "avant dispose du parent vu",
+                "apres dispose du parent vu",
+                "parent 0",
+                "enfant 0",
+                "parent 1",
+                "enfant 1",
+                "avant dispose vu",
+                "enfant 2",
+                "apres dispose vu",
+            ]);
+        },
+    },
+    {
+        // SPEC §16.6 — DEUX INSTANCES SONT INDÉPENDANTES. Chaque construction ouvre sa propre portée, donc
+        // les effets capturés ne sont jamais partagés — même quand les deux modèles lisent le MÊME
+        // signal. Disposer de l'un ne touche pas l'autre.
+        //
+        // Et un effet d'un modèle qui s'inscrit sur un signal EXTERNE reste possédé : c'est le
+        // désabonnement interne qui est disposé, pas la cible.
+        name: "modele/deux-instances",
+        matrice: [],
+        run(api, log) {
+            const mk = (api, n) => api.createModel(() => ({
+                s: api.signal(n),
+                e: api.effect(() => log(`e${n}`, String(n))),
+            }));
+            const A = mk(api, 1);
+            const B = mk(api, 2);
+            const a = new A();
+            const b = new B();
+            log("deux instances creees", "vu");
+            a.s.value = 10;
+            b.s.value = 20;
+            log("apres ecritures croisees", "vu");
+            a[Symbol.dispose]();
+            a.s.value = 100;
+            log("a dispose, b vivant", "vu");
+            const partage = api.signal(0);
+            const mkPartage = () => api.createModel(() => ({
+                e: api.effect(() => log("partage", String(partage.value))),
+            }));
+            const C = mkPartage();
+            const D = mkPartage();
+            const c = new C();
+            const d = new D();
+            partage.value = 1;
+            log("deux modeles sur le meme signal", "vu");
+            c[Symbol.dispose]();
+            partage.value = 2;
+            d[Symbol.dispose]();
+            log("c dispose, d vivant", "vu");
+            const interne = api.signal(0);
+            const externe = api.signal(0);
+            const journal = [];
+            const E = api.createModel(() => ({
+                e: api.effect(() => {
+                    journal.push(`run ${interne.value}${externe.value}`);
+                    interne.subscribe((v) => journal.push(`sub ${v}`));
+                }),
+            }));
+            const e = new E();
+            externe.value = 1;
+            e[Symbol.dispose]();
+            interne.value = 1;
+            log("un abonnement interne reste possede", JSON.stringify(journal));
+            assert.deepEqual(log.entries, [
+                "e1 1",
+                "e2 2",
+                "deux instances creees vu",
+                "apres ecritures croisees vu",
+                "a dispose, b vivant vu",
+                "partage 0",
+                "partage 0",
+                "partage 1",
+                "partage 1",
+                "deux modeles sur le meme signal vu",
+                "partage 2",
+                "c dispose, d vivant vu",
+                'un abonnement interne reste possede ["run 00","sub 0","run 01","sub 0","sub 1"]',
+            ]);
+        },
+    },
+    {
+        // SPEC §16.2 — LA FORME DU MODÈLE. Le constructor est une fonction-constructeur, appelable avec
+        // ou sans `new`, et elle renvoie L'OBJET DE LA FABRIQUE, muté en place : ni copie, ni
+        // enveloppe, ni proxy. C'est ce qui rend `createModel` transparent, et c'est aussi ce qui rend
+        // `instanceof` faux — le CHANGELOG 1.13.0 parle de « classe », le code n'en fait pas une.
+        //
+        // L'enveloppement descend dans les objets imbriqués et les tableaux, mais PAS dans un objet qui
+        // porte une marque : c'est un signal, et ses méthodes lui appartiennent. Sans cette garde, un
+        // modèle ne pourrait pas contenir un seul signal. Et il ne descend pas dans les méthodes de
+        // classe, qui sont sur le prototype donc non énumérables — un quirk figé.
+        //
+        // AUCUNE VALIDATION À L'EXÉCUTION : une fabrique qui renvoie `{ anything: 42 }` est acceptée,
+        // et la validation est statique, côté TypeScript. Le paquet publié minifie ses noms de
+        // fonctions, donc le nom `actionWrapper` est vérifié côté signalcn seulement.
+        name: "modele/forme-et-enveloppement",
+        matrice: [],
+        run(api, log) {
+            const Modele = api.createModel(() => ({ s: api.signal(1) }));
+            log("avec new", String(new Modele().s.value));
+            log("sans new", String(Modele().s.value));
+            const partage = { inc: function () { return this; } };
+            const Partage = api.createModel(() => partage);
+            const instance = new Partage();
+            log("l'objet de la fabrique est-il muté en place", String(instance === partage));
+            log("instanceof le constructor", String(instance instanceof Partage));
+            log("constructor.name", instance.constructor.name);
+            log("instanceof Object", String(instance instanceof Object));
+            // L'enveloppement se prouve par la SUBSTITUTION, pas par le nom : le paquet publié minifie
+            // ses noms de fonctions, donc `name` y vaut la chaine vide. On retient la fonction d'origine
+            // et on vérifie que l'instance porte une AUTRE fonction.
+            const imbriquee = function () { };
+            const imbrique = api.createModel(function () {
+                return { n: 5, inc: function () { return this; }, nested: { deep: { inc: imbriquee } } };
+            });
+            const i = new imbrique();
+            log("this conserve", String(i.inc() === i));
+            log("fonctions imbriquees enveloppees", String(i.nested.deep.inc !== imbriquee));
+            const tab = api.createModel(() => [api.signal(1)]);
+            const t = new tab();
+            log("descend dans un tableau", String(Array.isArray(t) && typeof t[0].brand === "symbol"));
+            const avecSignal = api.createModel(() => ({ nested: { s: api.signal(1) } }));
+            log("ne descend pas dans un signal", String(new avecSignal().nested.s.brand));
+            class Classe {
+                constructor() {
+                    this.inc = function () { };
+                }
+                m() { }
+                ;
+            }
+            const depuisClasse = api.createModel(() => new Classe());
+            log("methode de classe non enveloppee", depuisClasse().m.name);
+            const primitifs = api.createModel(() => ({ n: 5, s: "x", nil: null, arr: [1, 2] }));
+            log("primitifs intacts", JSON.stringify(new primitifs()));
+            const date = new Date(0);
+            const avecDate = api.createModel(() => ({ d: date }));
+            log("Date non touche", String(new avecDate().d === date));
+            const sansValidation = api.createModel(() => ({ anything: 42, fn: () => 1 }));
+            log("aucune validation a l'execution", typeof new sansValidation().fn);
+            assert.deepEqual(log.entries, [
+                "avec new 1",
+                "sans new 1",
+                "l'objet de la fabrique est-il muté en place true",
+                "instanceof le constructor false",
+                "constructor.name Object",
+                "instanceof Object true",
+                "this conserve true",
+                "fonctions imbriquees enveloppees true",
+                "descend dans un tableau true",
+                "ne descend pas dans un signal Symbol(preact-signals)",
+                "methode de classe non enveloppee m",
+                'primitifs intacts {"n":5,"s":"x","nil":null,"arr":[1,2]}',
+                "Date non touche true",
+                "aucune validation a l'execution function",
+            ]);
+        },
+    },
+    {
+        // SPEC §16.2 — UN GETTER EST ÉVALUÉ UNE SEULE FOIS, ET DEVIENT UNE DONNÉE. Le parcours
+        // `for…in` de l'enveloppe déclenche le getter, prend ce qu'il renvoie, et l'écrit comme
+        // propriété — donc le getter ne sera plus jamais appelé. C'est ce que la matrice relève :
+        // `gets === 1`, et la valeur stockée est un signal.
+        //
+        // Un objet CYCLIQUE fait tomber la récursion : `RangeError`, et la mutation est PARTIELLE — les
+        // propriétés visitées avant le cycle sont enveloppées, les suivantes non. Le défaut est figé ;
+        // le corriger changerait le contrat, donc on fige ce qu'il fait.
+        //
+        // Et une fabrique qui renvoie une PRIMITIVE ne produit pas un modèle : l'affectation de
+        // `Symbol.dispose` sur `42` lève en mode strict. Avec `null`, c'est un `TypeError` de lecture.
+        // Les deux sont des `TypeError` dont le message vient de V8 — on n'affirme que le type.
+        name: "modele/getter-cyclique-et-primitives",
+        matrice: [],
+        run(api, log) {
+            let gets = 0;
+            const Getter = api.createModel(() => ({
+                get v() {
+                    gets++;
+                    return api.signal(1);
+                },
+            }));
+            const avecGetter = new Getter();
+            log("evaluations du getter", String(gets));
+            log("la valeur stockee est un signal", String("brand" in avecGetter.v));
+            // La mutation partielle se prouve par la substitution aussi : `avant` n'a pas été enroulé,
+            // `apres` si — donc la récursion s'est arrêtée ENTRE les deux.
+            const avant = function () { };
+            const apres = function () { };
+            const cyclique = { avant, apres };
+            cyclique.soi = cyclique;
+            const Cyclique = api.createModel(() => cyclique);
+            try {
+                new Cyclique();
+                log("objet cyclique", "pas d'erreur");
+            }
+            catch (erreur) {
+                const type = erreur instanceof Error ? erreur.constructor.name : "autre";
+                // La mutation est PARTIELLE parce qu'elle a COMMENCÉ : les propriétés visited avant le cycle
+                // sont enveloppées, et la pile tombe en rentrant dans `soi` — qui pointe l'objet lui-même.
+                log("objet cyclique", `${type} / mutation commencee : ${String(cyclique.avant !== avant)}`);
+            }
+            const Primitive = api.createModel(() => 42);
+            try {
+                new Primitive();
+                log("fabrique primitive, avec new", "pas d'erreur");
+            }
+            catch (erreur) {
+                log("fabrique primitive, avec new", erreur instanceof Error ? erreur.constructor.name : "autre");
+            }
+            const Nul = api.createModel(() => null);
+            try {
+                new Nul();
+                log("fabrique null", "pas d'erreur");
+            }
+            catch (erreur) {
+                log("fabrique null", erreur instanceof Error ? erreur.constructor.name : "autre");
+            }
+            assert.deepEqual(log.entries, [
+                "evaluations du getter 1",
+                "la valeur stockee est un signal true",
+                "objet cyclique RangeError / mutation commencee : true",
+                "fabrique primitive, avec new TypeError",
+                "fabrique null TypeError",
+            ]);
+        },
+    },
+    {
+        // SPEC §16.1 — LA FABRIQUE REÇOIT LES ARGUMENTS, ET `this` N'EST PAS LE MODÈLE. L'appel est un
+        // appel simple, donc en ESM `this` y vaut `undefined` — le même comportement que le rappel
+        // d'un abonnement, et la même conséquence : une fabrique ne peut pas s'appuyer sur `this`.
+        name: "modele/arguments-et-this",
+        matrice: [],
+        run(api, log) {
+            let args = [];
+            let typeDeThis = "?";
+            const Modele = api.createModel(function (...recu) {
+                args = recu;
+                typeDeThis = this === undefined ? "undefined" : typeof this;
+                return { n: 1 };
+            });
+            new Modele(1, 2);
+            log("arguments transmis", JSON.stringify(args));
+            log("this de la fabrique", typeDeThis);
+            assert.deepEqual(log.entries, ["arguments transmis [1,2]", "this de la fabrique undefined"]);
+        },
+    },
+    {
+        // SPEC §16.4 — LA CAPTURE DES EFFETS. C'est le cœur de `createModel` : savoir, à la
+        // construction, quels effets ont été créés, donc une portée ouverte autour de l'appel à la
+        // fabrique.
+        //
+        // La capture se fait À LA CONSTRUCTION de l'effet, pas à son premier run — c'est le seul moment
+        // où l'on peut encore dire qui le possède. Trois contextes ne sont PAS possédés, et les trois
+        // sont des surprises : un `untracked` englobant, un computé évalué plus tard, et un cleanup de
+        // dispose. Un `batch` n'annule PAS la capture — c'est la différence entre les deux primitives.
+        //
+        // Et une fabrique qui LÈVE perd ses effets : ils ne sont pas rendus à la portée englobante.
+        // Une construction avortée ne possède plus rien. C'est ce qui explique qu'un effet « leaké »
+        // survive à tout dispose.
+        name: "modele/capture-des-effets",
+        matrice: [],
+        run(api, log) {
+            // 18 : possédés
+            const s18 = api.signal(0);
+            const M18 = api.createModel(() => {
+                api.effect(() => log("18", `e:${s18.value}`));
+                return {};
+            });
+            const i18 = new M18();
+            s18.value = 1;
+            log("18 apres ecriture, avant dispose", "vu");
+            i18[Symbol.dispose]();
+            s18.value = 2;
+            log("18 apres dispose", "vu");
+            // 21 : un effet créé dans un batch est POSSÉDÉ
+            const s21 = api.signal(0);
+            let survit21 = "vrai";
+            const M21 = api.createModel(() => {
+                api.batch(() => {
+                    api.effect(() => {
+                        s21.value = 1;
+                    });
+                });
+                return {};
+            });
+            const i21 = new M21();
+            i21[Symbol.dispose]();
+            survit21 = "dispose fait";
+            log("21 batch : effets possedes", survit21);
+            // 13 : un effet créé dans un GETTER n'est pas possédé — l'enveloppe est hors de la portée
+            const s13 = api.signal(0);
+            const journal13 = [];
+            const M13 = api.createModel(() => ({
+                get v() {
+                    api.effect(() => journal13.push(`from getter ${s13.value}`));
+                    return 1;
+                },
+            }));
+            const i13 = new M13();
+            i13.v;
+            i13[Symbol.dispose]();
+            s13.value = 1;
+            // Le journal a QUATRE entrees et non deux : le getter est appele deux fois — une fois par le
+            // `for…in` de l'enveloppe, une fois par la lecture explicite — et chaque appel cree un effet.
+            // Les DEUX survivent au dispose : ils ont ete crees hors de la portee de capture, parce que
+            // l'enveloppe tourne apres la fermeture de la portee.
+            log("13 effet d'un getter", JSON.stringify(journal13));
+            // 16 : une fabrique qui leve perd ses effets
+            const s16 = api.signal(0);
+            const journal16 = [];
+            const M16 = api.createModel(() => {
+                api.effect(() => journal16.push(`leaked ${s16.value}`));
+                throw new Error("factory boom");
+            });
+            try {
+                new M16();
+            }
+            catch (erreur) {
+                journal16.push(`caught:${erreur instanceof Error ? erreur.constructor.name : "autre"}`);
+            }
+            s16.value = 1;
+            log("16 effet perdu apres une fabrique qui leve", JSON.stringify(journal16));
+            // 17 : une fabrique imbriquée qui leve — le parent ne récupère rien
+            const journal17 = [];
+            const Interne = api.createModel(() => {
+                api.effect(() => journal17.push("inner-leak"));
+                throw new Error("inner boom");
+            });
+            const Externe = api.createModel(() => {
+                api.effect(() => journal17.push("outer-leak"));
+                return Interne();
+            });
+            try {
+                new Externe();
+            }
+            catch (erreur) {
+                journal17.push(`caught:${erreur instanceof Error ? erreur.constructor.name : "autre"}`);
+            }
+            log("17 fabrique imbriquee qui leve", JSON.stringify(journal17));
+            // 22 : un effet né dans un computé, évalué APRÈS la construction, n'est pas possédé
+            const s22 = api.signal(0);
+            const journal22 = [];
+            const M22 = api.createModel(() => ({
+                c: api.computed(() => {
+                    api.effect(() => journal22.push(`from computed ${s22.value}`));
+                    return s22.value;
+                }),
+            }));
+            const i22 = new M22();
+            i22.c.value;
+            s22.value = 1;
+            i22[Symbol.dispose]();
+            s22.value = 2;
+            log("22 effet ne dans un compute", JSON.stringify(journal22));
+            // 23 : un effet né dans un CLEANUP de dispose n'est pas possédé, et fuit
+            const s23 = api.signal(0);
+            const journal23 = [];
+            const M23 = api.createModel(() => ({
+                e: api.effect(() => {
+                    s23.value = 1;
+                    return () => journal23.push(`from-cleanup ${s23.value}`);
+                }),
+            }));
+            const i23 = new M23();
+            i23[Symbol.dispose]();
+            log("23 effet ne dans un cleanup", JSON.stringify(journal23));
+            assert.deepEqual(log.entries, [
+                "18 e:0",
+                "18 e:1",
+                "18 apres ecriture, avant dispose vu",
+                "18 apres dispose vu",
+                "21 batch : effets possedes dispose fait",
+                "13 effet d'un getter [\"from getter 0\",\"from getter 0\",\"from getter 1\",\"from getter 1\"]",
+                '16 effet perdu apres une fabrique qui leve ["leaked 0","caught:Error","leaked 1"]',
+                '17 fabrique imbriquee qui leve ["outer-leak","inner-leak","caught:Error"]',
+                '22 effet ne dans un compute ["from computed 0","from computed 1","from computed 2"]',
+                '23 effet ne dans un cleanup ["from-cleanup 1"]',
+            ]);
+        },
+    },
+    {
         // SPEC §11 — S'ABONNER, C'EST CRÉER UN EFFET INTERNE. La baseline (`L427-435`) fait
         // exactement cela : un `effect` nommé `"sub"` qui lit `this.value` puis appelle le rappel sous
         // `untracked`. Aucun état propre, donc rien qui distingue un abonné d'un effet.
@@ -3074,6 +3600,45 @@ export const COUVERTURE = {
     // batch#27 : relire un computé invalidé PENDANT le batch ne doit pas consommer la file de
     // drainage, sinon l'effet ne tourne jamais à la sortie. Trouvé en #38.
     "batch#27": "batch/relecture-reveille-malgre-la-lecture",
+    // --- groupe `createModel` : 34 entrees
+    // Le NOM des fonctions enveloppees est le seul point non differentiel de tout le groupe : le
+    // paquet publie minifie ses noms, donc `name` y vaut la chaine vide. Les cinq entrees dont le nom
+    // EST le sujet (`#2`, `#4`, `#5`, `#11`, `#15`) sont donc verifiees sur les deux cotes — la
+    // SUBSTITUTION de la fonction est differentielle, le nom ne l'est pas.
+    "modele#1": "modele/forme-et-enveloppement",
+    "modele#2": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#3": "modele/forme-et-enveloppement",
+    "modele#4": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#5": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#6": "modele/forme-et-enveloppement",
+    "modele#7": "modele/forme-et-enveloppement",
+    "modele#8": "modele/forme-et-enveloppement",
+    "modele#9": "modele/forme-et-enveloppement",
+    "modele#10": "modele/forme-et-enveloppement",
+    "modele#11": "modele/getter-cyclique-et-primitives + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#12": "modele/getter-cyclique-et-primitives",
+    "modele#13": "modele/capture-des-effets",
+    "modele#14": "modele/arguments-et-this",
+    "modele#15": "modele/forme-et-enveloppement + signalcn-seul/nom-des-fonctions-enveloppees",
+    "modele#16": "modele/capture-des-effets",
+    "modele#17": "modele/capture-des-effets",
+    "modele#18": "modele/capture-des-effets",
+    "modele#19": "modele/modeles-imbriques",
+    "modele#20": "modele/modeles-imbriques",
+    "modele#21": "modele/capture-des-effets",
+    "modele#22": "modele/capture-des-effets",
+    "modele#23": "modele/capture-des-effets",
+    "modele#24": "modele/dispose",
+    "modele#25": "modele/dispose",
+    "modele#26": "modele/dispose",
+    "modele#27": "modele/dispose",
+    "modele#28": "modele/dispose",
+    "modele#29": "modele/dispose",
+    "modele#30": "modele/dispose",
+    "modele#31": "modele/deux-instances",
+    "modele#32": "modele/deux-instances",
+    "modele#33": "modele/deux-instances",
+    "modele#34": "modele/getter-cyclique-et-primitives",
     // --- groupe `subscribe` : 15 entrees
     // `subscribe#12` est le SEUL cas que la table ne peut pas dire : l'effet interne se nomme "sub",
     // et le paquet publie minifie ses noms de fonctions, donc `name` y vaut la chaine vide.
@@ -3180,6 +3745,7 @@ export const ENTREES_ATTENDUES = [
     // les noms, donc `name` y vaut la chaine vide. Voir `signalcn-seul/nom-de-leffet-interne`.
     // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
     ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
+    ...Array.from({ length: 34 }, (_, i) => `modele#${i + 1}`),
 ];
 // Le reliquat : il n'a aucune raison d'exister ailleurs.
 //
@@ -3215,7 +3781,7 @@ if (process.env.NODE_TEST_CONTEXT) {
     const moteurDe = async () => await runtime;
     for (const { name, run } of scenarios) {
         test(name, async () => {
-            const { signal: s, computed, effect, batch, untracked, action, Signal, Computed, Effect } = await runtime;
+            const { signal: s, computed, effect, batch, untracked, action, createModel, Signal, Computed, Effect } = await runtime;
             run({
                 signal: s,
                 computed,
@@ -3226,6 +3792,7 @@ if (process.env.NODE_TEST_CONTEXT) {
                 batch,
                 untracked,
                 action,
+                createModel,
             }, makeLog());
         });
     }
@@ -3237,6 +3804,28 @@ if (process.env.NODE_TEST_CONTEXT) {
     // Ils sont ici, et pas dans un fichier séparé, pour ne pas ajouter un troisième fichier à un
     // couple dont la composition est figée.
     const testsSignalcnSeul = {
+        // Les fonctions enveloppées par `createModel` se nomment `actionWrapper`, comme celles
+        // d'`action` — c'est le MÊME enveloppeur, donc le même nom. Le paquet publié minifie ses noms,
+        // donc la table ne peut pas le dire ; et comme un modèle a des surfaces différentes — une
+        // imbriquée, un tableau, un objet cyclique — il faut vérifier que l'enveloppeur est bien tombé
+        // dans chaque cas, pas seulement à la racine.
+        "nom-des-fonctions-enveloppees": async ({ signal, createModel }) => {
+            const enveloppee = function () { };
+            const imbriquee = function () { };
+            const modele = createModel(() => ({
+                racine: enveloppee,
+                imbrique: { profond: imbriquee },
+                tableau: [function () { }],
+                marque: signal(1),
+            }))();
+            assert.equal(modele.racine.name, "actionWrapper", "la fonction racine est enveloppée");
+            assert.equal(modele.imbrique.profond.name, "actionWrapper", "l'imbriquée aussi");
+            assert.equal(modele.tableau[0].name, "actionWrapper", "celle du tableau aussi");
+            // Le signal n'est PAS descendedu : ses méthodes lui appartiennent, et les envelopper
+            // rendrait un signal illisible.
+            assert.notEqual(modele.marque.toString.name, "actionWrapper", "un signal n'est pas envelopes");
+            assert.equal(modele.marque.brand, Symbol.for("preact-signals"), "le signal est intact");
+        },
         // Le nom du wrapper d'`action` est un CONTRACT, pas une etiquette : la matrice le fige, et le
         // pipeline de generation a besoin de `--keep-names` pour le conserver. Il ne peut PAS etre
         // verifie dans la table — le paquet publie minifie ses noms de fonctions, donc `f.name` y vaut

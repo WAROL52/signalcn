@@ -348,6 +348,18 @@ let batchIteration = 0
 let batchedEffect: Effect<any> | undefined = undefined
 
 /**
+ * Les effets créés PENDANT la construction d'un modèle, pour qu'il les possède.
+ *
+ * C'est une liste et non une pile : l'ordre de création d'un modèle est l'ordre de dispose, donc
+ * les deux concordance. Elle vaut `undefined` hors de toute construction — et c'est cette absence
+ * qui décide de la capture, pas un drapeau.
+ *
+ * Elle est neutralisée par `untracked` comme par le contexte de suivi, mais PAS par `batch` : un
+ * effet créé dans un `batch` appartient toujours au modèle. Voir `createModel#21`.
+ */
+let capturedEffects: Effect<any>[] | undefined = undefined
+
+/**
  * Les écritures faites pendant le corps d'un `batch` utilisateur, pour pouvoir les REVERTIR.
  *
  * C'est une liste chaînée à part, distincte de la file d'effets : celle-ci dit « qui doit tourner »,
@@ -394,11 +406,14 @@ const SEUIL_CYCLE = 100
  */
 export function untracked<T>(fn: () => T): T {
   const precedent = currentObserver
+  const precedentCapture = capturedEffects
   currentObserver = undefined
+  capturedEffects = undefined
   try {
     return fn()
   } finally {
     currentObserver = precedent
+    capturedEffects = precedentCapture
   }
 }
 
@@ -770,6 +785,13 @@ export class Effect<FnReturn = void | (() => void)> {
     // ouvre les abonnements de ses sources sans attendre un second.
     this._flags = TRACKING
     this.name = options?.name
+
+    // La capture se fait À LA CONSTRUCTION, pas au premier run : c'est le seul moment où l'effet
+    // est encore « créé par » le modèle. Au premier run il serait impossible de dire qui le
+    // possède. La liste peut être vide, jamais absente, hors construction.
+    if (capturedEffects) {
+      capturedEffects.push(this)
+    }
   }
 
   /** Le corps de l'effet, collecte des dépendances comprise. C'est ce qu'une écriture déclenche. */
@@ -1184,4 +1206,99 @@ export function action<TArgs extends unknown[], TReturn>(fn: (...args: TArgs) =>
     return batch(() => untracked(() => fn.apply(this, args)))
   }
   return actionWrapper
+}
+
+/**
+ * Ouvre une portée de capture et rend la fonction qui la ferme.
+ *
+ * La portée est TOUJOURS nouvelle, même quand `untracked` a vidé la portée englobante : c'est ce
+ * qui permet à un modèle imbriqué de posséder ses propres effets sans les promouvoir vers une
+ * portée supprimée. Les deux listes sont alors concaténées à la fermeture, donc le parent les
+ * hérite.
+ */
+function startCapturingEffects(): () => Effect<any>[] | undefined {
+  const previousCapturedEffects = capturedEffects
+  capturedEffects = []
+  return function stopCapturingEffects() {
+    const modelEffects = capturedEffects
+    if (capturedEffects && previousCapturedEffects) {
+      previousCapturedEffects.push(...capturedEffects)
+    }
+    capturedEffects = previousCapturedEffects
+    return modelEffects
+  }
+}
+
+/**
+ * Enveloppe chaque fonction PROPRE énumérable dans une `action`, récursivement.
+ *
+ * Le `for…in` et non `Object.keys` : les méthodes de classe sont sur le prototype, donc non
+ * énumérables, donc NON enveloppées. C'est un quirk figé — une méthode de classe n'est pas une
+ * fonction d'état.
+ *
+ * On ne descend pas dans un objet qui porte une marque : c'est un signal ou un computé, et ses
+ * méthodes sont les siennes. Sans cette garde, un modèle ne pourrait pas contenir un signal.
+ */
+function wrapInAction(value: Record<string, unknown>): void {
+  for (const key in value) {
+    const val = value[key]
+    if (typeof val === "function") {
+      value[key] = action(val as (...args: unknown[]) => unknown)
+    } else if (typeof val === "object" && val !== null && !("brand" in val)) {
+      wrapInAction(val as Record<string, unknown>)
+    }
+  }
+}
+
+/**
+ * SPEC §16 — un objet d'état dont chaque fonction est automatiquement groupée, et dont les effets
+ * créés pendant la construction lui appartiennent.
+ *
+ * C'EST LE SEUL EXPORT QUI A UNE LOGIQUE PROPRE. `action` est une composition de deux primitives ;
+ * `subscribe` est un effet interne ; ici il faut savoir, à la construction, quels effets ont été
+ * créés — donc une portée de capture, ouverte et fermée autour de l'appel à la fabrique.
+ *
+ * L'objet rendu par la fabrique EST le modèle, muté en place : il n'est ni copié, ni enveloppé, ni
+ * proxyfié. C'est ce qui rend `createModel` transparent, et c'est aussi ce qui le rend fragile —
+ * une fabrique qui renvoie une primitive produit un modèle vide, silencieusement.
+ */
+export function createModel<TModel, TFactoryArgs extends any[] = []>(
+  modelFactory: (...args: TFactoryArgs) => TModel,
+): ((...args: TFactoryArgs) => TModel) & (new (...args: TFactoryArgs) => TModel) {
+  return function SignalModel(this: unknown, ...args: TFactoryArgs): TModel {
+    let modelEffects: Effect<any>[] | undefined
+    let model: TModel
+
+    const stopCapturingEffects = startCapturingEffects()
+    try {
+      model = modelFactory(...args) as TModel
+    } catch (erreur) {
+      // Les effets déjà capturés sont PERDUS, pas restitués à la portée englobante : une
+      // construction avortée ne possède plus rien. Le dire explicitement, parce que le `finally`
+      // refermerait la portée et les rendrait au parent — ce que la baseline ne fait pas.
+      capturedEffects = undefined
+      throw erreur
+    } finally {
+      modelEffects = stopCapturingEffects()
+    }
+
+    wrapInAction(model as unknown as Record<string, unknown>)
+
+    const modele = model as unknown as Record<symbol, unknown>
+    modele[Symbol.dispose] = action(function disposeModel() {
+      if (modelEffects) {
+        // Une boucle SANS `try` : un cleanup qui leve interrompt les disposes suivants. C'est un
+        // défaut figé par la matrice — `createModel#26` — et le corriger changerait le contrat.
+        const effets: Effect<any>[] = modelEffects
+        // `for…of` et non une boucle d'index : l'ordre de création est l'ordre de dispose, donc les
+        // deux se confondent, et l'index n'apporte rien.
+        for (const effet of effets) {
+          effet._dispose()
+        }
+      }
+      modelEffects = undefined
+    })
+
+    return model
+  } as unknown as ((...args: TFactoryArgs) => TModel) & (new (...args: TFactoryArgs) => TModel)
 }
