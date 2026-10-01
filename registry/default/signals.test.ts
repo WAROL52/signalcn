@@ -11,7 +11,9 @@
  *     de prototype, et le compteur `_version`.
  *
  * Et un TROISIÈME chose, `COUVERTURE`, qui rend le critère « aucune entrée de matrice laissée
- * sans scénario » VÉRIFIABLE au lieu d'être une promesse. Voir plus bas.
+ * sans destination » VÉRIFIABLE au lieu d'être une promesse. Une destination est soit un nom de
+ * test, soit le numéro d'un ticket ENCORE OUVERT — jamais celui d'un ticket clos, qui ne promet
+ * plus rien. Voir plus bas.
  *
  * Les attentes de la table sont transcrites de la colonne « Observé » de la matrice, et
  * confirmées par sonde contre le paquet publié. Le vrai oracle reste la campagne rejouable —
@@ -81,6 +83,34 @@ const thisGlobal: unknown = globalThis
  */
 const auRuntime = <T,>(valeur: T): any => valeur
 
+/**
+ * Combien de fois un effet a tourné, après chaque écriture. C'est LE compteur qui existe des deux
+ * côtés : `_version` n'a pas le même nom chez la baseline publiée, qui minifie les siens, donc
+ * « notifie » ne peut pas se compter autrement.
+ *
+ * Renvoyer le COMPTE APRÈS chaque écriture, et non le total, est ce qui permet d'affirmer deux
+ * choses dans la même assertion : qu'une écriture a notifié, et que la suivante, qui ne change
+ * rien, ne l'a pas fait.
+ *
+ * `lire` est ce que l'effet fait du signal, et ne rien lire est un cas LÉGITIME — c'est
+ * `effect#3` — pas une omission de l'appelant.
+ */
+function compteRuns(api: Api, initiale: unknown, lire: (s: any) => unknown, ecritures: unknown[]): number[] {
+  const jalons: number[] = []
+  const s = api.signal<unknown>(initiale)
+  let runs = 0
+  api.effect(() => {
+    runs++
+    lire(s)
+  })
+  jalons.push(runs)
+  for (const ecriture of ecritures) {
+    s.value = ecriture
+    jalons.push(runs)
+  }
+  return jalons
+}
+
 export function makeLog(): Log {
   const entries: string[] = []
   const log = (...parts: unknown[]) => {
@@ -91,19 +121,29 @@ export function makeLog(): Log {
 }
 
 /**
- * Les tranches qui possedent une entree de matrice. Nommees, pas ecrites en clair dans le
- * registre : la revue a releve que « l'effet » etait pointe sur #25, qui est `subscribe()` — et
- * un rappel de `subscribe` s'execute en `untracked`, donc il ne peut pas prouver qu'une
- * conversion suit la dependance. Un numero written en clair dans une chaine n'est pas relu.
+ * Les tranches ENCORE OUVERTES qui peuvent porter une entree de matrice. Nommees, pas ecrites en
+ * clair dans le registre : la revue a releve que « l'effet » etait pointe sur #25, qui est
+ * `subscribe()` — et un rappel de `subscribe` s'execute en `untracked`, donc il ne peut pas
+ * prouver qu'une conversion suit la dependance. Un numero ecrit en clair dans une chaine n'est
+ * pas relu.
+ *
+ * CE NE SONT QUE DES TICKETS OUVERTS, et c'est la garde du registre qui s'appuie dessus : un
+ * ticket clos n'est plus une promesse, c'est un souvenir, donc il ne peut plus rien couvrir. Il
+ * est ABSENT de cette liste, et `registre-complet` refuse alors toute destination qui le cite.
+ * `#23` (computed), `#24` (effet) et `#26` (batch) en sont absents pour cette raison.
+ *
+ * ponytail: cette liste EST la porte, donc la liste peut devenir périmée — c'est le plafond
+ * honnête du refus. Le test ne peut pas le voir : il tourne hors ligne chez l'utilisateur, et une
+ * garde qui interroge `gh` refuserait de tourner du tout. Monter d'un cran = un script de porte
+ * qui confronte cette liste à l'état réel des tickets, dans `scripts/`, comme `verifier-derive`
+ * confronte les artefacts. Tant que ce script n'existe pas, la liste est une déclaration, et il
+ * faut la vérifier à la main en relisant.
  */
 export const TICHETS = {
-  computed: "#23",
-  effet: "#24",
   subscribe: "#25",
-      batch: "#26",
-      // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
-      modele: "#28",
-    } as const
+  // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
+  modele: "#28",
+} as const
 
 export const scenarios: Scenario[] = [
   {
@@ -197,8 +237,12 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §5.2 — l'identité, pas la structure. La valeur relue est l'objet écrit, pas une
-    // copie : rien ne clones. Le reste — « notifie », « la même référence n'a pas notifié » —
-    // se constate sur `_version`, et c'est un test signalcn-seul.
+    // copie : rien ne clones.
+    //
+    // ET LA NOTIFICATION, COMPTE PAR UN EFFET. C'est le seul compteur qui existe des DEUX côtés :
+    // `_version` n'a pas le même nom chez la baseline publiée, qui minifie les siens. Ces trois
+    // entrées pointaient sur le ticket #24, clos, et n'étaient donc couvertes par AUCUN test — un
+    // numéro de ticket est accepté comme destination, donc le vide passait pour une couverture.
     name: "signal/egalite-stricte-objet",
     matrice: ["signal#9", "signal#10", "signal#11"],
     run(api, log) {
@@ -213,18 +257,88 @@ export const scenarios: Scenario[] = [
       vide.value = undefined
       log("undefined vers undefined, valeur", String(vide.value))
 
+      // Le compteur de notifications. « Notifie » et « ne notifie pas » ne sont plus des mots. Le
+      // helper rend un jalon par écriture — le premier est le run initial. La troisième écriture
+      // réécrit `premier`, et ELLE NOTIFIÉ : la valeur courante est l'objet de forme 2, donc
+      // `premier` n'est plus la même référence. C'est la chaîne que la matrice relève pour
+      // `signal#9` — « 2 runs, puis ré-écriture de l'objet d'origine », et la version passe à 2.
+      log(
+        "runs : objet de meme forme puis la meme reference",
+        compteRuns(api, premier, s => s.value, [{ forme: 2 }, premier]).join(" puis "),
+      )
+      log(
+        "runs : 0 vers undefined puis undefined vers undefined",
+        compteRuns(api, 0, s => s.value, [undefined, undefined]).join(" puis "),
+      )
+      log("runs : ecriture identique", String(compteRuns(api, 1, s => s.value, [1]).join(" puis ")))
+
       assert.deepEqual(log.entries, [
         "la valeur relue est la reference ecrite true",
         "un objet de meme forme est accepte true",
         "undefined vers undefined, valeur undefined",
+        "runs : objet de meme forme puis la meme reference 1 puis 2 puis 3",
+        "runs : 0 vers undefined puis undefined vers undefined 1 puis 2 puis 2",
+        "runs : ecriture identique 1 puis 1",
+      ])
+    },
+  },
+  {
+    // SPEC §5.1, §8.1 — CE QU'UNE ÉCRITURE RÉVEILLE, ET CE QU'ELLE NE RÉVEILLE PAS. Les quatre
+    // entrées de ce scénario pointaient sur le ticket #24, clos : rien ne les rejouait. Un effet
+    // est le seul observateur qui existe des deux côtés, donc c'est par lui qu'elles se constatent.
+    //
+    // `signal#5` est la SEULE des quatre qui notifie, et elle le fait AVANT l'instruction suivante :
+    // le drain est terminé, pas\Component à faire. Les trois autres disent ce qui ne réveille pas,
+    // et sans elles `signal#5` n'affirmerait qu'un flush, pas une frontière.
+    name: "signal/notification-synchrone",
+    matrice: [],
+    run(api, log) {
+      const s = api.signal(0)
+      const journal: string[] = []
+      api.effect(() => {
+        journal.push(`e:${s.value}`)
+      })
+      journal.push("before")
+      s.value = 1
+      journal.push("after")
+      log("drain termine avant l'instruction suivante", JSON.stringify(journal))
+
+      // `signal#12` : écrire sa propre dépendance ne boucle pas, parce que l'écriture est
+      // identique et que l'identité stricte la refuse. C'est le seul des quatre que le helper ne
+      // couvre pas : l'effet y ÉCRIT, donc il ne se contente pas de lire.
+      let autoRuns = 0
+      const auto = api.signal(1)
+      api.effect(() => {
+        autoRuns++
+        auto.value = auto.value
+      })
+      log("runs : auto-ecriture identique", String(autoRuns))
+
+      // `signal#13` : un effet sans dépendance n'a rien à quoi s'abonner. Deux écritures ne le
+      // réveillent pas — c'est ce qui rend `effect#3` et `signal#13` le MÊME fait, et c'est
+      // pourquoi ils partagent ce scénario.
+      log(
+        "runs : effet sans dependance, deux ecritures",
+        String(compteRuns(api, 0, () => undefined, [1, 2]).join(" puis ")),
+      )
+
+      // `signal#14` : `peek()` est exactement `untracked(() => value)`, donc la lecture ne
+      // s'abonne à rien.
+      log("runs : lecture par peek, une ecriture", String(compteRuns(api, 1, s => s.peek(), [1]).join(" puis ")))
+
+      assert.deepEqual(log.entries, [
+        'drain termine avant l\'instruction suivante ["e:0","before","e:1","after"]',
+        "runs : auto-ecriture identique 1",
+        "runs : effet sans dependance, deux ecritures 1 puis 1 puis 1",
+        "runs : lecture par peek, une ecriture 1 puis 1",
       ])
     },
   },
   {
     // SPEC §5.1 — `peek()` lit la valeur. CE QUE ÇA NE PREND PAS DE PAS, c'est l'absence de
-    // dépendance : la matrice l'atteste par un effet qui ne se ré-exécute pas, et les effets
-    // arrivent en #24. Le descripteur du prototype diverge — ADR-0004 — et n'est donc pas une
-    // propriété commune : il est vérifié côté signalcn seulement.
+    // dépendance : la matrice l'atteste par un effet qui ne se ré-exécute pas, et c'est
+    // `signal/notification-synchrone` qui s'en charge. Le descripteur du prototype diverge —
+    // ADR-0004 — et n'est donc pas une propriété commune : il est vérifié côté signalcn seul.
     name: "signal/peek",
     matrice: ["signal#15"],
     run(api, log) {
@@ -286,8 +400,8 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §5.1 — `toString()` vaut `this.value + ""` et `valueOf()` vaut `this.value`.
-    // Les deux SUIVENT la dependance : ils passent donc par l'accesseur, pas par `_value`.
-    // On ne peut pas encore le constater sans effet (#24) ; ce qui est constant, on le fige.
+    // Ce qui est CONSTANT est figé ici ; le fait que les deux SUIVENT la dépendance est rejoué par
+    // `conversions/suivent-la-dependance`, parce qu'il demande un observateur.
     name: "conversions/to-string-et-value-of",
     matrice: ["conv#1", "conv#5"],
     run(api, log) {
@@ -348,6 +462,113 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    // SPEC §5.1 — LES QUATRE CONVERSIONS SUIVENT LA DÉPENDANCE : elles passent par l'accesseur
+    // `value`, pas par `_value`. Chacune vaut deux runs, ce qui est le fait que la matrice note,
+    // et `s + ""` passe par `valueOf` puis `toString` — donc il figure ici aussi, pour la même
+    // raison. Ces quatre entrées pointaient sur le ticket #24, clos : rien ne les rejouait.
+    //
+    // Le `peek()` qui NE suit pas la dépendance est le contre-exemple de ce scénario, et il vit
+    // dans `signal/notification-synchrone` : sans lui, « suit la dépendance » ne serait qu'un mot
+    // plus assertif que son contraire.
+    name: "conversions/suivent-la-dependance",
+    matrice: [],
+    run(api, log) {
+      log("toString", String(compteRuns(api, 1, s => s.toString(), [2]).join(" puis ")))
+      log("valueOf", String(compteRuns(api, 1, s => s.valueOf(), [2]).join(" puis ")))
+      log("toJSON", String(compteRuns(api, 1, s => s.toJSON(), [2]).join(" puis ")))
+      log("s + ''", String(compteRuns(api, 1, s => s + "", [2]).join(" puis ")))
+
+      assert.deepEqual(log.entries, ["toString 1 puis 2", "valueOf 1 puis 2", "toJSON 1 puis 2", "s + '' 1 puis 2"])
+    },
+  },
+  {
+    // SPEC §6, §15.7 — LES CONVERSIONS PROPAGENT L'ERREUR D'UN COMPUTÉ, et aucune ne fait
+    // d'`untracked`. C'est la contrepartie de `computed/erreur-stockee` : le moteur stocke
+    // l'erreur dans `_value`, et les cinq points de lecture la relancent — `.value`, `peek`,
+    // `toString`, `valueOf`, `toJSON` — la relancent telle quelle. Une conversion qui absorberait
+    // l'erreur donnerait `undefined`, ou une chaîne, au lieu de lever.
+    //
+    // `conv#9` pointait sur le ticket #23, clos : le seul scénario qui l'aurait couvert n'a jamais
+    // été écrit. Les quatre autres conversions de la série — `toString`, `valueOf`, `toJSON`,
+    // `peek` — sont ici avec `.value`, parce que la matrice les relève sur la même ligne.
+    name: "computed/conversions-propagent-l-erreur",
+    matrice: [],
+    run(api, log) {
+      const declencheur = api.signal(false)
+      const c = api.computed(() => {
+        if (declencheur.value) throw new Error("boom")
+        return 10
+      })
+      // L'amorçage, et il n'est pas décoratif : sans cette lecture, la DERNIÈRE valeur de `declencheur`
+      // n'aurait jamais été évaluée, donc les cinq points de lecture reliraient un cache sain et ne
+      // lèveraient rien. C'est ce que la matrice relève — `conv#9`, six lectures qui propagent
+      // `boom`. La ligne surprend parce qu'elle ne produit aucune valeur.
+      c.value
+      declencheur.value = true
+
+      // La liste est ÉCRITE, pas construite par nom : un dispatch sur des chaînes pour atteindre des
+      // méthodes publiques typées court-circuite le compilateur, et rien ici ne le mérite.
+      const pointsDeLecture: [string, () => unknown][] = [
+        ["value", () => c.value],
+        ["toString", () => c.toString()],
+        ["valueOf", () => c.valueOf()],
+        ["toJSON", () => c.toJSON()],
+        ["peek", () => c.peek()],
+      ]
+      for (const [nom, lire] of pointsDeLecture) {
+        try {
+          log(nom, `aucune erreur, valeur ${String(lire())}`)
+        } catch (erreur) {
+          // Le TYPE, jamais le message : SPEC §15.4. Ce que la matrice fige ici, c'est que la
+          // conversion PROPAGE, pas le texte qu'elle transporte.
+          log(nom, erreur instanceof Error ? erreur.constructor.name : "autre")
+        }
+      }
+
+      assert.deepEqual(log.entries, [
+        "value Error",
+        "toString Error",
+        "valueOf Error",
+        "toJSON Error",
+        "peek Error",
+      ])
+    },
+  },
+  {
+    // SPEC §13.4, §9.3 — LECTURE RE-ENTRÉE DANS UN BATCH : SEUL LE CHEMIN LU EST RECALCULÉ.
+    // Le scénario relit le computé au milieu du batch, et le compteur d'évaluations dit qu'il n'a
+    // été évalué que DEUX fois : la relecture paresseuse ne relance rien, elle renvoie le cache.
+    // C'est ce qui distingue une lecture dans un batch d'une écriture — et c'est aussi ce qui
+    // donne à la réconciliation des versions un état pré-batch à comparer.
+    //
+    // `computed#11` pointait sur le ticket #26, clos. La forme est celle de la colonne « Observé »
+    // de la matrice, rejouée telle quelle.
+    name: "computed/lecture-reentrante-dans-batch",
+    matrice: [],
+    run(api, log) {
+      const a = api.signal(0)
+      const b = api.signal(0)
+      let evaluations = 0
+      const c = api.computed(() => {
+        evaluations++
+        return `${a.value}/${b.value}`
+      })
+
+      const journal: string[] = []
+      api.batch(() => {
+        journal.push(c.value)
+        a.value = 2
+        b.value = 3
+        c.value
+        journal.push(`mid:${evaluations}`)
+        journal.push(c.value)
+      })
+      log("journal", JSON.stringify(journal))
+
+      assert.deepEqual(log.entries, ['journal ["0/0","mid:2","2/3"]'])
+    },
+  },
+  {
     // SPEC §6 — paresseux, puis mis en cache. Rien ne s'exécute avant la première lecture, et
     // trois lectures consécutives donnent UNE évaluation : c'est le même fait, vu deux fois.
     name: "computed/paresseux-et-cache",
@@ -372,6 +593,85 @@ export const scenarios: Scenario[] = [
         "valeur 10",
         "evaluations apres la 1re lecture 1",
         "evaluations apres trois lectures 1",
+      ])
+    },
+  },
+  {
+    // SPEC §6.1 — ÉCRIRE UN SIGNAL DANS UN COMPUTÉ EST AUTORISÉ, et l'effet voit la valeur DÉJÀ
+    // écrite. Le computé lit `a`, écrit un Miroir, et rend `a` : au premier run l'effet observe
+    // `mirror=0` alors que le Miroir valait -1. C'est le fait figé — l'écriture a lieu pendant
+    // l'évaluation, donc avant le run de l'effet qui l'a déclenchée.
+    //
+    // Cette entrée pointait sur le ticket #24, clos : rien ne la rejouait.
+    name: "computed/ecriture-dans-un-compute",
+    matrice: [],
+    run(api, log) {
+      const a = api.signal(0)
+      const miroir = api.signal(-1)
+      const c = api.computed(() => {
+        log("eval", String(a.value))
+        miroir.value = a.value * 2
+        return a.value
+      })
+
+      const journal: string[] = []
+      api.effect(() => {
+        const v = c.value
+        journal.push(`e:${v} mirror=${miroir.value}`)
+      })
+      a.value = 1
+      log("journal", JSON.stringify(journal))
+
+      assert.deepEqual(log.entries, [
+        "eval 0",
+        "eval 1",
+        'journal ["e:0 mirror=0","e:1 mirror=2"]',
+      ])
+    },
+  },
+  {
+    // SPEC §15.7 — L'ERREUR D'UN COMPUTÉ PROPAGE À L'EFFET QUI LA LIT, et cet effet est DISPOSÉ
+    // à la création : il ne survit pas. Le journal le dit en trois temps — la création lève, un
+    // seul run a eu lieu, et l'écriture de la source ne relance rien.
+    //
+    // L'asymétrie est le point : une erreur au RE-RUN laisse l'effet vivant
+    // (`effect/erreurs`), une erreur lue pendant la PREMIÈRE évaluation l'enterre. C'est
+    // `computed#17` qui l'atteste, et c'est ce qui fait de `computed/erreur-stockee` un fait sur
+    // la LECTURE et de ce scénario un fait sur l'OBSERVATEUR.
+    //
+    // Cette entrée pointait sur le ticket #24, clos.
+    name: "computed/erreur-vers-l-effet",
+    matrice: [],
+    run(api, log) {
+      const s = api.signal(1)
+      const c = api.computed(() => {
+        if (s.value === 1) throw new Error("derived boom2")
+        return 1
+      })
+
+      let runs = 0
+      try {
+        api.effect(() => {
+          runs++
+          c.value
+        })
+        log("creation", "aucune erreur")
+      } catch (erreur) {
+        // Le TYPE, jamais le message — SPEC §15.4. Ce que `computed#17` fige, c'est que la
+        // création PROPAGE et que l'effet meurt, pas le texte transporté.
+        log("creation", erreur instanceof Error ? erreur.constructor.name : "autre")
+      }
+      log("runs", String(runs))
+
+      s.value = 2
+      log("apres ecriture de la source, l'effet a-t-il tourne ?", String(runs))
+      log("valeur du compute une fois resolu", String(c.value))
+
+      assert.deepEqual(log.entries, [
+        "creation Error",
+        "runs 1",
+        "apres ecriture de la source, l'effet a-t-il tourne ? 1",
+        "valeur du compute une fois resolu 1",
       ])
     },
   },
@@ -901,8 +1201,9 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §13.4 — HORS batch, chaque écriture draine immédiatement, donc l'ordre des runs suit
-    // l'ordre des écritures. L'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est #26 :
-    // sans `batch`, la règle n'est pas observable et l'affirmer serait inventer.
+    // l'ordre des écritures. L'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est
+    // `effect/ordre-dans-batch` qui le rejoue : sans `batch`, la règle n'est pas observable et
+    // l'affirmer serait inventer.
     name: "effect/ordre-hors-batch",
     matrice: ["effect#15", "effect#17"],
     run(api, log) {
@@ -919,6 +1220,63 @@ export const scenarios: Scenario[] = [
       b.value = 1
       log("ordre des runs", JSON.stringify(journal.slice(2)))
       assert.deepEqual(log.entries, ['ordre des runs ["A:1","B:1"]'])
+    },
+  },
+  {
+    // SPEC §13.4 — DANS UN BATCH, L'ORDRE EST INVERSÉ, et ce n'est pas un détail : `d2` passe
+    // AVANT `d1`, alors que c'est `d1` qui vient d'être écrit en premier. Le drainage est en
+    // largeur — une génération entière est vidée avant la suivante — donc les deux effets de la
+    // génération tournent dans l'ordre de la file, pas dans celui des écritures.
+    //
+    // Les deux entrées de ce scenario pointaient sur le ticket #26, clos : rien ne les rejouait.
+    // `effect#15` est le drapeau DISPOSED vérifié AVANT `needsToRecompute` : `d1` dispose `d2` depuis
+    // son propre run, et `d2` ne rejoue pas — il ne figure donc pas dans le journal du flush.
+    // `effect#17` est la cascade : l'écriture de `d1` réveille `d2`, qui réveille `d1`, donc `d1`
+    // tourne deux fois. C'est ce qui distingue les deux entrées, et les fusionner en dirait moins.
+    name: "effect/ordre-dans-batch",
+    matrice: [],
+    run(api, log) {
+      // effect#15 : A dispose B après le run de B.
+      const s15 = api.signal(0)
+      const journal15: string[] = []
+      let d2 = () => {}
+      const d1 = api.effect(() => {
+        journal15.push(`d1:${s15.value}`)
+        if (s15.value === 1) {
+          d2()
+          journal15.push("d1 disposed d2")
+        }
+      })
+      d2 = api.effect(() => {
+        journal15.push(`d2:${api.untracked(() => s15.value)}`)
+      })
+      api.batch(() => {
+        s15.value = 1
+      })
+      log("A dispose B depuis son run", JSON.stringify(journal15))
+
+      // effect#17 : l'écriture de d1 réveille d2, qui réveille d1.
+      const a = api.signal(0)
+      const b = api.signal(0)
+      const journal17: string[] = []
+      api.effect(() => {
+        journal17.push(`d2:${b.value}`)
+      })
+      api.effect(() => {
+        const v = a.value
+        b.value
+        journal17.push(`d1:${v}`)
+        if (v > 0) b.value = v
+      })
+      api.batch(() => {
+        a.value = 1
+      })
+      log("l'ecriture de d1 reveille d2", JSON.stringify(journal17))
+
+      assert.deepEqual(log.entries, [
+        'A dispose B depuis son run ["d1:0","d2:0","d1:1","d1 disposed d2"]',
+        'l\'ecriture de d1 reveille d2 ["d2:0","d1:0","d1:1","d2:1","d1:1"]',
+      ])
     },
   },
   {
@@ -1030,6 +1388,111 @@ export const scenarios: Scenario[] = [
         "runs du premier effet 1",
         "erreur du rerun relancee par l'ecriture boom rerun",
         "runs de l'effet survivant 3",
+      ])
+    },
+  },
+  {
+    // SPEC §15.4, §15.6 — OÙ REMONTE L'ERREUR D'EFFET. Quatre entrées, quatre points de sortie
+    // distincts, et les quatre pointaient sur le ticket #26, clos : rien ne les rejouait.
+    //
+    // L'ordre est LIFO : dans le flush, les effets sont drainés en largeur, donc `B` tourne après
+    // `A` et c'est donc `B` qui est mémorisé comme première erreur — celle qui sera relancée. C'est
+    // l'inverse de l'ordre de création, et c'est ce qui rend le nom de la variable trompeur.
+    //
+    // Les trois autres disent OÙ l'exception sort, pas QUELLE exception : du setter hors batch, du
+    // `batch` et non du corps, et l'erreur d'effet qui écrase celle du corps pendant le
+    // unwinding. Les mettre dans le même scénario est le fait : ce sont les trois sorties du même
+    // `try/finally`.
+    //
+    // ET ICI LE MESSAGE EST L'OBSERVABLE, donc la règle de SPEC §15.4 ne s'applique pas. `EB` et
+    // non `EA` EST le fait de `effect#23` : deux effets lèvent, et ce qui compte est que le
+    // mauvais remonte. `body` et non `EFFECT`, c'est `effect#26`. `EFFECT` et non `BODY`, c'est
+    // `effect#27`. Ces trois messages sont écrits ici, jamais produits par le moteur, donc le
+    // minifié n'a rien à perdre — ce qui est la raison de la règle. Partout ailleurs dans ce
+    // fichier, on n'assert que le TYPE.
+    name: "effect/erreurs-de-drainage",
+    matrice: [],
+    run(api, log) {
+      // effect#23 : la première erreur mémorisée est la PREMIÈRE dans l'ordre de flush, donc la
+      // dernière dans l'ordre de création. Le flush est en largeur, donc LIFO.
+      const declencheurA = api.signal(0)
+      const declencheurB = api.signal(0)
+      const journal23: string[] = []
+      api.effect(() => {
+        journal23.push("A")
+        if (declencheurA.value === 1) throw new Error("EA")
+      })
+      api.effect(() => {
+        journal23.push("B")
+        if (declencheurB.value === 1) throw new Error("EB")
+      })
+      try {
+        api.batch(() => {
+          declencheurA.value = 1
+          declencheurB.value = 1
+        })
+        log("batch", "aucune erreur")
+      } catch (erreur) {
+        journal23.push(`caught:${erreur instanceof Error ? erreur.message : "autre"}`)
+      }
+      log("ordre LIFO", JSON.stringify(journal23))
+
+      // effect#25 : hors batch, l'erreur sort du SETTER — donc la valeur a déjà été écrite quand
+      // elle remonte. C'est l'asymétrie avec le batch, où elle sort du `batch` lui-même.
+      const horsBatch = api.signal(0)
+      api.effect(() => {
+        if (horsBatch.value === 1) throw new Error("E")
+      })
+      try {
+        horsBatch.value = 1
+        log("setter", "aucune erreur")
+      } catch (erreur) {
+        // Le TYPE, jamais le message — SPEC §15.4. Ce que `effect#25` fige est D'OUÙ l'erreur
+        // sort, et le dire par le setter suffit ; le texte n'ajouterait rien.
+        log("setter", `write threw: ${erreur instanceof Error ? erreur.constructor.name : "autre"}`)
+      }
+      log("valeur ecriture malgre l'erreur", String(horsBatch.value))
+
+      // effect#26 : l'erreur de l'effet est relancée par le BATCH, pas par le corps — donc la
+      // dernière ligne du corps s'exécute, et c'est ce qui la distingue d'une exception au corps.
+      const dansBatch = api.signal(0)
+      const journal26: string[] = []
+      api.effect(() => {
+        journal26.push(`e:${dansBatch.value}`)
+      })
+      try {
+        api.batch(() => {
+          dansBatch.value = 1
+          throw new Error("body")
+        })
+        log("batch", "aucune erreur")
+      } catch (erreur) {
+        journal26.push(`caught:${erreur instanceof Error ? erreur.message : "autre"}`)
+      }
+      log("relance par le batch", JSON.stringify(journal26))
+
+      // effect#27 : l'erreur d'effet ÉCRASE celle du corps. Le `finally` du batch throw pendant
+      // l'unwinding, donc le `BODY` est perdu — c'est un défaut figé, pas une préférence.
+      const deuxErreurs = api.signal(0)
+      api.effect(() => {
+        if (deuxErreurs.value === 1) throw new Error("EFFECT")
+      })
+      try {
+        api.batch(() => {
+          deuxErreurs.value = 1
+          throw new Error("BODY")
+        })
+        log("hierarchie", "aucune erreur")
+      } catch (erreur) {
+        log("hierarchie", erreur instanceof Error ? erreur.message : "autre")
+      }
+
+      assert.deepEqual(log.entries, [
+        'ordre LIFO ["A","B","B","A","caught:EB"]',
+        "setter write threw: Error",
+        "valeur ecriture malgre l'erreur 1",
+        'relance par le batch ["e:0","e:1","caught:body"]',
+        "hierarchie EFFECT",
       ])
     },
   },
@@ -1624,6 +2087,43 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    // SPEC §13.4 — l'ordre de drainage, dans la forme CHAÎNÉE. Deux computés dont le second dérive
+    // du premier, et deux effets qui lisent le derived : le journal est bottom-up, `c1 c2 e1 e2` —
+    // les deux computés passent avant le premier effet. C'est ce que la matrice note à `computed#18`,
+    // et cette entrée pointait sur le ticket #24, clos : rien ne la rejouait.
+    //
+    // Elle est distincte de `computed/ordre-alterne-compute-et-effet` (`computed#18b`), qui prend
+    // deux computés INDÉPENDANTS. Les deux formes doivent être figées séparément : les mapper l'une
+    // sur l'autre couvrirait une entrée sans la rejouer, ce qui est le trou que ce lot vient de
+    // refermer. Voir ADR-0010.
+    name: "computed/ordre-bottom-up-chaine",
+    matrice: [],
+    run(api, log) {
+      const a = api.signal(0)
+      const journal: string[] = []
+      const c1 = api.computed(() => {
+        journal.push(`c1:${a.value}`)
+        return a.value + 1
+      })
+      const c2 = api.computed(() => {
+        journal.push(`c2:${c1.value}`)
+        return c1.value + 1
+      })
+      api.effect(() => journal.push(`e1:${c2.value}`))
+      api.effect(() => journal.push(`e2:${c2.value}`))
+      log("initial", JSON.stringify(journal))
+
+      journal.length = 0
+      a.value = 1
+      log("apres ecriture", JSON.stringify(journal))
+
+      assert.deepEqual(log.entries, [
+        'initial ["c1:0","c2:1","e1:2","e2:2"]',
+        'apres ecriture ["c1:1","c2:2","e1:3","e2:3"]',
+      ])
+    },
+  },
+  {
     // SPEC §13.4 — l'ordre de drainage. Deux computés INDÉPENDANTS et deux effets : le journal
     // alterne computé puis effet, `c1 e1 c2 e2`. L'ordre inverse `c1 c2 e2 e1` venait de l'empilement
     // des computés dans la file : le computé était rafraîchi comme une génération à part entière,
@@ -2035,11 +2535,25 @@ export const scenarios: Scenario[] = [
 //
 // Ici, chaque entrée est nommée, et son sort est écrit. Deux valeurs possibles :
 //   - le nom d'un scénario de la table ou d'un test signalcn-seul, qui la couvre ;
-//   - un numéro de ticket, qui la reprendra. Parce que certaines entrées ne sont pas
-//     couvrables ici : elles ont besoin d'un abonné, et le premier arrive en #24.
+//   - le numéro d'un ticket ENCORE OUVERT, listé dans `TICHETS`, qui la reprendra. Parce que
+//     certaines entrées ne sont pas couvrables ici : elles ont besoin d'un abonné.
 //
-// Le test `registre-complet` échoue si une entrée manque, et si un nom de scénario cité n'existe
-// pas. Une entrée ne peut donc plus être perdue sans que la suite le dise.
+// LA SECONDE VALEUR EST LA PLUS ÉTROITE DES DEUX. Un ticket clos n'est plus une promesse, c'est un
+// souvenir : il ne reprendra rien, et une entrée qui le cite n'est pas couverte — elle est en
+// attente depuis le jour où le ticket a été fermé. C'est exactement ce qui s'est produit.
+// `#23` (computed), `#24` (effet) et `#26` (batch) sont clos, et VINGT-DEUX entrées les citaient :
+// quatorze sur #24, sept sur #26, une sur #23. Dix-sept d'entre elles ne citaient QUE le ticket, et
+// cinq le citaient à côté d'un scénario — `signal#9`, `#10` et `#11` avec
+// `signal/egalite-stricte-objet`, `effect#15` et `#17` avec `effect/ordre-hors-batch`. Le registre
+// les comptait toutes comme couvertes, donc `registre-complet` passait sur dix-sept trous.
+// `computed#5` et `computed#6` sont le cas le plus net, mais leur correction est dans f2bdba5 et
+// non ici : elles ne pointaient plus sur aucun ticket à ce commit-là.
+//
+// Le test `registre-complet` échoue si une entrée manque, si un nom de scénario cité n'existe pas,
+// et si un numéro de ticket cité n'est pas dans `TICHETS`. Une entrée ne peut donc plus être perdue
+// sans que la suite le dise, et elle ne peut plus être « couverte » par un ticket qui ne la
+// couvrira jamais. Le plafond de ce refus est écrit dans la JSDoc de `TICHETS`, là où il est
+// visible sans avoir à ouvrir ce fichier.
 export const COUVERTURE: Record<string, string> = {
   // --- groupe `signal` : 23 entrées
   "signal#1": "signal/instance-et-classe",
@@ -2048,18 +2562,18 @@ export const COUVERTURE: Record<string, string> = {
   // baseline, qui minifie ses noms de propriétés. Elles sont donc nôtres seules.
   "signal#3": "signalcn-seul/structure-de-classe",
   "signal#4": "signalcn-seul/structure-de-classe",
-  // La notification demande un observateur. Un effet la rendra visible.
-  "signal#5": TICHETS.effet,
+  // La notification demande un observateur : c'est un effet, et le scénario fige son journal.
+  "signal#5": "signal/notification-synchrone",
   "signal#6": "signal/egalite-stricte-nan + signalcn-seul/notifie-sur-stricte-identite",
   "signal#7": "signal/zero-et-negative-zero + signalcn-seul/notifie-sur-stricte-identite",
   "signal#8": "signal/zero-et-negative-zero + signalcn-seul/notifie-sur-stricte-identite",
-  "signal#9": `signal/egalite-stricte-objet + ${TICHETS.effet}`,
-  "signal#10": `signal/egalite-stricte-objet + ${TICHETS.effet}`,
-  "signal#11": `signal/egalite-stricte-objet + ${TICHETS.effet}`,
-  "signal#12": TICHETS.effet,
-  "signal#13": TICHETS.effet,
+  "signal#9": "signal/egalite-stricte-objet",
+  "signal#10": "signal/egalite-stricte-objet",
+  "signal#11": "signal/egalite-stricte-objet",
+  "signal#12": "signal/notification-synchrone",
+  "signal#13": "signal/notification-synchrone",
   // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
-  "signal#14": TICHETS.effet,
+  "signal#14": "signal/notification-synchrone",
   "signal#15": "signal/peek + signalcn-seul/descripteurs-de-prototype",
   "signal#16": "signal/options-name",
   "signal#17": "signal/brand-et-pas-de-dispose",
@@ -2074,14 +2588,15 @@ export const COUVERTURE: Record<string, string> = {
   "conv#1": "conversions/to-string-et-value-of",
   "conv#2": "conversions/to-string-throw-sur-symbol",
   "conv#3": "conversions/pas-de-symbol-to-primitive",
-  // Les quatre « suit la dependance » attendent un effet.
-  "conv#4": TICHETS.effet,
+  // Les quatre « suit la dependance » demandent un observateur : c'est exactement ce que rejoue
+  // `conversions/suivent-la-dependance`.
+  "conv#4": "conversions/suivent-la-dependance",
   "conv#5": "conversions/to-string-et-value-of",
-  "conv#6": TICHETS.effet,
+  "conv#6": "conversions/suivent-la-dependance",
   "conv#7": "conversions/to-json-et-stringify",
-  "conv#8": TICHETS.effet,
+  "conv#8": "conversions/suivent-la-dependance",
   // La propagation d'erreur par une conversion demande un computed qui jette.
-  "conv#9": TICHETS.computed,
+  "conv#9": "computed/conversions-propagent-l-erreur",
   // DIVERGENCE ASSUMÉE : la baseline écrit son prototype à la main, donc ses méthodes y sont
   // énumérables. SPEC §20 impose des classes natives ES2020, dont les méthodes de prototype
   // sont non énumérables. Nous divergons, et c'est le nôtre qui est vérifié.
@@ -2090,7 +2605,7 @@ export const COUVERTURE: Record<string, string> = {
   "conv#12": "signalcn-seul/descripteurs-de-prototype",
   "conv#13": "signal/brand-et-pas-de-dispose",
   "conv#14": "conversions/to-json-et-stringify",
-  "conv#15": TICHETS.effet,
+  "conv#15": "conversions/suivent-la-dependance",
 
   // --- groupe `computed` : 27 entrées
   "computed#1": "computed/paresseux-et-cache",
@@ -2112,14 +2627,16 @@ export const COUVERTURE: Record<string, string> = {
   // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
   // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
   "computed#10": "signalcn-seul/ordre-des-sources",
-  "computed#11": TICHETS.batch,
+  // computed#11 : la relecture paresseuse dans un batch ne relance rien, et le compteur
+  // d'évaluations le dit. Elle pointait sur #26, clos.
+  "computed#11": "computed/lecture-reentrante-dans-batch",
   "computed#12": "computed/cycles",
   "computed#13": "computed/cycles",
-  "computed#14": TICHETS.effet,
+  "computed#14": "computed/ecriture-dans-un-compute",
   "computed#15": "computed/erreur-stockee",
   "computed#16": "computed/erreur-stockee",
-  "computed#17": TICHETS.effet,
-  "computed#18": TICHETS.effet,
+  "computed#17": "computed/erreur-vers-l-effet",
+  "computed#18": "computed/ordre-bottom-up-chaine",
   // computed#18b, et non #18 : l'entrée #18 note l'ordre bottom-up de deux computés CHAÎNÉS, qui
   // n'a jamais divergé. Le cas ici est deux computés INDÉPENDANTS, dont l'ordre alterne — une autre
   // question. Ré mapper #18 sur ce scénario aurait couvert une entrée sans la rejouer, ce qui est
@@ -2153,23 +2670,25 @@ export const COUVERTURE: Record<string, string> = {
   "effect#12": "dispose/pendant-le-run",
   "effect#13": "dispose/idempotent-et-detachement",
   "effect#14": "dispose/dans-la-file",
-  // effect#15 et #17 : l'ordre INVERSÉ est normatif à l'intérieur d'un batch. Hors batch chaque
-  // écriture draine seule, donc l'ordre ne s'observe pas — ce que le scénario vérifie.
-  "effect#15": "effect/ordre-hors-batch + #26",
+  // effect#15 et #17 : l'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est
+  // `effect/ordre-dans-batch` qui le rejoue. Hors batch chaque écriture draine seule, donc l'ordre
+  // ne s'observe pas — c'est `effect/ordre-hors-batch`. Les deux formes, donc les deux scénarios :
+  // une seule ne prouverait que la moitié de la règle.
+  "effect#15": "effect/ordre-hors-batch + effect/ordre-dans-batch",
   "effect#16": "effect/auto-ecriture",
-  "effect#17": "effect/ordre-hors-batch + #26",
+  "effect#17": "effect/ordre-hors-batch + effect/ordre-dans-batch",
   "effect#18": "effect/erreurs",
   "effect#19": "effect/cycle-borne",
   "effect#20": "effect/erreurs",
   "effect#21": "effect/watchers",
   "effect#22": "effect/erreurs",
   // effect#23, #25, #26, #27 : la propagation d'erreur passe par le batch ou par un setter, donc
-  // par #26.
-  "effect#23": "#26",
+  // par un scénario qui rejoue les DEUX — `effect/erreurs-de-drainage`.
+  "effect#23": "effect/erreurs-de-drainage",
   "effect#24": "effect/erreurs",
-  "effect#25": "#26",
-  "effect#26": "#26",
-  "effect#27": "#26",
+  "effect#25": "effect/erreurs-de-drainage",
+  "effect#26": "effect/erreurs-de-drainage",
+  "effect#27": "effect/erreurs-de-drainage",
   "effect#28": "dispose/cleanup-qui-leve",
   "effect#29": "dispose/cleanup-qui-leve-au-dispose",
   "effect#30": "dispose/cleanup-qui-leve + dispose/cleanup-qui-leve-au-dispose",
@@ -2266,8 +2785,10 @@ export const COUVERTURE: Record<string, string> = {
   // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
   "dispose#2": "signalcn-seul/symbol-dispose-et-using",
   "dispose#3": "signalcn-seul/symbol-dispose-et-using",
-  // dispose#4 : `subscribe` renvoie aussi un disposeur — #25.
-  "dispose#4": "#25",
+  // dispose#4 : `subscribe` renvoie aussi un disposeur — #25. Par `TICHETS`, jamais en clair : la
+  // JSDoc de `TICHETS` interdit le numéro écrit en clair, et le registre en committait un, donc
+  // l'interdiction était réelle et ce registre la violait.
+  "dispose#4": TICHETS.subscribe,
   // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
   // atteignable que sur le bundle réel dans un tel realm ; l'affirmer demanderait de l'éteindre.
   "dispose#5": "signalcn-seul/symbol-dispose-absent",
@@ -2718,7 +3239,9 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
 
     // Chaque destination nommée doit exister. Les noms viennent de deux côtés : les scénarios d'une
     // part, les clés de l'objet de tests d'autre part — donc aucune liste séparée qui pourrait
-    // outliver ce qu'elle désigne.
+    // outliver ce qu'elle désigne. Et `TICHETS` ne contient que des tickets OUVERTS : un numéro de
+    // ticket qui n'y est plus est un ticket clos, et un ticket clos ne couvre rien. C'est ce refus
+    // qui a rattrapé les dix-neuf entrées de #23, #24 et #26.
     const noms = new Set([
       ...scenarios.map(s => s.name),
       ...Object.keys(testsSignalcnSeul).map(nom => `signalcn-seul/${nom}`),
@@ -2729,7 +3252,9 @@ const { signal: s, computed, effect, batch, untracked, Signal, Computed, Effect 
       for (const morceau of destination.split("+").map(d => d.trim())) {
         assert.ok(
           tickets.has(morceau) || noms.has(morceau),
-          `${id} cite "${morceau}", qui n'est ni un test ni un ticket propriétaire connu`,
+          `${id} cite "${morceau}", qui n'est ni un test ni un ticket encore ouvert. ` +
+            `Un ticket clos n'est pas une couverture : couvrez cette entrée par un scénario, ` +
+            `ou par un numéro de ticket qui est encore dans TICHETS.`,
         )
       }
     }
