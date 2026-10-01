@@ -3613,7 +3613,11 @@ export const COUVERTURE: Record<string, string> = {
   // effect#39 : la baseline écrit son prototype à la main, donc ses méthodes y sont énumérables.
   // ADR-0004 refuse cette énumérabilité. DIVERGENCE ASSUMÉE.
   "effect#39": "signalcn-seul/descripteurs-de-prototype",
-  "effect#40": "signalcn-seul/hors-ordre",
+  // La matrice dit « atteignable seulement via `_start` ». `hors-ordre` montre que l'API
+  // publique ferme en ordre inverse — le cas NORMAL — et n'atteint donc pas le garde ;
+  // `gardes-internes` l'atteint. C'est le second qui couvre l'entrée, le premier qui
+  // garantit qu'on ne l'atteint pas par accident.
+  "effect#40": "signalcn-seul/hors-ordre + signalcn-seul/gardes-internes",
   "effect#41": "signalcn-seul/symbol-dispose-et-using",
 
   // ---- `batch` et `untracked` -----------------------------------------------------------------
@@ -4376,6 +4380,27 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
         )
       }
     }
+
+    // L'AUTRE SENS. Ci-dessus on vérifie que toute destination nommée existe. On ne vérifiait pas
+    // qu'inversement tout test est cité — donc un test orphelin passait, ce qui est exactement le
+    // défaut qu'un registre doit interdire : il_a_l'air de couvrir, et rien ne le rattache à une
+    // entrée. Un `gardes-internes` s'est trouvé orphelin de la même façon, écrit un commit plus
+    // tôt, sans qu'aucune porte ne bronche.
+    const citees = new Set(
+      Object.values(COUVERTURE).flatMap((destination) =>
+        destination.split("+").map((d) => d.trim()),
+      ),
+    )
+    const orphelins = [...Object.keys(testsSignalcnSeul)]
+      .map((nom) => `signalcn-seul/${nom}`)
+      .filter((nom) => !citees.has(nom))
+    assert.deepEqual(
+      orphelins,
+      [],
+      `tests signalcn-seul qu'aucune entree de matrice ne cite : ${orphelins.join(", ")}. ` +
+        `Un test que rien ne rattache a une entree ne couvre rien : il semble couvrir, et la ` +
+        `matrice ne le sait pas.`,
+    )
 
     // Et le champ `matrice` de chaque scénario est bien ce que le registre lui attribue. La
     // déduction le garantit, donc un écart ici serait un bug : on le vérifie quand même, parce
