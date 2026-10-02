@@ -53,8 +53,9 @@ const promener = (dossier) => {
 }
 promener(DIST)
 
-// Sans cette assertion, une sortie absente — un build non lancé — se lirait comme un site sans
-// lien : le silence serait vert. Elle est donc lue avant tout, et la porte ne compte rien sans elle.
+// Sans cette assertion, une sortie absente — un build jamais lancé — se lirait comme un site sans
+// lien : le silence serait vert. Elle est donc posée avant la boucle, sur le fait qu'il y ait des
+// pages, et non sur ce qu'il y a dedans.
 porte("la sortie publiée a été lue", pages.length > 0, `${DIST} ne porte aucune page .html`)
 
 const ORIGINE = "https://localhost"
@@ -108,9 +109,10 @@ porte(
   morts.join(", "),
 )
 
-// La porte dit ce qu'elle ne vérifie pas, comme `verifier-documentation` : ni `ok` ni `ECHEC`, donc
-// ni succès ni échec compté. Aucune des deux lignes ne porte de nombre — un compte périmé serait
-// un mensonge de plus dans une sortie qui prétend être une mesure.
+// La porte dit ce qu'elle ne vérifie pas, comme `verifier-documentation` : le préfixe `--` ne compte
+// ni comme un succès ni comme un échec. Les deux premières lignes ne portent aucun nombre, parce
+// qu'un compte de zones non vérifiées se périme et deviendrait un mensonge ; la troisième porte le
+// volume lu, qui est un relevé de ce passage et pas une affirmation sur le dépôt.
 console.log(
   "  --   les ancres (#section) ne sont pas vérifiées : le build ne les valide pas non plus",
 )
