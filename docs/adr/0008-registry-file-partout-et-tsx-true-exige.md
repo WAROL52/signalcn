@@ -6,7 +6,7 @@ Les six items utilisent le type de fichier `registry:file` et une cible `~/<nom>
 
 - **`registry:lib` pour les items TypeScript** — refusé, et c'est la recommandation naturelle, celle de la recherche initiale. Elle ne fonctionne que pour un projet `tsx: false`, où elle transpile `.ts` vers `.js` correctement. Or dans ce cas les deux items — `signals` depuis `signals.ts`, et `signals-js` depuis `signals.js` — convergent vers **le même nom de fichier** et s'écrasent. Le modèle « six items indépendants » devient faux.
 - **`target` qui choisit l'extension** — refusé parce que mesuré faux. Sur les seize combinaisons de `tsx`, de type de fichier, d'extension source et d'extension cible, **c'est `tsx` qui décide**, jamais la cible. Avec `tsx: true` la cible est respectée à la lettre ; avec `tsx: false` l'extension est imposée à `.js`.
-- **Exiger `tsx: true` ou renoncer aux items TypeScript** — exigence retenue. Renoncer aurait supprimé la distribution TypeScript, qui est la raison d'être du projet : `PRD.md` §3 fait de la distribution de code source le cœur du modèle.
+- **Exiger `tsx: true` ou renoncer aux items TypeScript** — exigence retenue. Renoncer aurait supprimé la distribution TypeScript, qui est la raison d'être du projet : `site/contributeurs/PRD.md` §3 fait de la distribution de code source le cœur du modèle.
 - **Rendre l'échec silencieux** — refusé. Un projet `tsx: false` qui installe l'item TypeScript obtient un `SyntaxError` à la première exécution. C'est bruyant et c'est voulu : un fichier cassé se voit.
 
 ## Consequences

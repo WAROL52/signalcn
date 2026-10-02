@@ -4,7 +4,7 @@ La suite s'exécute avec le module `node:test` et `node:assert` de Node, et la c
 
 ## Considered Options
 
-- **Vitest** — refusé. `PRD.md` le prévoyait initialement. Mais `signals.test.ts` est un **artefact distribuable** : l'utilisateur qui fait `shadcn add signalcn/signals-test` doit pouvoir l'exécuter sans adopter une dépendance dans son projet. Le coût est une couverture à trois métriques au lieu de quatre, ce qui ne affaiblit pas la barrière : une ligne non couverte échoue déjà.
+- **Vitest** — refusé. `site/contributeurs/PRD.md` le prévoyait initialement. Mais `signals.test.ts` est un **artefact distribuable** : l'utilisateur qui fait `shadcn add signalcn/signals-test` doit pouvoir l'exécuter sans adopter une dépendance dans son projet. Le coût est une couverture à trois métriques au lieu de quatre, ce qui ne affaiblit pas la barrière : une ligne non couverte échoue déjà.
 - **Vitest au développement, `node:test` dans l'artefact** — refusé. Deux runners, deux syntaxes, deux Adoption.
 
 ## Consequences

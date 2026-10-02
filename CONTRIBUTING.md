@@ -3,7 +3,7 @@
 `signalcn` reproduit le comportement observable de `@preact/signals-core@1.14.4` — quirks
 compris. Ce document est le **mode d'emploi** : comment travailler ici, et les quatre pièges qui
 mordent sans prévenir. Les règles de fond sont ailleurs, et il n'y a pas de troisième version
-d'elles ici : [`ROADMAP.md`](./ROADMAP.md) §2 les porte, [`SPEC.md`](./SPEC.md) est le contrat
+d'elles ici : [`ROADMAP.md`](site/contributeurs/ROADMAP.md) §2 les porte, [`SPEC.md`](./SPEC.md) est le contrat
 normatif.
 
 ## Prérequis

@@ -24,7 +24,7 @@ Référence figée :
 
 Elle est déclarée en `devDependencies` avec une **version exacte** (pas de `^`, pas de `~`). Elle n'apparaît dans aucun artefact distribué.
 
-Toute montée de version upstream est un changement de contrat de compatibilité. Elle doit être documentée dans `ROADMAP.md` et accompagnée d'un audit des différences d'API et de comportement.
+Toute montée de version upstream est un changement de contrat de compatibilité. Elle doit être documentée dans `site/contributeurs/ROADMAP.md` et accompagnée d'un audit des différences d'API et de comportement.
 
 ## 3. Contraintes runtime
 
