@@ -95,7 +95,8 @@ coupée en bloc. Les quatre protègent un fait que le code porte, pas une conven
 Le hook de commit n'écrit que la **forme** : l'entrée `formater` enchaîne `biome format --write` et
 le seul assist `organizeImports`. Il n'applique aucun correctif de règle, parce qu'un formateur qui
 réécrit des tests en silence est un formateur à qui on ne fait plus confiance — et c'est exactement
-ce que faisait `biome check --write` sur les neuf `function () {}` de la table. Mesuré : 4,7 s.
+ce que faisait `biome check --write` sur les neuf `function () {}` de la table. Mesuré comme le
+tableau du §1 — par `npm run …`, médiane de cinq : 3,0 s, dont 2,3 s de `tsc`.
 
 **Ni Markdown ni YAML.** Biome 2.5.15 ne connaît pas ces deux types de fichiers et les ignore
 silencieusement : `biome check` sur un `.md` ou un `.yml` répond « no files were processed ». C'est
