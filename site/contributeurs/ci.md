@@ -1,9 +1,10 @@
 # Pipeline CI
 
 Quatre jobs, sur chaque pull request comme sur chaque push sur `master` — le tag de release n'y
-change rien. Le troisième ne bloque rien : c'est un canari sur la dernière CLI publiée, et il
-répond à une seule question. Le quatrième construit le site, et c'est un contrôle : son échec met
-la pull request en rouge. Voir [`ci.yml`](../../.github/workflows/ci.yml).
+change rien. **Les quatre bloquent** : ce sont les quatre checks requis du ruleset, et le troisième
+— un canari sur la dernière CLI publiée — ne bloquait pas tant qu'il ne l'était pas, un job
+`continue-on-error` ne pouvant pas être un check requis. Le quatrième construit le site, et son
+échec met la pull request en rouge. Voir [`ci.yml`](../../.github/workflows/ci.yml).
 
 Les commandes vivent dans `package.json`, pas dans le YAML. Le YAML appelle, il ne décide pas —
 c'est la même règle que pour les drapeaux de couverture, et pour la même raison : une option
@@ -20,6 +21,7 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
 | Propreté : le build du site n'écrit pas dans les chemins d'artefacts | 0,32 s |
+| Ruleset : les checks requis contre les jobs réels | 0,32 s |
 | Biome : forme et ruleset `recommended` | 0,70 s |
 | Suite source | 0,77 s |
 | Couverture : seuils, code mort, non-régression | 1,53 s |
@@ -31,12 +33,12 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles, hors installation, réunis coûtent **25,5 s**. L'installation en coûte **4,2 fois
+Tous les contrôles, hors installation, réunis coûtent **25,8 s**. L'installation en coûte **4,1 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Quatre jobs
-représentent quatre démarrages pour treize contrôles qui coûtent ensemble 25,5 secondes.
+représentent quatre démarrages pour quatorze contrôles qui coûtent ensemble 25,8 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -58,11 +60,18 @@ documentation le vérifie : un contrôle ajouté, retiré ou déplacé dans le Y
 | 9 | **Parité** — `npm run parite` | Le build ne reproduit pas la source ; la suite perd des tests en route |
 | 10 | **Dérive** — `npm run verifier-derive` | Un artefact committé que le build ne produit plus |
 | 11 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, ou qui demande un alias |
+| 12 | **Ruleset** — `npm run verifier-ruleset` | Un job que la CI exécute sans l'exiger, ou un check exigé qu'elle n'exécute plus |
 
 Les contrôles 8, 9 et 10 dépendent du 6 : le test minifié vise le runtime minifié, et le diff se
 fait sur ce que le build vient d'écrire. Le contrôle 7 en dépend aussi : il mesure l'artefact
 minifié, pas la source. L'ordre n'est donc pas seulement une question de signal, il est aussi un
 ordre de dépendance — ce qui rend la réponse par sévérité gratuite.
+
+Le contrôle 12 est le seul qui ne dépende de rien : il lit deux fichiers du dépôt, et il ne peut
+donc pas être plus tôt qu'un build. Il est aussi le seul qui ne juge pas le changement proposé —
+il juge la configuration du dépôt, donc la prochaine PR plutôt que celle-ci, et c'est pour cela
+qu'il est le dernier : quand les onze autres ont parlé du produit, ce qu'il reste à dire est une
+question de gouvernance.
 
 Le contrôle 5 est le seul dont la sévérité ne soit pas graduelle : il ne juge pas le code, il
 juge sa **forme**. C'est pourquoi il est après les trois qui jugent le code lui-même, et non
@@ -157,12 +166,12 @@ tout ce qu'un build a le droit d'écrire hors de `site/`. Elle vérifie enfin qu
 est un fichier ignoré, en posant la question à `git check-ignore` et non en lisant `.gitignore` : le
 fichier reste la seule source, et aucune liste n'est écrite deux fois.
 
-**Le déploiement sur GitHub Pages n'est pas dans ce job.** Un job qui déploie ne peut pas être un
-check requis — GitHub le tient pour non bloquant, exactement comme le canari — et surtout un
-déploiement réussi ne doit pas pouvoir masquer un build cassé : c'est le contraire de ce qu'est un
-contrôle. Il ira dans un workflow distinct, déclenché par le push sur `master`. Ce qui reste à y
-trancher : le `base` du site, qui vaut `/signalcn/` pour une page de projet et n'est écrit nulle
-part tant que le déploiement n'existe pas, et la politique de versionnement du site (#51).
+**Le déploiement sur GitHub Pages n'est pas dans ce job.** Un check requis juge la pull request ;
+un déploiement agit sur l'extérieur, et un déploiement réussi ne doit surtout pas pouvoir masquer
+un build cassé : c'est le contraire de ce qu'est un contrôle. Il ira dans un workflow distinct,
+déclenché par le push sur `master`. Ce qui reste à y trancher : le `base` du site, qui vaut
+`/signalcn/` pour une page de projet et n'est écrit nulle part tant que le déploiement n'existe
+pas, et la politique de versionnement du site (#51).
 
 ## 5. Au tag de release
 
@@ -192,4 +201,50 @@ d'inclusion, aucun chemin de fichier.
 
 Une CI qu'on peut lire en trente secondes est une CI qu'on n'ose pas réécrire. Et quand un
 contrôle change, il change à un seul endroit.
+
+## 8. Le ruleset est du code
+
+GitHub n'a pas de « rulesets as code ». Un ruleset réglé à la main dans l'interface est donc un fait
+que rien ne vérifie — donc un fait qui peut mentir. La source est
+[`.github/rulesets/master.json`](../../.github/rulesets/master.json), dans le dépôt, et elle
+s'applique par l'API :
+
+```bash
+gh api --method POST repos/WAROL52/signalcn/rulesets --input .github/rulesets/master.json
+```
+
+Ni Terraform ni une application GitHub : les deux introduiraient une seconde source de vérité
+(le plan à relire avant chaque changement, l'état à committer) pour quatre règles, et le `gh` est
+déjà là. Modifier le fichier sans réappliquer la commande laisse le dépôt et GitHub en désaccord —
+c'est le seul endroit où une telle désynchronisation est possible, et elle est visible dans l'onglet
+Rules du dépôt.
+
+**Trois règles, et trois seulement.**
+
+- **Une pull request, sans approbation humaine.** `allowed_merge_methods: ["rebase"]` et
+  `required_approving_review_count: 0`. Le rebase seul est une décision, pas une préférence :
+  l'historique du dépôt est sa documentation, et un squash effacerait la trace du lot vert. Zéro
+  approbation parce que le relecteur est l'agent lui-même et qu'une approbation qu'on s'approuve
+  soi-même ne prouve rien — la preuve, c'est le contrôle qui a tourné.
+- **Un historique linéaire.** Aucun commit de fusion ne peut être poussé sur `master`. C'est la
+  moitié machine de « jamais en merge commit », l'autre moitié étant la méthode de fusion
+  autorisée.
+- **Les quatre checks requis**, la branche devant être à jour de `master` avant de fusionner
+  (`strict_required_status_checks_policy`). Sans cette dernière clause, les contrôles ont pu tourner
+  sur une tête de branche que la fusion rejouée ne reproduit pas : ce qui a été testé n'est plus ce
+  qui atterrit.
+
+**Ce qui n'est pas activé, et pourquoi.** Les signatures de commits : le dépôt n'en a aucune, et la
+règle bloquerait toutes les fusions sans rien prouver d'autre. La taille de fichier et la file
+d'attente de fusion : aucun des deux ne répond à une question posée ici. Le `non_fast_forward` et
+la suppression de branche : redondants dès qu'une PR est obligatoire, et la branche par défaut ne
+se supprime pas de toute façon.
+
+**La porte de dérive, et ce qu'elle ne voit pas.** Le contrôle 12 compare le ruleset aux jobs de
+`ci.yml` dans les deux sens, refuse un job `continue-on-error` — GitHub le tiendrait pour non
+bloquant, et l'égalité des deux listes dirait alors « conforme » à un ruleset qui ne protège rien —
+et vérifie que le fichier dit bien rebase, PR obligatoire, actif, sans bypass. Ce qu'elle ne peut
+pas voir, c'est le ruleset **appliqué** : seul `gh` avec les droits d'administration peut le lire,
+et ce n'est pas un test de CI. Un règlement manuel dans l'interface reste donc possible, et reste
+invisible jusqu'à la prochaine relecture du fichier.
 <!-- sonde ephemere -->

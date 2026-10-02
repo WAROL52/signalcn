@@ -21,7 +21,8 @@
     "documentation-statique": "vitepress build site",
     "verifier-proprete": "node scripts/verifier-proprete.mjs",
     "verifier-installation": "node scripts/verifier-installation.mjs",
-    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive && npm run documentation-statique && npm run verifier-proprete",
+    "verifier-ruleset": "node scripts/verifier-ruleset.mjs",
+    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive && npm run documentation-statique && npm run verifier-proprete && npm run verifier-ruleset",
     "prepare": "lefthook install"
   },
   "devDependencies": {

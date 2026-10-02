@@ -45,6 +45,7 @@ n'appartiennent pas à ce job, et leurs lignes le disent.
 | `npm run parite` | La table sur les quatre cibles — baseline, source, build, minifié. |
 | `verifier-derive` | Un artefact committé périmé. |
 | `npm run documentation` | Un `README` qui ment sur la surface, ou une divergence non consignée. |
+| `npm run verifier-ruleset` | Un job que la CI exécute sans l'exiger, ou un check exigé qu'elle n'exécute plus. |
 | `npm run documentation-statique` + `verifier-proprete` | Un site qui ne se construit pas, un build qui écrit dans les chemins des artefacts. **Hors `rapide`** : c'est le job `documentation-statique`, en parallèle, et dans cet ordre — la propreté observe ce que le build vient d'écrire. |
 | `npm run verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. **Hors `porte`** : c'est le job `distribution`, en parallèle. |
 
@@ -77,7 +78,15 @@ qu'elle n'a pas présent.
 tickets dans une PR sont interdits : sinon la carte ne sait plus rien.
 
 **La fusion se fait en rebase**, jamais en squash ni en commit de fusion — les commits de la
-branche survivent, dans l'ordre.
+branche survivent, dans l'ordre. Ce n'est pas une préférence de fusion : c'est un réglage du
+ruleset, et la porte `verifier-ruleset` le garde.
+
+**Les quatre jobs sont des checks requis, et cette liste est du code versionné.** Le ruleset est
+`.github/rulesets/master.json`, il s'applique par `gh api`, et il n'a **aucun** bypass — pas même
+pour le propriétaire. `npm run verifier-ruleset` le compare aux jobs que `ci.yml` déclare : un
+cinquième job ajouté sans être exigé fait tomber la pull request, ce qui est le seul moyen de voir
+un jour le check que la PR suivante n'aurait pas fait tourner. Voir
+[`site/contributeurs/ci.md`](/contributeurs/ci.md) §8.
 
 **Ce qui n'est pas vérifié en local, et qu'il faut savoir**
 
