@@ -23,6 +23,42 @@ Toute affirmation de compatibilité se prouve par **exécution**, jamais par rel
 existe dans la table pour être rejoué contre le paquet installé, et s'il passe chez nous sans y
 passer, c'est un défaut chez nous.
 
+## Le nommage des descripteurs
+
+Un descripteur est un groupe de mots anglais. La préposition reste, en anglais : `in`, `with`,
+`on`, `after`, `during`, `outside`. Un mot français est banni — sauf s'il figure à la liste
+d'exception.
+
+Un descripteur, c'est un nom de scénario, un nom de test `signalcn-seul`, ou un identifiant du
+cœur. **Le registre est fonctionnel plutôt que calque** : on nomme ce que le test vérifie, pas ce
+que le français dit — `recompute`, `cached-error`, `draining`, `suspended-capture`. Les
+commentaires, eux, restent en français, et la porte ne les lit pas.
+
+La liste d'exception compte **12** mots. Ils sont français *et* anglais, donc le signal « mot
+français » les refuse à tort ; sans elle, la porte tomberait sur du code sain dès son premier
+passage. `lien` n'y est plus : ce n'est pas un mot anglais, et le garder affaiblirait la porte
+au lieu de la protéger.
+
+- `parent`
+- `brand`
+- `dispose`
+- `batch`
+- `untracked`
+- `watch`
+- `snapshot`
+- `consumer`
+- `peek`
+- `revert`
+- `cleanup`
+- `chain`
+
+`npm run documentation` applique la règle et lit cette section — il ne recopie ni la phrase ni la
+liste. Son périmètre est ce qu'il sait lire : les 97 descripteurs que la suite enregistre, et les
+cinq identifiants que [#46](https://github.com/WAROL52/signalcn/issues/46) a renommés dans le
+cœur. Les mots anglais qu'il accepte sont versionnés dans
+`scripts/vocabulaire-identifiants.txt` : un mot anglais nouveau s'y ajoute, et rien d'autre ne se
+touche.
+
 ## Les portes
 
 `npm run porte` enchaîne tout, sauf `verifier-installation` : celle-là est le job `distribution`,
@@ -44,7 +80,7 @@ n'appartiennent pas à ce job, et leurs lignes le disent.
 | `npm run zero-dependance` | Le cœur distribué qui lit autre chose que lui-même — 18 motifs interdits, sur l'artefact minifié. |
 | `npm run parite` | La table sur les quatre cibles — baseline, source, build, minifié. |
 | `verifier-derive` | Un artefact committé périmé. |
-| `npm run documentation` | Un `README` qui ment sur la surface, ou une divergence non consignée. |
+| `npm run documentation` | Un `README` qui ment sur la surface, une divergence non consignée, un descripteur français. |
 | `npm run verifier-ruleset` | Un job que la CI exécute sans l'exiger, ou un check exigé qu'elle n'exécute plus. |
 | `npm run documentation-statique` + `verifier-proprete` | Un site qui ne se construit pas, un build qui écrit dans les chemins des artefacts. **Hors `rapide`** : c'est le job `documentation-statique`, en parallèle, et dans cet ordre — la propreté observe ce que le build vient d'écrire. |
 | `npm run verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. **Hors `porte`** : c'est le job `distribution`, en parallèle. |

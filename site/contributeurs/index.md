@@ -2,7 +2,7 @@
 
 Travailler dans le dépôt : les portes, la forme d'une pull request, les règles de nommage.
 
-- [`CONTRIBUTING.md`](/CONTRIBUTING.md) — la forme d'une PR acceptable, et la table des portes.
+- [`CONTRIBUTING.md`](/CONTRIBUTING.md) — la forme d'une PR acceptable, la table des portes, et les règles de nommage.
 - [`documentation.md`](./documentation.md) — quelle documentation existe, et qui la garde juste.
 - [`build.md`](./build.md) — la chaîne de build et de minification.
 - [`ci.md`](./ci.md) — les jobs, leur ordre, leurs coûts.

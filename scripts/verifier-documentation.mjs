@@ -32,6 +32,13 @@
  *      total — et l'ordre de ses contrôles doit être l'ordre des étapes du YAML, parce qu'un
  *      document qui décrit une CI différente de celle qui tourne est un mensonge de plus.
  *
+ *   6. LA CONVENTION DE NOMMAGE EST APPLIQUÉE, pas seulement écrite. La règle et sa liste
+ *      d'exception vivent dans `CONTRIBUTING.md` ; cette porte les lit et refuse un descripteur
+ *      anglais qui ne l'est pas. Le lexique des mots anglais est une liste de mots ACCEPTÉS, jamais
+ *      de mots français à refuser : une liste de refus refuse `parent` dès son premier passage, donc
+ *      on la désactive. Le §7 dit pourquoi l'analyse lexicale ne peut pas reconnaître un mot
+ *      français, et ce qui la remplace.
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
@@ -189,7 +196,7 @@ porte(
 //
 // Le registre fait foi. Les chiffres de la prose doivent le suivre, jamais l'inverse.
 
-const { ENTREES_ATTENDUES, scenarios } = COUVERTURE_MODULE
+const { ENTREES_ATTENDUES, scenarios, testsSignalcnSeul } = COUVERTURE_MODULE
 const attendus = { entrees: ENTREES_ATTENDUES.length, scenarios: scenarios.length }
 
 // Chaque ancre est [fichier, motif, une valeur attendue par groupe capturé, libellé].
@@ -322,6 +329,109 @@ porte(
     ? "l'ancre du multiple est introuvable"
     : `${annonceRatio[1].replace(".", ",")} annonces, ` +
         `${(installation.secondes / somme).toFixed(2).replace(".", ",")} mesures`,
+)
+
+// ---- 7. La convention de nommage, et le lexique anglais qu'elle applique --------------------------
+//
+// Une convention que rien n'applique se perd au premier commit d'un jour de fatigue. Celle-ci est
+// dans `CONTRIBUTING.md`, et cette porte la fait appliquer — elle lit le fichier, elle ne recopie
+// ni la règle ni la liste.
+//
+// Le signal n'est pas « ce mot a une allure française » : il n'existe pas. `ordre`, `structure`,
+// `effet`, `interne` et `nom` sont des mots français dont l'équivalent anglais est un AUTRE mot, et
+// aucun voisinage de lettres ne les distingue de `order`, `structure`, `effect`, `internal` ou
+// `name`. Le refus porte donc sur ce qu'on peut mesurer : « ce mot n'existe nulle part en anglais
+// dans ce dépôt ». Un mot français ne peut pas l'éviter, et un mot anglais neuf le déclare — une
+// ligne dans le lexique, qui est la seule liste que cette porte possède.
+//
+// Le périmètre est celui du ticket : les 97 descripteurs que la suite enregistre (82 scénarios et
+// 15 tests `signalcn-seul`), et les cinq identifiants que #46 a renommés dans le cœur. Les
+// commentaires ne sont pas lus, et c'est voulu : ils sont en français. Le contrôle ne couvre pas
+// les AUTRES identifiants du cœur — `tete`, `noeud`, `effet` sont encore français — parce que les
+// angliciser n'est pas le travail de ce ticket.
+
+const contribution = await readFile(join(RACINE, "CONTRIBUTING.md"), "utf8")
+
+// Un SEUL motif, ancré sur les deux titres : la section se lit entre son titre et le titre suivant.
+// Les portes voisines découpent par `indexOf` sur une phrase du texte, ce qui tient jusqu'au jour
+// où la phrase est réécrite ; ici il faut deux titres, et le second est une frontière de structure.
+const nommage = contribution.match(/^## Le nommage des descripteurs$\n([\s\S]*?)^## /m)
+porte(
+  "CONTRIBUTING.md porte une section de nommage, et elle se lit",
+  nommage !== null,
+  "le titre « ## Le nommage des descripteurs » est absent, ou suivi d'aucun autre titre",
+)
+
+// Une ligne, un mot : la liste d'exception est la seule structure que la porte y lit, et elle se
+// lit par ligne entière. Un mot français listé à côté d'autre chose n'est pas dans la liste.
+const exceptions = [...(nommage?.[1].matchAll(/^- `([a-z-]+)`$/gm) ?? [])].map((m) => m[1])
+const annonce = nommage?.[1].match(/\*\*(\d+)\*\* mots/)
+porte(
+  "la liste d'exception compte autant de mots que la section en annonce",
+  exceptions.length > 0 && annonce !== null && Number(annonce[1]) === exceptions.length,
+  annonce === null
+    ? "l'ancre du compte est introuvable"
+    : `${exceptions.length} lus, ${annonce[1]} annonces`,
+)
+
+const LEXIQUE = "scripts/vocabulaire-identifiants.txt"
+const lexique = new Set(
+  (await readFile(join(RACINE, LEXIQUE), "utf8"))
+    .split("\n")
+    .map((ligne) => ligne.trim())
+    .filter((ligne) => ligne !== "" && !ligne.startsWith("#")),
+)
+// Un lexique vide ferait passer le contrôle sans rien vérifier : c'est le seul mode de défaillance
+// d'un contrôle par liste — le même que la liste de motifs de `zero-dependance`.
+porte("le lexique anglais se lit", lexique.size > 0, `${LEXIQUE} ne porte aucun mot`)
+
+const autorise = (mot) => lexique.has(mot) || exceptions.includes(mot)
+
+// Les descripteurs viennent du MÊME objet que `COUVERTURE`, plus haut : pas de seconde liste, et
+// un nom qui n'est plus enregistré ne peut pas être vérifié.
+const descripteurs = [...scenarios.map(({ name }) => name), ...Object.keys(testsSignalcnSeul)]
+const horsLexique = descripteurs
+  .map((nom) => [
+    nom,
+    nom
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((mot) => mot !== "")
+      .filter((mot) => !autorise(mot)),
+  ])
+  .filter(([, mots]) => mots.length > 0)
+  .map(([nom, mots]) => `${nom} : ${mots.join(", ")}`)
+porte(
+  "aucun descripteur ne porte un mot absent du lexique anglais",
+  horsLexique.length === 0,
+  horsLexique.join(", "),
+)
+
+// Les cinq identifiants que #46 a renommés dans le cœur, et les vingt et une occurrences qu'ils
+// comptent. C'est le SEUL filet sur le cœur, et il est fait de leur présence : un identifiant
+// renommé — en français ou autrement — ne se compte plus, et le détail nomme lequel manque. Un
+// contrôle de leur orthographe ne dirait rien de plus : leurs mots sont déjà ceux du lexique, donc
+// il serait vert quoi qu'il arrive.
+//
+// Le compte est pris sur le fichier entier, commentaires compris. Les commentaires sont français —
+// y écrire le nom ferait bouger le compte, et c'est le détail de l'échec qui le montre.
+const RENOMMES = [
+  "previousObserver",
+  "previousCapture",
+  "previousNode",
+  "nextEffect",
+  "previousCapturedEffects",
+]
+const coeur = await readFile(join(RACINE, "registry", "default", "signals.ts"), "utf8")
+const comptes = Object.fromEntries(
+  RENOMMES.map((nom) => [nom, (coeur.match(new RegExp(`\\b${nom}\\b`, "g")) ?? []).length]),
+)
+porte(
+  "les cinq identifiants renommes par #46 tiennent leurs 21 occurrences",
+  Object.values(comptes).reduce((total, compte) => total + compte, 0) === 21,
+  Object.entries(comptes)
+    .map(([nom, compte]) => `${nom} ${compte}`)
+    .join(", "),
 )
 
 cloture()
