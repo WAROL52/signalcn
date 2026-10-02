@@ -19,6 +19,13 @@ export default defineConfig({
   // portes. Le site les LIE, il ne les déplace pas.
   srcDir: "..",
 
+  // Le site est publié sur `warol52.github.io/signalcn`, donc TOUTES ses URL commencent par
+  // `/signalcn/`. Sans ce préfixe, chaque page sortirait en 404 — et le build resterait VERT :
+  // VitePress ne fait tomber que le lien de FICHIER mort, jamais une entrée de navigation vers
+  // une page inexistante. C'est le seul réglage du site qu'aucun build ne peut attraper, donc il
+  // est gardé par `npm run documentation`, qui le compare au nom du dépôt.
+  base: "/signalcn/",
+
   // Deux exclusions, deux raisons distinctes. `.github/` contient le gabarit de pull request, que
   // GitHub rend et que personne ne lit comme une page ; `prototype/` est un dossier de travail
   // d'une session passée, cité par le registre et dont le sort n'est pas tranché (#40). Ni

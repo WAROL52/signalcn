@@ -39,6 +39,10 @@
  *      on la désactive. Le §7 dit pourquoi l'analyse lexicale ne peut pas reconnaître un mot
  *      français, et ce qui la remplace.
  *
+ *   8. LE `base` DU SITE EST CELUI DU DÉPÔT. Le site est publié sur `warol52.github.io/<dépôt>` ;
+ *      un `base` faux met chaque page en 404 sans faire tomber le build, donc cette assertion est
+ *      la seule chose qui s'en aperçoive avant le premier visiteur. Le §8 dit d'où vient le nom.
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
@@ -433,6 +437,34 @@ porte(
   Object.entries(comptes)
     .map(([nom, compte]) => `${nom} ${compte}`)
     .join(", "),
+)
+
+// ---- 8. Le `base` du site, et le nom du dépôt -----------------------------------------------
+//
+// Le site est publié sur `warol52.github.io/<dépôt>`. Sans `base`, chaque URL sort en 404 — et le
+// build passe AU VERT : mesuré sur VitePress 1.6.4, un `base` faux ne fait tomber que le lien de
+// FICHIER mort, jamais une entrée de navigation vers une page inexistante. C'est le trou le plus
+// cher du dépôt parce qu'il ne se voit qu'au premier navigateur : tant que le site n'a jamais été
+// servi, rien ne le demande.
+//
+// Le nom du dépôt est lu dans `registry.json`, au champ `homepage` : c'est l'adresse du dépôt
+// GitHub, dont le DERNIER segment est le nom. C'est la source la plus fiable du dépôt parce que
+// `registry.json` déclare le schéma shadcn — donc `verifier-installation` en vérifie la forme — et
+// que le champ y est unique. Les `registryDependencies` portent la même adresse en
+// `owner/repo/item`, mais le dépôt y est le segment du MILIEU, et seulement sur les items qui ont
+// une dépendance : il faudrait choisir un item, donc une seconde décision à justifier. Et
+// `package.json#name` est le nom du PAQUET npm, qui n'a pas de propriétaire et dont le renommage
+// ne doit pas déplacer le site.
+
+const config = await readFile(join(RACINE, "site", ".vitepress", "config.mts"), "utf8")
+const { homepage } = JSON.parse(await readFile(join(RACINE, "registry.json"), "utf8"))
+const depot = new URL(homepage).pathname.split("/").filter(Boolean).pop()
+const base = config.match(/^\s*base:\s*"([^"]*)"/m)?.[1]
+
+porte(
+  "le base du site est le chemin du depot sur Pages",
+  base === `/${depot}/`,
+  `base ${base ?? "(absent)"}, dépôt ${depot} donc /${depot}/`,
 )
 
 // ---- La porte dit ce qu'elle ne vérifie pas -----------------------------------------------
