@@ -18,8 +18,10 @@
     "parite": "node scripts/verifier-parite.mjs",
     "documentation": "node scripts/verifier-documentation.mjs",
     "verifier-derive": "node scripts/verifier-derive.mjs",
+    "documentation-statique": "vitepress build site",
+    "verifier-proprete": "node scripts/verifier-proprete.mjs",
     "verifier-installation": "node scripts/verifier-installation.mjs",
-    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive",
+    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive && npm run documentation-statique && npm run verifier-proprete",
     "prepare": "lefthook install"
   },
   "devDependencies": {
@@ -29,7 +31,8 @@
     "esbuild": "0.25.9",
     "lefthook": "2.1.16",
     "shadcn": "2.10.0",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "vitepress": "1.6.4"
   },
   "engines": {
     "node": ">=22.6"

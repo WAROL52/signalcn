@@ -12,7 +12,7 @@
 # L'ordre est SÉVÉRITÉ : la forme d'un code qui ne compile pas se corrige avant le code lui-même.
 #
 # Les commandes vivent dans `package.json`, comme celles de la CI : ce fichier appelle, il ne
-# décide pas. Voir `docs/ci.md` §6.
+# décide pas. Voir `docs/ci.md` §7.
 pre-commit:
   jobs:
     - name: forme
