@@ -3,7 +3,7 @@
 > **Statut :** Normative
 > **Rôle :** Contrat comportemental et technique
 > **Référence de compatibilité :** `@preact/signals-core@1.14.4`, version figée
-> **Annexe :** [`research/baseline-1.14.4.md`](./research/baseline-1.14.4.md) — 224 comportements observables, établis par probe
+> **Annexe :** [`research/baseline-1.14.4.md`](./research/baseline-1.14.4.md) — 231 comportements observables, établis par probe
 > **Structure :** [`docs/architecture.md`](./docs/architecture.md) — comment le graphe est construit
 
 ## 1. Objectif

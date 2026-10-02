@@ -39,7 +39,7 @@ Node utilisé : v24.18.1.
 
 ## Sommaire de l'inventaire
 
-**224 comportements** documentés, répartis ainsi :
+**231 comportements** documentés, répartis ainsi :
 
 | Section | Comportements | Entrées marquées « non documenté » |
 |---|---|---|

@@ -104,7 +104,8 @@ porte(
 // un fichier du dépôt y lèverait. C'est aussi pourquoi `registre-complet` ne valide que la FORME
 // du marqueur, et laisse la correspondance à cette porte.
 
-const { COUVERTURE } = await import(join(RACINE, "registry", "default", "signals.test.ts"))
+const COUVERTURE_MODULE = await import(join(RACINE, "registry", "default", "signals.test.ts"))
+const { COUVERTURE } = COUVERTURE_MODULE
 const spec = await readFile(join(RACINE, "SPEC.md"), "utf8")
 
 const marquees = Object.entries(COUVERTURE)
@@ -150,5 +151,40 @@ for (const metrique of ["lignes", "branches", "fonctions"]) {
 }
 
 porte("le README porte une section « Différences connues »", /^## Différences connues$/m.test(texte))
+
+// ---- 5. Les COMPTES cités, contre le registre ---------------------------------------------
+//
+// Un chiffre écrit dans une prose ne se périme pas en criant : il devient faux et personne ne le
+// voit. Le fichier de test assume cette faiblesse par écrit — « les COMPTES sont écrits en dur, et
+// c'est une faiblesse connue » — donc c'est ici qu'elle se ferme.
+//
+// Chaque contrôle est ANCRÉ sur une affirmation précise, pas sur un balayage du document. Un
+// balayage attraperait le journal des releases, où les chiffres d'un tag sont justes et doivent le
+// rester : `v0.1.0` dit 80 scénarios, et c'est vrai de `v0.1.0`. Une ancre ne le peut pas.
+//
+// Le registre fait foi. Les chiffres de la prose doivent le suivre, jamais l'inverse.
+
+const { ENTREES_ATTENDUES, scenarios } = COUVERTURE_MODULE
+const attendus = { entrees: ENTREES_ATTENDUES.length, scenarios: scenarios.length }
+
+const ancrees = [
+  ["SPEC.md", /> \*\*Annexe :\*\*.*?— (\d+) comportements/, attendus.entrees, "comportements"],
+  ["research/baseline-1.14.4.md", /^\*\*(\d+) comportements\*\* documentés/m, attendus.entrees, "comportements"],
+  ["docs/scenarios.md", /Comment les \*\*(\d+) comportements\*\*/, attendus.entrees, "comportements"],
+  ["docs/scenarios.md", /pour (\d+) comportements\./, attendus.entrees, "comportements"],
+  ["ROADMAP.md", /comportements upstream — (\d+) entrées,/, attendus.entrees, "entrées"],
+  ["ROADMAP.md", /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/, attendus.scenarios, "scénarios"],
+]
+
+for (const [fichier, motif, attendu, unite] of ancrees) {
+  const texteFichier = await readFile(join(RACINE, fichier), "utf8")
+  const trouve = texteFichier.match(motif)
+  const cite = trouve ? Number(trouve[1]) : null
+  porte(
+    `${fichier} annonce le bon nombre de ${unite}`,
+    cite === attendu,
+    cite === null ? "l'ancre est introuvable — la phrase a ete reecrite ?" : `${cite} annonces, ${attendu} reels`,
+  )
+}
 
 cloture()

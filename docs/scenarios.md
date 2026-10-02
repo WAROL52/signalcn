@@ -1,6 +1,6 @@
 # Scénarios de conformité
 
-Comment les **224 comportements** de
+Comment les **231 comportements** de
 [`research/baseline-1.14.4.md`](../research/baseline-1.14.4.md) deviennent la table de
 scénarios de `signals.test.ts`. Ce document est l'entrée de la plus grosse pièce de travail du
 projet : le corpus de tests.
@@ -13,7 +13,7 @@ Ce qui n'est observable qu'en combinaison se greffe sur un scénario existant, e
 ajoute alors une ligne de traçabilité de plus. La règle est énonçable, donc vérifiable — ce qui
 était la condition posée.
 
-Cible : **entre soixante et quatre-vingts scénarios** pour 224 comportements. La répartition
+Cible : **entre soixante et quatre-vingts scénarios** pour 231 comportements. La répartition
 approchée :
 
 Les **60 zones transverse** ne s'ajoutent pas : ce sont les comportements 1 à 60 déjà comptés

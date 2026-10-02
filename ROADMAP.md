@@ -75,7 +75,7 @@
 - [x] Choisir la baseline initiale.
 - [x] Figer `@preact/signals-core@1.14.4`.
 - [x] Inventorier précisément toute l'API publique de la baseline.
-- [x] Construire une matrice des comportements upstream — 224 entrées, [`research/baseline-1.14.4.md`](./research/baseline-1.14.4.md).
+- [x] Construire une matrice des comportements upstream — 231 entrées, [`research/baseline-1.14.4.md`](./research/baseline-1.14.4.md).
 - [x] Identifier les comportements ambigus ou sous-documentés — 60 entrées, aucune documentée.
 - [x] Créer des probes de référence pour les comportements ambigus.
 - [x] Décider explicitement le périmètre de `createModel()` — inclus dans le contrat v1.
@@ -97,7 +97,7 @@
 
 ## 4. Phase P1 — Squelette du moteur
 
-> **Preuve** — `npm test` : 96 tests, 0 échec. Les dix exports sont dans `signals.ts`.
+  > **Preuve** — `npm test` : 98 tests, 0 échec. Les dix exports sont dans `signals.ts`.
 > Le cœur est complet ; `P1` n'attend plus rien.
 
 Le modèle interne est spécifié dans [`docs/architecture.md`](./docs/architecture.md). Ce qui suit est
@@ -142,14 +142,14 @@ l'implémentation.
 
 ## 5. Phase P2 — Suite de tests comportementaux
 
-> **Preuve** — `npm run harnais` : 80 scénarios, 198 entrées de matrice, 5/5 tests
+> **Preuve** — `npm run harnais` : 82 scénarios, 203 entrées de matrice, 5/5 tests
 > `signalcn-seul` rejoués sur le paquet installé.
 > **La case « 100 % » reste ouverte** : la couverture mesurée est `99,61 / 98,50 / 100,00`.
 > Le reliquat est decide par [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md),
 > pas par renoncement.
 
-Le découpage est spécifié dans [`docs/scenarios.md`](./docs/scenarios.md) : 78 scénarios pour
-224 comportements, avec traçabilité obligatoire vers la matrice.
+Le découpage est spécifié dans [`docs/scenarios.md`](./docs/scenarios.md) : 82 scénarios pour
+231 comportements, avec traçabilité obligatoire vers la matrice.
 
 - [x] Écrire la table de scénarios.
 - [x] Vérifier que chaque entrée de la matrice est référencée.
