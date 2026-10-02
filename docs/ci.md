@@ -104,3 +104,4 @@ d'inclusion, aucun chemin de fichier.
 
 Une CI qu'on peut lire en trente secondes est une CI qu'on n'ose pas réécrire. Et quand un
 contrôle change, il change à un seul endroit.
+<!-- sonde ephemere -->
