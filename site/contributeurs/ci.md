@@ -168,10 +168,16 @@ fichier reste la seule source, et aucune liste n'est écrite deux fois.
 
 **Le déploiement sur GitHub Pages n'est pas dans ce job.** Un check requis juge la pull request ;
 un déploiement agit sur l'extérieur, et un déploiement réussi ne doit surtout pas pouvoir masquer
-un build cassé : c'est le contraire de ce qu'est un contrôle. Il ira dans un workflow distinct,
-déclenché par le push sur `master`. Ce qui reste à y trancher : le `base` du site, qui vaut
-`/signalcn/` pour une page de projet et n'est écrit nulle part tant que le déploiement n'existe
-pas, et la politique de versionnement du site (#51).
+un build cassé : c'est le contraire de ce qu'est un contrôle. Il est dans
+[`deploy.yml`](../../.github/workflows/deploy.yml), déclenché par le **tag** — voir le §5.
+
+**Le `base` du site vaut `/signalcn/`, et il est gardé.** Une page de projet est servie sous le
+chemin du dépôt, donc sans ce préfixe chaque URL sort en 404 — et le build **passe au vert**, pour
+la raison que cette section a mesurée : seul un lien de fichier mort fait tomber VitePress.
+`npm run documentation` compare donc le `base` de `site/.vitepress/config.mts` au nom du dépôt lu
+dans le champ `homepage` de `registry.json`, qui est l'adresse GitHub du dépôt : `/` plus son
+dernier segment, rien de plus. Une assertion, pas une liste — un dépôt ne se déplace pas, et une
+liste d'exceptions s'écarterait à chaque renommage.
 
 ## 5. Au tag de release
 
@@ -181,9 +187,38 @@ pas à 100 %, et ADR-0011 dit pourquoi.
 
 Le job « distribution » s'exécute exactement comme sur une PR.
 
-Le job « documentation-statique » ne s'exécute pas au tag : ses déclencheurs sont la pull request et
-le push sur `master`. Un site se construit sur une branche comme sur `master`, et rien ne fait
-attendre d'un tag un fichier que le build du jour ne produit pas non plus.
+Le job « documentation-statique » s'exécute aussi : `ci.yml` se déclenche sur `master` **et** sur
+`v*`, donc le tag construit le site comme une pull request. Un site se construit sur une branche
+comme sur un tag, et rien ne fait attendre d'un tag un fichier que le build du jour ne produit pas
+non plus.
+
+**Le déploiement, lui, se déclenche sur le tag** — et c'est la seule chose que le tag déclenche en
+plus. Le site doit être **exactement la version livrée** : c'est la politique de versionnement du
+site (#51), « version courante seule », et la même règle que le `README.md` que npm rend au
+consommateur. Publié à chaque push sur `master`, il désignerait autre chose que ce que le lecteur a
+installé. Le filtre `tags: ["v*"]` de `ci.yml` est repris tel quel, mais sous un `push:` qui ne
+porte **aucun** `branches:` : le filtre borne donc la publication aux tags. Un `workflow_dispatch`
+s'y ajoute pour qu'un déploiement raté se rejoue sans attendre un tag. **Pas** de push de branche :
+ce serait publier à chaque pull request mergée.
+
+Le workflow **construit le site lui-même** — `npm ci`, puis `npm run documentation-statique` — et ne
+récupère pas l'artefact d'un autre workflow : un artefact déposé par une CI peut avoir été construit
+sur une tête de branche que le tag ne désigne pas. Les permissions sont explicites parce que le
+défaut du dépôt est `read` : `contents: read`, `pages: write`, `id-token: write`, ce dernier étant ce
+qui permet à l'action de publication d'obtenir son jeton. L'action est la paire documentée,
+`upload-pages-artifact` puis `deploy-pages`, et le job est **unique** : un découpage en deux —
+construire, puis publier — laisserait le job de construction lui aussi hors des checks requis.
+
+Il n'y a **qu'un seul job qui n'est pas un check requis**, et c'est celui-là. `npm run
+verifier-ruleset` lit tous les fichiers de `.github/workflows/` — pas `ci.yml` seul, sinon un
+déplissement posé ailleurs serait invisible et son affirmation deviendrait fausse sans que personne
+ne le voie — et vérifie que ce job est le seul hors du ruleset, qu'il n'en est pas un deuxième, et
+qu'il ne porte pas de `continue-on-error`. Elle n'exige pas que le site soit publié : son absence
+laisse la porte verte.
+
+Le tableau du §1 ne gagne aucune ligne. Le workflow de publication n'exécute que `npm ci` et le
+build du site, tous deux déjà mesurés : une ligne de plus compterait le même coût deux fois et
+fausserait le total que la porte somme.
 
 ## 6. Le déclencheur de release
 

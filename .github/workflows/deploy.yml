@@ -1,0 +1,64 @@
+# Le déploiement du site. Un workflow distinct, et non un job de `ci.yml` : un job qui déploie ne
+# peut pas être un check requis, et un déploiement vert ne doit surtout pas pouvoir masquer un
+# build cassé. C'est le contraire de ce qu'est un contrôle.
+#
+# Le déclencheur est le TAG `v*`, pas le push sur `master`. Le site doit être exactement la
+# version livrée — la politique de versionnement du site (#51), « version courante seule » : ce
+# que le lecteur lit est ce que le paquet installé lui donne, comme le README rendu par npm.
+# `workflow_dispatch` est là pour qu'un déploiement raté se rejoue sans attendre un tag.
+#
+# Ce workflow CONSTRUIT le site — `npm ci` puis `npm run documentation-statique` — et ne récupère
+# pas l'artefact d'un autre workflow : un artefact déposé par une CI peut avoir été construit sur
+# une tête de branche que le tag ne désigne pas.
+name: Deploy
+
+on:
+  # `tags` est un FILTRE de `push`, pas un événement : c'est ce qui borne la publication aux tags,
+  # sans quoi une branche poussée déclencherait aussi le déploiement. Aucun `branches:` ici.
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Le défaut du dépôt est `read`, et `ci.yml` n'en déclare aucune. Les trois permissions ci-dessous
+# sont exactement ce que l'action de publication exige : `pages: write` pour écrire la page,
+# `id-token: write` pour obtenir le jeton qui prouve que c'est CE workflow qui publie.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Une publication à la fois. Deux déploiements qui se chevauchent se volent mutuellement l'artefact,
+# et le site servi est celui du premier — donc un tag peut être publié avec le site du précédent.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # UN SEUL job, donc UN SEUL check qui n'est pas requis. Le découpage officiel en deux — un build,
+  # puis un deploy — laisserait le job de build lui aussi hors des checks requis, et
+  # `verifier-ruleset` verrait deux exceptions à la règle qu'il vérifie.
+  deployer:
+    name: deployer / site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publie.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Le `base` du site est ce qui fait que ces URL existent : sans lui chaque page sort en 404,
+      # et le build resterait vert. Il est écrit dans `site/.vitepress/config.mts` et gardé par
+      # `npm run documentation`, qui le compare au nom du dépôt.
+      - name: build du site — VitePress, comme dans le job de controle
+        run: npm run documentation-statique
+      - name: deposer l'artefact du site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/.vitepress/dist
+      - id: publie
+        name: publier sur GitHub Pages
+        uses: actions/deploy-pages@v4
