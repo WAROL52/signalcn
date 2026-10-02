@@ -10,19 +10,21 @@
 
 | Champ | Valeur |
 |---|---|
-| Phase actuelle | `P1 — Squelette du moteur` |
+| Phase actuelle | `P8 — Release` — P0 a P7 livrées, P8 attend les deux tags |
 | Version de référence | `@preact/signals-core@1.14.4` |
 | Dépendances runtime | `0` |
 | Sources de vérité | `signals.ts`, `signals.test.ts` |
+| Référent de la matrice | **le paquet installé**, pas ses sources — marqueur dans `COUVERTURE`, raison au [§21](SPEC.md) |
 | Artefacts générés | `4` |
 | Registry items | `6`, exigeant `"tsx": true` chez le consommateur |
-| Objectif coverage | `100 / 100 / 100` — lignes, branches, fonctions |
-| Prochaine version | `v0.1.0` |
+| Couverture mesurée | `99,61 / 98,50 / 100,00` — lignes, branches, fonctions |
+| Seuil de release | La valeur mesurée, **pas 100 %** — [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md) : les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus |
+| Prochaine version | `v0.1.0`, puis `v1.0.0` |
 | Version courante | `v0.0.0`, aucun tag |
 | Mainteneur | `WAROL52` |
 | Dépôt | `github.com/WAROL52/signalcn`, public |
 | Licence | MIT, en place depuis le premier commit |
-| Dernière mise à jour | `2026-09-30` |
+| Dernière mise à jour | `2026-10-02` |
 
 ## 1. Où lire quoi
 
@@ -46,13 +48,15 @@
 - [x] `SPEC.md` décrit précisément les comportements à respecter.
 - [x] `ROADMAP.md` est mis à jour lorsque le périmètre ou le statut change.
 - [x] Seuls `signals.ts` et `signals.test.ts` sont des sources maintenues manuellement.
-- [ ] Les quatre fichiers `.js` sont reconstruits et jamais patchés à la main.
-- [ ] Toute affirmation de compatibilité possède un test ou une limitation explicitement documentée.
+- [x] Les quatre fichiers `.js` sont reconstruits et jamais patchés à la main.
+- [x] Toute affirmation de compatibilité possède un test ou une limitation explicitement documentée.
 - [x] Aucune dépendance runtime n'est ajoutée sans décision explicite dans le PRD/SPEC.
 - [x] Aucun code spécifique à un framework ne rentre dans le cœur.
-- [ ] Aucun comportement n'est « corrigé » sans vérifié qu'aucun scénario de la matrice ne le fige.
+- [x] Aucun comportement n'est « corrigé » sans vérifié qu'aucun scénario de la matrice ne le fige.
 
 ## 3. Phase P0 — Spécification et bootstrap
+
+> **Preuve** — `ls registry.json registry/default tsconfig.json package.json .github/workflows`.
 
 ### Produit
 
@@ -80,112 +84,144 @@
 
 - [x] Initialiser Git.
 - [x] Définir le propriétaire et le nom du dépôt.
-- [ ] Ajouter `registry.json`.
-- [ ] Créer `registry/default/`.
-- [ ] Ajouter les métadonnées du package de développement.
-- [ ] Ajouter `tsconfig.json`.
-- [ ] Ajouter la configuration du runner — `node:test`, sans dépendance.
-- [ ] Ajouter la configuration coverage.
-- [ ] Ajouter la configuration de build.
-- [ ] Ajouter la configuration de minification.
-- [ ] Ajouter la CI.
+- [x] Ajouter `registry.json`.
+- [x] Créer `registry/default/`.
+- [x] Ajouter les métadonnées du package de développement.
+- [x] Ajouter `tsconfig.json`.
+- [x] Ajouter la configuration du runner — `node:test`, sans dépendance.
+- [x] Ajouter la configuration coverage.
+- [x] Ajouter la configuration de build.
+- [x] Ajouter la configuration de minification.
+- [x] Ajouter la CI.
 - [ ] Ajouter les règles de contribution.
 
 ## 4. Phase P1 — Squelette du moteur
+
+> **Preuve** — `npm test` : 96 tests, 0 échec. Les dix exports sont dans `signals.ts`.
+> Le cœur est complet ; `P1` n'attend plus rien.
 
 Le modèle interne est spécifié dans [`docs/architecture.md`](./docs/architecture.md). Ce qui suit est
 l'implémentation.
 
 ### Signal
 
-- [ ] Implémenter `Signal` et `signal()`.
-- [ ] Implémenter le getter `.value`.
-- [ ] Implémenter le setter `.value` et la sémantique d'égalité stricte.
-- [ ] Implémenter `.peek()`.
-- [ ] Implémenter `.subscribe()` et le désabonnement.
-- [ ] Implémenter les conversions `valueOf`, `toString`, `toJSON`.
-- [ ] Porter `brand` sur le prototype par fusion de déclaration.
+- [x] Implémenter `Signal` et `signal()`.
+- [x] Implémenter le getter `.value`.
+- [x] Implémenter le setter `.value` et la sémantique d'égalité stricte.
+- [x] Implémenter `.peek()`.
+- [x] Implémenter `.subscribe()` et le désabonnement.
+- [x] Implémenter les conversions `valueOf`, `toString`, `toJSON`.
+- [x] Porter `brand` sur le prototype par fusion de déclaration.
 
 ### Computed
 
-- [ ] Implémenter `computed()` et l'évaluation paresseuse.
-- [ ] Implémenter le cache et la voie rapide par version globale.
-- [ ] Implémenter l'invalidation et la réconciliation des dépendances.
-- [ ] Implémenter l'auto-rentrée et la borne de drainage.
+- [x] Implémenter `computed()` et l'évaluation paresseuse.
+- [x] Implémenter le cache et la voie rapide par version globale.
+- [x] Implémenter l'invalidation et la réconciliation des dépendances.
+- [x] Implémenter l'auto-rentrée et la borne de drainage.
 
 ### Effect
 
-- [ ] Implémenter `effect()` et le suivi des dépendances.
-- [ ] Implémenter les callbacks de cleanup.
-- [ ] Implémenter le disposer.
-- [ ] Implémenter le drainage en détachant, en largeur.
+- [x] Implémenter `effect()` et le suivi des dépendances.
+- [x] Implémenter les callbacks de cleanup.
+- [x] Implémenter le disposer.
+- [x] Implémenter le drainage en détachant, en largeur.
 
 ### Batch / untracked
 
-- [ ] Implémenter `batch()` et le drainage LIFO.
-- [ ] Implémenter la réconciliation de snapshots.
-- [ ] Implémenter `untracked()`.
-- [ ] Garantir la restauration du contexte après exception.
+- [x] Implémenter `batch()` et le drainage LIFO.
+- [x] Implémenter la réconciliation de snapshots.
+- [x] Implémenter `untracked()`.
+- [x] Garantir la restauration du contexte après exception.
 
 ### API étendue
 
-- [ ] Implémenter `action()`.
-- [ ] Implémenter `createModel()` — portée de capture, enveloppe en action, dispose.
-- [ ] Implémenter la mémoïsation des enveloppes.
+- [x] Implémenter `action()`.
+- [x] Implémenter `createModel()` — portée de capture, enveloppe en action, dispose.
+- [x] Implémenter la mémoïsation des enveloppes.
 
 ## 5. Phase P2 — Suite de tests comportementaux
+
+> **Preuve** — `npm run harnais` : 80 scénarios, 198 entrées de matrice, 5/5 tests
+> `signalcn-seul` rejoués sur le paquet installé.
+> **La case « 100 % » reste ouverte** : la couverture mesurée est `99,61 / 98,50 / 100,00`.
+> Le reliquat est decide par [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md),
+> pas par renoncement.
 
 Le découpage est spécifié dans [`docs/scenarios.md`](./docs/scenarios.md) : 78 scénarios pour
 224 comportements, avec traçabilité obligatoire vers la matrice.
 
-- [ ] Écrire la table de scénarios.
-- [ ] Vérifier que chaque entrée de la matrice est référencée.
+- [x] Écrire la table de scénarios.
+- [x] Vérifier que chaque entrée de la matrice est référencée.
 - [ ] Atteindre 100 % des lignes, branches et fonctions.
 
 ## 6. Phase P3 — Conformité avec la référence
 
-- [ ] Exécuter le harnais différentiel contre `@preact/signals-core@1.14.4`.
-- [ ] Porter la suite sur `signals.js`, `signals.min.js` et les tests générés.
-- [ ] Vérifier le compte de scénarios sur chaque cible.
-- [ ] Documenter toute différence intentionnelle — [`SPEC.md`](./SPEC.md) §21.
+> **Preuve** — `npm run harnais` puis `npm run parite` : 16 assertions, la table entière
+> passe sur la baseline, la source, le build et le minifié.
+> Les divergences sont au [§21](SPEC.md), et la porte de documentation refuse qu'une entrée
+> non confrontable y soit omise.
+
+- [x] Exécuter le harnais différentiel contre `@preact/signals-core@1.14.4`.
+- [x] Porter la suite sur `signals.js`, `signals.min.js` et les tests générés.
+- [x] Vérifier le compte de scénarios sur chaque cible.
+- [x] Documenter toute différence intentionnelle — [`SPEC.md`](./SPEC.md) §21.
 
 ## 7. Phase P4 — Barrière de couverture
 
+> **Preuve** — `npm run couverture` : seuils natifs, garde du code mort contre
+> `NODE_V8_COVERAGE`, non-régression recalculée dans un worktree du merge-base.
+> **Les deux cases « 100 % » restent ouvertes**, pour la raison de `P2`.
+
 - [ ] Couverture locale à 100 %.
-- [ ] La CI refuse toute régression par rapport au merge-base.
-- [ ] La CI refuse le code mort — disque contre scripts vus par `NODE_V8_COVERAGE`.
-- [ ] Aucune exclusion artificielle — le drapeau est interdit.
+- [x] La CI refuse toute régression par rapport au merge-base.
+- [x] La CI refuse le code mort — disque contre scripts vus par `NODE_V8_COVERAGE`.
+- [x] Aucune exclusion artificielle — le drapeau est interdit.
 - [ ] Au tag, le seuil passe à 100 % absolu.
 
 ## 8. Phase P5 — Génération JavaScript
 
+> **Preuve** — `npm run build && npm run verifier-build` : reproductibilité, `--keep-names`
+> load-bearing, tailles, et `npm run verifier-derive` : le build ne touche aucun artefact
+> commité.
+
 Chaîne spécifiée dans [`docs/build.md`](./docs/build.md).
 
-- [ ] `signals.js` et `signals.test.js` par `tsc`.
-- [ ] `signals.min.js` et `signals.test.min.js` par `esbuild --keep-names`.
-- [ ] Réécrire le specifier du test minifié vers le runtime minifié.
-- [ ] Aucun sourcemap.
-- [ ] La CI échoue si un artefact committé est périmé.
+- [x] `signals.js` et `signals.test.js` par `tsc`.
+- [x] `signals.min.js` et `signals.test.min.js` par `esbuild --keep-names`.
+- [x] Réécrire le specifier du test minifié vers le runtime minifié.
+- [x] Aucun sourcemap.
+- [x] La CI échoue si un artefact committé est périmé.
 
 ## 9. Phase P6 — Registry shadcn
 
-- [ ] Définir le `registry.json` racine — six items, `registry:file`, cible `~/`.
-- [ ] Déclarer les `registryDependencies` qualifiées.
-- [ ] Tester chaque item séparément dans un projet jetable.
-- [ ] La porte d'installation s'exécute à chaque PR, sur une matrice de deux versions.
+> **Preuve** — `npm run verifier-installation` : 71 assertions, sept installations réelles
+> sur `shadcn` 4.10.0 et 4.21.1, par l'adresse `owner/repo/item`.
+
+- [x] Définir le `registry.json` racine — six items, `registry:file`, cible `~/`.
+- [x] Déclarer les `registryDependencies` qualifiées.
+- [x] Tester chaque item séparément dans un projet jetable.
+- [x] La porte d'installation s'exécute à chaque PR, sur une matrice de deux versions.
 
 ## 10. Phase P7 — Documentation
 
-- [ ] Rédiger le `README.md` final — l'API n'existe pas encore.
-- [ ] Corriger les trois fautes de fait relevées dans [`docs/documentation.md`](./docs/documentation.md) §5.
-- [ ] Ajouter la section « Différences connues », pour l'adopter.
-- [ ] Ajouter la porte qui vérifie la surface publique du README.
+> **Preuve** — `npm run documentation` : 15 assertions, dont le bloc d'import comparé aux
+> exports réels du module construit.
+
+- [x] Rédiger le `README.md` final — l'API n'existe pas encore.
+- [x] Corriger les trois fautes de fait relevées dans [`docs/documentation.md`](./docs/documentation.md) §5.
+- [x] Ajouter la section « Différences connues », pour l'adopter.
+- [x] Ajouter la porte qui vérifie la surface publique du README.
 
 ## 11. Phase P8 — Release
 
+> **En cours.** Tout est vert en local — `npm run porte` : 141 assertions — mais **aucun tag
+> n'est poussé**, et la CI n'a pas encore été observée verte sur une pull request. Ces trois
+> cases se cochent sur des preuves externes, pas sur des intentions.
+
 - [ ] CI complète verte.
 - [ ] Couverture à 100 % au tag.
-- [ ] Porte d'installation verte sur les deux versions de la CLI.
+- [x] Porte d'installation verte sur les deux versions de la CLI.
 - [ ] Tag `v0.1.0` — le cœur conforme.
 - [ ] Tag `v1.0.0` — la distribution complète.
 

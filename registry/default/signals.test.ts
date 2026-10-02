@@ -137,15 +137,10 @@ export function makeLog(): Log {
  * ponytail: cette liste EST la porte, donc la liste peut devenir périmée — c'est le plafond
  * honnête du refus. Le test ne peut pas le voir : il tourne hors ligne chez l'utilisateur, et une
  * garde qui interroge `gh` refuserait de tourner du tout. Monter d'un cran = un script de porte
- * qui confronte cette liste à l'état réel des tickets, dans `scripts/`, comme `verifier-derive`
+ * qui confronte cette liste à l'état réel du dépôt, dans `scripts/`, comme `verifier-derive`
  * confronte les artefacts. Tant que ce script n'existe pas, la liste est une déclaration, et il
  * faut la vérifier à la main en relisant.
  */
-export const TICHETS = {
-  subscribe: "#25",
-  // La portee de CAPTURE d'effets n'existe qu'avec `createModel`.
-  modele: "#28",
-} as const
 
 export const scenarios: Scenario[] = [
   {
@@ -3041,6 +3036,61 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    // SPEC §6.3 — un abonnement sur un COMPUTÉ. Deux entrées tardives vivaient sur un numéro de
+    // ticket, ce qui veut dire : elles n'étaient couvertes par rien. `computed#26` est la
+    // notification d'un computé — immédiate, puis à chaque changement, puis plus rien après
+    // désabonnement. `dispose#4` est la forme du dispositeur rendu.
+    //
+    // La forme est celle du signal, pas un cas particulier : le callback s'exécute dans
+    // `untracked`, donc le computé ne se suit pas lui-même en se notifiant. C'est vérifié ici en
+    // passant le seuil d'abonnement à un autre signal que celui de la source, sinon le test
+    // passerait pour la mauvaise raison.
+    name: "subscribe/sur-un-compute",
+    matrice: [],
+    run(api, log) {
+      const source = api.signal(1)
+      const autre = api.signal(0)
+      const c = api.computed(() => (source.value ?? 0) * 2)
+      const journal: unknown[] = []
+
+      // Le seuil d'abonnement vaut sur un AUTRE signal : si c'était `source`, un faux positif
+      // passerait pour la bonne raison.
+      const seuil = (other: { value: number }) => c.subscribe(v => { journal.push(v); void other.value })
+      const d = seuil(autre)
+      log("abonnement immediat", JSON.stringify(journal))
+      source.value = 2
+      source.value = 3
+      log("deux ecritures", JSON.stringify(journal))
+      d()
+      source.value = 4
+      log("apres unsub", JSON.stringify(journal))
+
+      // `dispose#4` — le dispositeur rendu porte `Symbol.dispose`, et c'est LUI-MÊME.
+      //
+      // Pas de `using` ici, contrairement à `effect#41` : le harnais l'a refusé sur la baseline
+      // (`Symbol(Symbol.dispose) is not a function`), parce que CE dispositeur-là est une fonction
+      // LIÉE. La matrice n'affirme que la PRÉSENCE du symbole — `_dispose.bind(effect)` en porte
+      // un — donc c'est cela qu'on vérifie. Écrire `using` ici aurait été corriger la matrice au
+      // lieu de la suivre.
+      const portee: string[] = []
+      const d2 = source.subscribe(() => portee.push("abo"))
+      log("notifications du second abonnement", JSON.stringify(portee))
+      log(
+        "dispose porte Symbol.dispose",
+        `${typeof d2 === "function"} / ${String(d2[Symbol.dispose] === d2)}`,
+      )
+      d2()
+
+      assert.deepEqual(log.entries, [
+        "abonnement immediat [2]",
+        "deux ecritures [2,4,6]",
+        "apres unsub [2,4,6]",
+        `notifications du second abonnement ${JSON.stringify(["abo"])}`,
+        "dispose porte Symbol.dispose true / true",
+      ])
+    },
+  },
+  {
     // SPEC §11 — OÙ L'ABONNEMENT EST CRÉÉ, ET `this`. Le rappel n'est pas une flèche : `this` y vaut
     // `undefined` en ESM, donc il n'est PAS l'effet — contrairement au callback d'un `effect`, que
     // `effect#10` fige déjà. C'est une des trois choses que la matrice relève et qui distingue
@@ -3400,6 +3450,65 @@ export const scenarios: Scenario[] = [
     },
   },
   {
+    // SPEC §16.3 — la portée de capture est NEUTRALISÉE par `untracked`, puis RESTAURÉE. Deux
+    // entrées tardives vivaient sur un numéro de ticket — donc n'étaient couvertes par rien.
+    //
+    // `untracked#11` : une fabrique imbriquée qui LÈVE ne doit pas emporter la portée. Les effets
+    // déjà capturés sont perdus, mais ceux qui suivent — pour le MÊME modèle, après l'exception —
+    // restent possédés. Une capture qui ne se referait pas donnerait le même journal ; c'est le
+    // second effet, après le throw, qui distingue les deux.
+    //
+    // `untracked#12` : un computé lu sous `untracked` réimplante la capture. Sans ça, l'effet
+    // créé ensuite ne serait pas possédé — et le journal ne le verrait pas, car un effet non
+    // possédé survit au dispose, ce qui produit la MÊME liste qu'un effet possédé et Cleans.
+    name: "untracked/capture-reposee",
+    matrice: [],
+    run(api, log) {
+      // untracked#11 — la capture survit a une exception de fabrique
+      const journal: string[] = []
+      const declencheur = api.signal(0)
+      const QuiEchoue = api.createModel(() => {
+        throw new Error("fabrique avortee")
+      })
+      const M = api.createModel(() => {
+        api.effect(() => journal.push("avant"))
+        try {
+          QuiEchoue()
+        } catch {
+          journal.push("attrape")
+        }
+        // Cet effet est cree APRÈS l'exception : il doit rester possédé.
+        api.effect(() => journal.push("owned"))
+        return {}
+      })
+      const modele = new M()
+      declencheur.value = 1
+      modele[Symbol.dispose]()
+      declencheur.value = 2
+      log("capture apres exception", JSON.stringify(journal))
+
+      // untracked#12 — un computé lu sous untracked reimplante la capture
+      const journal2: string[] = []
+      const source = api.signal(0)
+      const N = api.createModel(() => {
+        const c = api.computed(() => source.value)
+        api.untracked(() => c.value)
+        api.effect(() => journal2.push(`owned:${source.value}`))
+        return {}
+      })
+      const modele2 = new N()
+      source.value = 1
+      modele2[Symbol.dispose]()
+      source.value = 2
+      log("capture reimplantee par un computé", JSON.stringify(journal2))
+
+      assert.deepEqual(log.entries, [
+        'capture apres exception ["avant","attrape","owned"]',
+        'capture reimplantee par un computé ["owned:0","owned:1"]',
+      ])
+    },
+  },
+  {
     // SPEC §13.6 — un effet cree dans un `untracked` est INDEPENDANT du parent. Le parent lit `a`,
     // donc il se reveille et cree un second interieur. Mais le PREMIER interieur ne re-tourne pas
     // avec le parent : chacun a ete lance une fois, jamais deux. L'interieur lit `b`, qui ne change
@@ -3565,7 +3674,7 @@ export const COUVERTURE: Record<string, string> = {
   "computed#23": "computed/lecture-seule",
   "computed#24": "computed/lecture-seule",
   "computed#25": "computed/options-et-marque",
-  "computed#26": TICHETS.subscribe,
+  "computed#26": "subscribe/sur-un-compute",
   "computed#27": "computed/options-et-marque",
   // --- groupe `effect` : 41 entrées
   "effect#1": "effect/premier-run-et-arguments",
@@ -3780,10 +3889,10 @@ export const COUVERTURE: Record<string, string> = {
   "untracked#7": "untracked/refresh-de-compute",
   "untracked#8": "untracked/effet-cree-dedans",
   "untracked#9": "untracked/effet-cree-dedans",
-    "untracked#10": TICHETS.modele,
-    "untracked#11": TICHETS.modele,
-    "untracked#12": TICHETS.modele,
-    "untracked#13": `untracked/aucune-dependance + ${TICHETS.subscribe}`,
+    "untracked#10": "modele/modeles-imbriques",
+    "untracked#11": "untracked/capture-reposee",
+    "untracked#12": "untracked/capture-reposee",
+    "untracked#13": "untracked/aucune-dependance",
 
   // --- groupe `dispose` : 10 entrées
   "dispose#1": "effect/forme-du-dispositeur",
@@ -3792,10 +3901,8 @@ export const COUVERTURE: Record<string, string> = {
   // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
   "dispose#2": "signalcn-seul/symbol-dispose-et-using",
   "dispose#3": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.3",
-  // dispose#4 : `subscribe` renvoie aussi un disposeur — #25. Par `TICHETS`, jamais en clair : la
-  // JSDoc de `TICHETS` interdit le numéro écrit en clair, et le registre en committait un, donc
-  // l'interdiction était réelle et ce registre la violait.
-  "dispose#4": TICHETS.subscribe,
+  // dispose#4 : `subscribe` renvoie aussi un disposeur, et il porte `Symbol.dispose`.
+  "dispose#4": "subscribe/sur-un-compute",
   // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
   // atteignable que sur le bundle réel dans un tel realm ; l'affirmer demanderait de l'éteindre.
   "dispose#5": "signalcn-seul/symbol-dispose-absent",
@@ -4408,15 +4515,14 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
 
     // Chaque destination nommée doit exister. Les noms viennent de deux côtés : les scénarios d'une
     // part, les clés de l'objet de tests d'autre part — donc aucune liste séparée qui pourrait
-    // outliver ce qu'elle désigne. Et `TICHETS` ne contient que des tickets OUVERTS : un numéro de
-    // ticket qui n'y est plus est un ticket clos, et un ticket clos ne couvre rien. C'est ce refus
-    // qui a rattrapé les dix-neuf entrées de #23, #24 et #26.
+    // outliver ce qu'elle désigne. Et il n'y a plus de destinations « par numéro de ticket » :
+    // un ticket est une PROMESSE, pas une couverture, et une promesse se périme sans bruit. Les
+    // cinq qui vivaient sur un numéro — `computed#26`, `untracked#10` à `#13`, `dispose#4` —
+    // sont maintenant couvertes par des scénarios, ou elles ne l'étaient pas.
     const noms = new Set([
       ...scenarios.map(s => s.name),
       ...Object.keys(testsSignalcnSeul).map(nom => `signalcn-seul/${nom}`),
     ])
-    const tickets = new Set<string>(Object.values(TICHETS))
-
     // Un MARQUEUR remplace un nom de test quand l'observable ne peut rien porter sur le paquet
     // installé. Deux espèces, parce qu'elles n'ont pas la même conséquence : `source:` dit que
     // l'observation n'existe que sur les sources de la référence, `divergence:` que signalcn fait
@@ -4430,11 +4536,10 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
     for (const [id, destination] of Object.entries(COUVERTURE)) {
       for (const morceau of destination.split("+").map(d => d.trim())) {
         assert.ok(
-          tickets.has(morceau) || noms.has(morceau) || MARQUEUR.test(morceau),
-          `${id} cite "${morceau}", qui n'est ni un test, ni un ticket encore ouvert, ni un ` +
-            `marqueur de la forme "source:<ref>" ou "divergence:<ref>". Un ticket clos n'est pas ` +
-            `une couverture : couvrez cette entrée par un scénario, par un numéro de ticket qui ` +
-            `est encore dans TICHETS, ou par un marqueur.`,
+          noms.has(morceau) || MARQUEUR.test(morceau),
+          `${id} cite "${morceau}", qui n'est ni un test ni un marqueur de la forme ` +
+            `"source:<ref>" ou "divergence:<ref>". Toute destination se justifie : un scénario, ` +
+            `un test \`signalcn-seul\`, ou un marqueur qui dise où l'observation a été prise.`,
         )
       }
     }
