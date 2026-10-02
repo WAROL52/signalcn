@@ -90,7 +90,7 @@ a répondu.
 | `signal#21` | — | Signal gelé → `TypeError`, « le nom de propriété dans le message dépend du build : `_value` en source, `v` dans le bundle ». Mesuré sur l'artefact : `TypeError: Cannot assign to read only property 'v' of object '[object Object]'`. La matrice prévoit elle-même les deux noms. | `artefact` |
 | `conv#10` | — | `toString` / `valueOf` / `toJSON` / `peek` de prototype, descripteurs `{w:true, e:true, c:true}`. Mesuré : les quatre à l'identique sur l'artefact. (signalcn y diverge par ADR-0004 : `enumerable: false`.) | `artefact` |
 | `conv#12` | — | `brand` descripteur `{w:true, e:true, c:true}`, `s.brand = "x"` fonctionne et crée une prop d'instance. Mesuré : descripteur à l'identique, `s.brand === "x"`, clé own créée. | `artefact` |
-| `computed#10` | — | `a*10+b` : la 1ʳᵉ dépendance change suffit. Mesuré : `c.value === 12`, puis `a.value = 10` → `102`. Le **comportement** tient. Mais la destination (`signalcn-seul/ordre-des-sources`) vérifie autre chose : le **sens de parcours** de `_sources` / `_next` / `_source`, trois noms minifiés, et le test déclare que signalcn inverse la liste de la baseline. | `ambigu` |
+| `computed#10` | — | `a*10+b` : la 1ʳᵉ dépendance change suffit. Mesuré : `c.value === 12`, puis `a.value = 10` → `102`. Le **comportement** tient. Mais la destination (`signalcn-seul/sources-in-read-order`) vérifie autre chose : le **sens de parcours** de `_sources` / `_next` / `_source`, trois noms minifiés, et le test déclare que signalcn inverse la liste de la baseline. | `ambigu` |
 | `computed#19` | — | `Object.getPrototypeOf(c1) === Object.getPrototypeOf(c2)`, prototype `instanceof Signal`. Mesuré sur l'artefact : `true` et `true`, sans un seul nom lisible. (signalcn diverge : prototype sans état, `constructor === Computed` — SPEC §21.) | `artefact` |
 | `computed#20` | — | `Object.keys(computed)` = 12 clés, liste nominative. Mesuré : 12 clés et le même ordre, sous d'autres noms. | `source-seulement` |
 | `computed#21` | — | `for..in` = 22 clés = 12 + 10, liste nominative. Mesuré : 22 exactement ; mais 4 des 10 noms de prototype sont minifiés (`h`, `S`, `U`, `N`). | `source-seulement` |
@@ -147,14 +147,14 @@ attente qu'aucune implémentation ne peut satisfaire si elle est confrontée au 
 
 **3. Deux entrées classées `artefact` ne sont adossées à aucun test qui atteigne leur observable.**
 `subscribe#16` et `modele#15` portent sur des observables purement publics, et ils tiennent. Mais leur
-destination — `nom-de-leffet-interne` et `nom-des-fonctions-enveloppees` — n'affirme qu'un **nom**,
+destination — `internal-effect-takes-the-options-name` et `wrapper-covers-every-surface` — n'affirme qu'un **nom**,
 et rien de ce que ces deux entrées décrivent. Le verdict `artefact` de ces deux lignes repose sur ma
 sonde, pas sur la suite : `registre-complet` passe, et il ne voit pas la différence.
 
 **4. `effect#40` pointe vers le mauvais test.** Son observable — `Error: Out-of-order effect` — se
-rejoue dans `signalcn-seul/gardes-internes`, qui est enregistré par `node --test` (98 tests verts) et
+rejoue dans `signalcn-seul/guards-on-an-inconsistent-node`, qui est enregistré par `node --test` (98 tests verts) et
 que **aucune entrée de `COUVERTURE` ne cite**. L'entrée `effect#40` pointe vers
-`signalcn-seul/hors-ordre`, qui vérifie l'ordre de fermeture imbriquée par l'API publique et n'atteint
+`signalcn-seul/nested-effects-run-in-creation-order`, qui vérifie l'ordre de fermeture imbriquée par l'API publique et n'atteint
 pas ce message. Le verdict `ambigu` masque ce déplacement : l'entrée n'a pas une observation introuvable,
 elle en a une jamais sollicitée.
 
