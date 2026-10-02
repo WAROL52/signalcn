@@ -1,20 +1,28 @@
 /**
  * Porte des liens PUBLIES.
  *
- * VitePress valide un lien dans l'espace SOURCE et émet une URL dans l'espace PUBLICATION. Les
- * deux n'ont pas les mêmes noms : la forme `site/x` — la seule qui marche dans le dépôt GitHub ET
- * dans le site, mesurée sur #65 — sort `./site/x.html` et n'est PAS validée par le build, parce
- * que le build cherche `site/x.md` dans les sources. Trente liens sont donc entrés dans le dépôt
- * en perdant le seul contrôle qui les gardait.
+ * VitePress valide un lien dans l'espace SOURCE et publie dans l'espace PUBLICATION. Les deux ne
+ * sont pas le même espace : un lien peut donc être vert au build et mort au navigateur, et c'est
+ * ce qui est arrivé — vingt-quatre liens, trouvés par crawl, jamais par le build.
  *
- * Cette porte le remplace, et elle est plus large que lui : elle lit la SORTIE PUBLIÉE, extrait
- * chaque `href` de chaque page, et vérifie que la cible existe SUR LE DISQUE. Aucun appel réseau —
- * des existences de fichiers, rien d'autre. Une URL morte est un fichier absent, et c'est tout ce
- * qu'elle prouve.
+ * Ce que le build vérifie, mesuré par injection le 2026-10-03 : un lien Markdown relatif sans
+ * extension (`site/x`) est résolu dans l'espace source, donc il fait tomber le build si la cible
+ * n'existe pas. Une ancre passe en revanche sans que rien regarde si le titre existe.
  *
- * Elle couvre tout lien interne, pas seulement les trente convertis : c'est le trou que #48 a
- * nommé sans le fermer, et que le crawl avait trouvé une fois — vingt-quatre liens verts au build
- * pour des URL mortes.
+ * Ce qu'il ne vérifie pas, et que cette porte couvre :
+ *
+ *   1. L'ESPACE PUBLIÉ. Un lien vers un fichier que le site ne publie pas est vert au build et
+ *      mort au navigateur. C'est le trou que #48 a nommé sans le fermer.
+ *   2. LES EXTENSIONS D'ASSET. VitePress saute tout lien dont la cible porte une extension qu'il
+ *      connaît — `.yml`, `.mjs`, `.png` — sans rien demander : mesuré, un `site/x.yml` vers un
+ *      fichier absent laisse le build vert.
+ *   3. LA NAVIGATION. `themeConfig.nav` et `logoLink` ne sont pas des liens Markdown : ni la
+ *      conversion ni le build ne les touchent. #65 les a réécrits à la main, et rien d'autre ne les
+ *      gardait.
+ *
+ * Elle lit la SORTIE PUBLIÉE — `site/.vitepress/dist/`, jamais les sources — extrait chaque `href`
+ * de chaque page, et vérifie que la cible existe SUR LE DISQUE. Aucun appel réseau : des
+ * existences de fichiers, rien d'autre.
  *
  *   node scripts/verifier-liens-publies.mjs
  */
