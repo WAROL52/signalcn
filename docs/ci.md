@@ -92,10 +92,10 @@ coupée en bloc. Les quatre protègent un fait que le code porte, pas une conven
 - `noPrototypeBuiltins`, dans `signals.test.ts` : la cible est ES2020 et `Object.hasOwn` est ES2022,
   donc le correctif de la règle — que Biome classe *sûr* — fait tomber `tsc`.
 
-Le hook de commit n'écrit que la **forme** : `npm run formater` enchaîne `biome format --write` et
+Le hook de commit n'écrit que la **forme** : l'entrée `formater` enchaîne `biome format --write` et
 le seul assist `organizeImports`. Il n'applique aucun correctif de règle, parce qu'un formateur qui
-réécrit des tests enSilence est un formateur à qui on ne fait plus confiance — et c'est exactement
-ce que faisait `biome check --write` sur les neuf `function () {}` de la table.
+réécrit des tests en silence est un formateur à qui on ne fait plus confiance — et c'est exactement
+ce que faisait `biome check --write` sur les neuf `function () {}` de la table. Mesuré : 4,7 s.
 
 **Ni Markdown ni YAML.** Biome 2.5.15 ne connaît pas ces deux types de fichiers et les ignore
 silencieusement : `biome check` sur un `.md` ou un `.yml` répond « no files were processed ». C'est
