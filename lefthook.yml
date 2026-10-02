@@ -1,10 +1,13 @@
 # Un hook, et un seul : `pre-commit`.
 #
 # Le contenu est le MINIMUM qui rend un commit mal formé ou non compilable impossible à écrire,
-# et rien de plus. Ni porte complète, ni pre-push : `npm run porte` coûte bien plus que la seconde
-# que ces deux étapes prennent, et une porte au commit est une porte qu'on contourne dès qu'elle
-# gêne — donc une porte qui ne gêne plus personne parce qu'elle a été désactivée. La porte complète
-# reste là où elle est nexe : `npm run porte` en local, et le job `rapide` en CI.
+# et rien de plus. Ni porte complète, ni pre-push : ces deux étapes coûtent bien moins que
+# `npm run porte`, et une porte au commit est une porte qu'on contourne dès qu'elle gêne — donc une
+# porte qui ne gêne plus personne parce qu'elle a été désactivée. La porte complète reste là où
+# elle est née : `npm run porte` en local, et le job `rapide` en CI.
+#
+# Ce fichier ne dit pas ce que ces étapes coûtent : `docs/ci.md` §1 est le tableau des coûts
+# mesurés, et une durée écrite ici serait la seconde vérité sur le même fait.
 #
 # L'ordre est SÉVÉRITÉ : la forme d'un code qui ne compile pas se corrige avant le code lui-même.
 #
