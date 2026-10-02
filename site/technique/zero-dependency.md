@@ -45,7 +45,7 @@ ferme sans avoir à distinguer les deux cas.
 "registry/default/signals.ts"]`. Un fichier propre produit `["registry/default/signals.ts"]`.
 
 Le `--bundle` est ici un **outil de mesure**, pas l'outillage de build. Le build n'en bundle
-pas — voir [`docs/build.md`](../contributeurs/build.md) — donc un import ajouté par mégarde casse déjà
+pas — voir [`site/contributeurs/build.md`](../contributeurs/build.md) — donc un import ajouté par mégarde casse déjà
 l'artefact. Cette
 passe ne sert qu'à lire une liste de fichiers.
 

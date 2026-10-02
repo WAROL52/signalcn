@@ -205,7 +205,7 @@ La baseline initiale est :
 
 Le but est d'obtenir une compatibilité de comportement observable, et non de copier le code source upstream.
 
-Toute évolution de la version de référence doit être traitée comme un changement de contrat et documentée dans `ROADMAP.md`.
+Toute évolution de la version de référence doit être traitée comme un changement de contrat et documentée dans `site/contributeurs/ROADMAP.md`.
 
 ## Zéro dépendance runtime
 
@@ -255,10 +255,12 @@ signalcn/
 ├── package.json
 ├── tsconfig.json
 ├── README.md
-├── PRD.md
 ├── SPEC.md
 ├── CONTEXT.md
-└── ROADMAP.md
+└── site/
+    ├── utilisateurs/
+    ├── technique/
+    └── contributeurs/
 ```
 
 ## Philosophie du projet

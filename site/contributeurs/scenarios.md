@@ -91,7 +91,7 @@ transverse ne sont pas une onzième : ce sont les comportements 1 à 60 déjà c
 par primitive, et elles n'ont pas d'entrée propre — elles ne se comptent pas deux fois.
 
 La porte est un script de quelques lignes, comme celle de
-[`docs/documentation.md`](./documentation.md) §2. Elle tourne dans le job rapide.
+[`site/contributeurs/documentation.md`](./documentation.md) §2. Elle tourne dans le job rapide.
 
 ## 5. Les trois sondes destructives ne le sont plus
 
