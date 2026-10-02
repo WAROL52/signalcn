@@ -93,7 +93,7 @@
 - [x] Ajouter la configuration de build.
 - [x] Ajouter la configuration de minification.
 - [x] Ajouter la CI.
-- [ ] Ajouter les règles de contribution.
+- [x] Ajouter les règles de contribution — [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## 4. Phase P1 — Squelette du moteur
 

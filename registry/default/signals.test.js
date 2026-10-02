@@ -135,17 +135,12 @@ export function makeLog() {
  * prouver qu'une conversion suit la dependance. Un numero ecrit en clair dans une chaine n'est
  * pas relu.
  *
- * CE NE SONT QUE DES TICKETS OUVERTS, et c'est la garde du registre qui s'appuie dessus : un
- * ticket clos n'est plus une promesse, c'est un souvenir, donc il ne peut plus rien couvrir. Il
- * est ABSENT de cette liste, et `registre-complet` refuse alors toute destination qui le cite.
- * `#23` (computed), `#24` (effet) et `#26` (batch) en sont absents pour cette raison.
- *
- * ponytail: cette liste EST la porte, donc la liste peut devenir périmée — c'est le plafond
- * honnête du refus. Le test ne peut pas le voir : il tourne hors ligne chez l'utilisateur, et une
- * garde qui interroge `gh` refuserait de tourner du tout. Monter d'un cran = un script de porte
- * qui confronte cette liste à l'état réel du dépôt, dans `scripts/`, comme `verifier-derive`
- * confronte les artefacts. Tant que ce script n'existe pas, la liste est une déclaration, et il
- * faut la vérifier à la main en relisant.
+ * IL Y AVAIT UNE SECONDE FORME de destination : le numéro d'un ticket encore ouvert, avec la liste
+ * `TICHETS` qui portait la promesse et `registre-complet` qui la vérifiait. Elle a été retirée —
+ * voir la JSDoc de `COUVERTURE` pour la mesure qui l'a tuée. Ce qu'il en reste ici, c'est la
+ * leçon, et elle vaut pour toutes les listes de ce fichier : une liste ne peut pas vérifier ce
+ * qu'elle affirme, seulement ce qu'elle contient. `COUVERTURE` ne peut donc pas dire « cet
+ * observable est conforme » — il dit « voici qui l'atteint », et c'est l'exécution qui tranche.
  */
 export const scenarios = [
     {
@@ -3478,27 +3473,25 @@ export const scenarios = [
 // sans scénario ». Tel quel, ce n'est pas une phrase : rien ne la rendait vérifiable, et une
 // entrée pouvait disparaître en silence.
 //
-// Ici, chaque entrée est nommée, et son sort est écrit. Deux valeurs possibles :
-//   - le nom d'un scénario de la table ou d'un test signalcn-seul, qui la couvre ;
-//   - le numéro d'un ticket ENCORE OUVERT, listé dans `TICHETS`, qui la reprendra. Parce que
-//     certaines entrées ne sont pas couvrables ici : elles ont besoin d'un abonné.
+// Ici, chaque entrée est nommée, et son sort est écrit. TROIS valeurs possibles, et chacune est
+// vérifiable :
+//   - le nom d'un scénario de la table, qui la rejoue contre le paquet installé ;
+//   - le nom d'un test `signalcn-seul`, qui l'atteint par l'intérieur ou par un choix assumé ;
+//   - un MARQUEUR, `source:<réf>` ou `divergence:<ancre>`, qui dit que l'observable ne peut rien
+//     porter sur le paquet installé, et où il a été pris.
 //
-// LA SECONDE VALEUR EST LA PLUS ÉTROITE DES DEUX. Un ticket clos n'est plus une promesse, c'est un
-// souvenir : il ne reprendra rien, et une entrée qui le cite n'est pas couverte — elle est en
-// attente depuis le jour où le ticket a été fermé. C'est exactement ce qui s'est produit.
-// `#23` (computed), `#24` (effet) et `#26` (batch) sont clos, et VINGT-DEUX entrées les citaient :
-// quatorze sur #24, sept sur #26, une sur #23. Dix-sept d'entre elles ne citaient QUE le ticket, et
-// cinq le citaient à côté d'un scénario — `signal#9`, `#10` et `#11` avec
-// `signal/egalite-stricte-objet`, `effect#15` et `#17` avec `effect/ordre-hors-batch`. Le registre
-// les comptait toutes comme couvertes, donc `registre-complet` passait sur dix-sept trous.
-// `computed#5` et `computed#6` sont le cas le plus net, mais leur correction est dans f2bdba5 et
-// non ici : elles ne pointaient plus sur aucun ticket à ce commit-là.
+// IL Y AVAIT UNE QUATRIÈME VALEUR, et elle a coûté cher : le numéro d'un ticket ENCORE OUVERT, qui
+// promettait de reprendre l'entrée plus tard. Le tableau portait la liste, `TICHETS`, et la porte
+// refusait un numéro qui n'y était plus — donc elle vérifiait la PROMESSE, jamais la couverture.
+// Le jour où les tickets se sont fermés, cinq entrées sont restées couvertes par un souvenir :
+// `computed#26`, `untracked#10` à `#13`, `dispose#4`. Aucune porte ne l'avait vu, parce que la
+// liste était encore là.
 //
-// Le test `registre-complet` échoue si une entrée manque, si un nom de scénario cité n'existe pas,
-// et si un numéro de ticket cité n'est pas dans `TICHETS`. Une entrée ne peut donc plus être perdue
-// sans que la suite le dise, et elle ne peut plus être « couverte » par un ticket qui ne la
-// couvrira jamais. Le plafond de ce refus est écrit dans la JSDoc de `TICHETS`, là où il est
-// visible sans avoir à ouvrir ce fichier.
+// Le mécanisme est retiré. Une entrée non couverte s'écrit maintenant comme telle — et le remède
+// est un scénario, pas un ticket. Trente-trois entrées ont été decoupees en deux a cette occasion
+// (`signal#6`/`#6b` et les huit autres) : une entrée qui peut etre a la fois comparable et pas
+// laisse le referent flou dans la meme cellule, et une cellule ou le referent est flou est une
+// cellule que personne ne peut verifier.
 export const COUVERTURE = {
     // --- groupe `signal` : 23 entrées
     "signal#1": "signal/instance-et-classe",

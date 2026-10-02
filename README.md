@@ -277,6 +277,7 @@ signalcn
 
 ## Documentation
 
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — **pour contribuer** : les portes, et les quatre pièges qui mordent sans prévenir.
 - [`PRD.md`](./PRD.md) — vision, objectifs, périmètre et contraintes produit.
 - [`SPEC.md`](./SPEC.md) — contrat comportemental et technique.
 - [`ROADMAP.md`](./ROADMAP.md) — suivi interne de l'implémentation et des releases.
