@@ -26,10 +26,14 @@ export default defineConfig({
   // réécriture rendait le site correct et le dépôt faux ; la retirer rend le dépôt correct et le
   // site `/site/…`, ce qui est vrai.
   //
-  // Le prix est connu et mesuré : la forme relative SANS extension (`site/x`) est la seule qui
-  // marche dans les deux espaces, et VitePress ne la valide pas. `npm run verifier-liens-publies`
-  // prend le relais — il résout chaque lien interne dans la SORTIE publiée, sur disque, sans appel
-  // réseau. Voir #65.
+  // Le prix, mesuré : la forme relative SANS extension (`site/x`) est la seule qui marche dans les
+  // deux espaces. Le build en résout la cible dans l'espace SOURCE, donc il la vérifie — un
+  // `site/x` vers un fichier absent le fait tomber, mesuré par injection. Il ne vérifie en
+  // revanche pas un lien dont la cible porte une extension d'asset (`.yml`, `.mjs` : mesuré), ni
+  // une ancre, ni une entrée de `themeConfig.nav`, ni `logoLink` — les trois derniers ne sont pas
+  // des liens Markdown. Et il valide un espace qui n'est pas celui de la publication. C'est ce
+  // reste-là que `npm run verifier-liens-publies` prend : il résout chaque lien interne dans la
+  // SORTIE publiée, sur disque, sans appel réseau. Voir #65.
   srcDir: "..",
 
   // Le site est publié sur `warol52.github.io/signalcn`, donc TOUTES ses URL commencent par

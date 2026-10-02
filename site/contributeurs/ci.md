@@ -161,20 +161,34 @@ le reste en installation et en teardown. C'est un relevé unique et pas une méd
 inexistante le laisse **vert**. La navigation est donc le seul endroit où une page morte passerait
 inaperçue — d'où les trois entrées du squelette, qui ne listent que des pages qui existent.
 
-**La porte des liens publiés prend le relais du build, sur un terrain où il ne peut pas venir.**
-Depuis #65 les liens sont **relatifs et sans extension** — `site/x` — parce que c'est la seule
-forme qui marche à la fois dans le dépôt GitHub et dans le site : une absolue `/x.md` y est rendue
-`blob/master/x.md`, donc 404, et GitHub n'a pas de `.html`. Or le build cherche `site/x.md` dans
-les sources, donc il ne valide pas cette forme : il la laisse passer, et elle est la seule qu'il
-puisse laisser passer. VitePress **valide dans l'espace source et publie dans l'autre**, et c'est un
-écart de trente liens mesuré, dont vingt-quatre avaient déjà survécu à un crawl.
+**La porte des liens publiés lit l'espace que le build ne lit pas.** Depuis #65 les liens sont
+**relatifs et sans extension** — `site/x` — parce que c'est la seule forme qui marche à la fois
+dans le dépôt GitHub et dans le site : une absolue `/x.md` y est rendue `blob/master/x.md`, donc
+404, et GitHub n'a pas de `.html`.
+
+Cette forme, le build la vérifie : il résout la cible dans l'espace SOURCE, et un `site/x` vers un
+fichier absent le fait tomber — mesuré par injection, dans les deux sens. Le ticket annonçait le
+contraire ; il a été rectifié.
+
+Ce que le build ne vérifie pas, en revanche, et que la porte couvre :
+
+- **L'espace publié.** VitePress valide dans l'espace source et publie dans l'autre. Un lien vers un
+  fichier que le site ne publie pas est donc vert au build et mort au navigateur : c'est le trou que
+  #48 a nommé sans le fermer, et que le crawl avait trouvé une fois — vingt-quatre liens.
+- **Les extensions d'asset.** VitePress saute tout lien dont la cible porte une extension qu'il
+  connaît — `.yml`, `.mjs` — sans rien demander : mesuré, un `site/x.yml` vers un fichier absent
+  laisse le build vert.
+- **La navigation.** `themeConfig.nav` et `logoLink` ne sont pas des liens Markdown : ni la
+  conversion ni le build ne les touchent. #65 les a réécrits à la main, et rien d'autre ne les
+  gardait.
 
 La porte lit donc la **sortie publiée** — `site/.vitepress/dist/`, jamais les sources — extrait
 chaque `href` de chaque page, et vérifie que la cible existe **sur le disque**. Aucun appel réseau :
 une existence de fichier, rien d'autre, parce qu'une porte qui dépend d'un tiers est une porte
 qu'on désactive au premier incident réseau. Elle couvre tous les liens internes, pas seulement les
-trente convertis, et elle a attrapé dès sa première exécution trois liens que le build ne pouvait
-pas voir : trois liens vers `.github/`, que le site ne publie pas.
+trente convertis, et elle a attrapé dès sa première exécution deux trous que le build ne pouvait pas
+voir : trois liens vers `.github/`, que le site ne publie pas, et le lien du titre de la barre, qui
+visait la racine du site — devenue vide avec la réécriture.
 
 Ce qu'elle ne vérifie pas, elle le dit dans sa sortie, avec le préfixe `--` : les **ancres**, que le
 build ne valide pas non plus — Mermaid, les plugins et la numérotation rendent l'extraction des `id`
