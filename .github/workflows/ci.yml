@@ -10,7 +10,7 @@ on:
 # Quatre jobs — rapide, distribution, canari, documentation-statique — et non un par contrôle. Le
 # coût dominant n'est pas la commande : c'est le démarrage de runner. Les contrôles hors
 # installation coûtent 25,5 secondes ensemble, et les séparer en paierait treize démarrages pour
-# lire treize messages différents. Voir docs/ci.md §1.
+# lire treize messages différents. Voir site/contributeurs/ci.md §1.
 #
 # Le job « distribution » est séparé parce qu'il coûte 4,2 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
@@ -18,7 +18,7 @@ on:
 # Le job « documentation-statique » est séparé pour la même raison de coût — il installe le
 # générateur de site — et parce qu'il construit le SITE. C'est un contrôle comme un autre : il
 # échoue, et la pull request est rouge. Le déploiement sur GitHub Pages n'y est PAS, et ne peut
-# pas y être : voir docs/ci.md §4.
+# pas y être : voir site/contributeurs/ci.md §4.
 jobs:
   rapide:
     name: rapide
@@ -45,7 +45,7 @@ jobs:
       # ordre de dépendance.
       - name: conformite — harnais differentiel contre la baseline
         run: npm run harnais
-      # Position 2 comme dans docs/ci.md §2 : apres la conformite, qui est le seul echec qui dit
+      # Position 2 comme dans site/contributeurs/ci.md §2 : apres la conformite, qui est le seul echec qui dit
       # que le produit est faux, et avant tout ce qui depend du build.
       - name: couverture — seuils natifs, code mort, non-regression face au merge-base
         run: npm run couverture
@@ -53,13 +53,13 @@ jobs:
         run: npm run typecheck
       - name: suite source
         run: npm run test
-      # Position 5 comme dans docs/ci.md §2 : la FORME d'un code qui compile et qui passe n'est pas
+      # Position 5 comme dans site/contributeurs/ci.md §2 : la FORME d'un code qui compile et qui passe n'est pas
       # plus grave que le code lui-même — donc apres les deux, et avant tout ce qui depend du build.
       - name: biome — forme et corrections du ruleset recommended
         run: npm run biome
       - name: build
         run: npm run build
-      # Position 7 comme dans docs/ci.md §2 : juste apres le build, parce que la porte mesure
+      # Position 7 comme dans site/contributeurs/ci.md §2 : juste apres le build, parce que la porte mesure
       # l'artefact minifie — donc elle n'a rien a dire avant qu'il existe — et juste avant les
       # portes du build, parce qu'une dependance glissee dans le coeur est plus grave qu'un build
       # non reproductible.
@@ -67,7 +67,7 @@ jobs:
         run: npm run zero-dependance
       - name: portes du build
         run: npm run verifier-build
-      # Apres le build, comme dans docs/ci.md §2 : la parite juge les ARTEFACTS, donc elle n'a
+      # Apres le build, comme dans site/contributeurs/ci.md §2 : la parite juge les ARTEFACTS, donc elle n'a
       # rien a dire avant qu'ils existent.
       - name: parite — la meme table sur les quatre cibles
         run: npm run parite
@@ -123,7 +123,7 @@ jobs:
   # Le déploiement sur GitHub Pages n'est PAS ici, et ne peut pas y être : un job qui déploie ne
   # peut pas être un check requis, et surtout un déploiement réussi ne doit pas pouvoir masquer un
   # build cassé. Il ira dans un workflow distinct, déclenché par le push sur master — écrit quand la
-  # politique de versionnement du site sera tranchée (#51). Voir docs/ci.md §4.
+  # politique de versionnement du site sera tranchée (#51). Voir site/contributeurs/ci.md §4.
   documentation-statique:
     name: documentation-statique
     runs-on: ubuntu-latest
@@ -138,6 +138,6 @@ jobs:
         run: npm run documentation-statique
       # La porte suit le build et ne le relance pas : elle vérifie que le build du site n'a rien
       # écrit dans registry/ ni à la racine. `verifier-derive` ne le verrait pas — son `git diff`
-      # ne voit ni un fichier NEUF, ni un chemin hors de registry/default/. Voir docs/ci.md §4.
+      # ne voit ni un fichier NEUF, ni un chemin hors de registry/default/. Voir site/contributeurs/ci.md §4.
       - name: proprete — le build du site n'ecrit pas dans les chemins des artefacts
         run: npm run verifier-proprete

@@ -4,7 +4,7 @@
  *   node scripts/zero-dependance.mjs
  *
  * Deux passes, deux angles morts, spécifiées dans
- * [`docs/zero-dependency.md`](../docs/zero-dependency.md) — le document est la spécification, ce
+ * [`site/technique/zero-dependency.md`](../site/technique/zero-dependency.md) — le document est la spécification, ce
  * script n'est que son exécution :
  *
  *   1. LE METAFILE, pour la STRUCTURE. esbuild en `--bundle` — ici un OUTIL DE MESURE, pas
@@ -21,7 +21,7 @@
  *      natives, donc la garantie porte sur le fichier distribué. Un échec nomme le symbole : un
  *      « interdit détecté » sans nom est une porte qu'on contourne par lassitude.
  *
- * LA LISTE EST LUE, JAMAIS RECOPIÉE : elle est extraite du tableau de `docs/zero-dependency.md`.
+ * LA LISTE EST LUE, JAMAIS RECOPIÉE : elle est extraite du tableau de `site/technique/zero-dependency.md`.
  * Une liste écrite deux fois dérive sans bruit, et celle-ci serait la seconde à le faire.
  */
 
@@ -33,7 +33,7 @@ import { RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 
-const SPEC = "docs/zero-dependency.md"
+const SPEC = "site/technique/zero-dependency.md"
 const COEUR = "registry/default/signals.ts"
 const ARTEFACT = "registry/default/signals.min.js"
 

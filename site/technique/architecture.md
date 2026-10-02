@@ -1,11 +1,11 @@
 # Architecture du moteur réactif
 
 Spécification d'implémentation de `registry/default/signals.ts`. Elle ne décrit pas ce que
-le cœur **fait** — c'est le rôle de [`SPEC.md`](../SPEC.md), qui est normatif — mais **comment**
+le cœur **fait** — c'est le rôle de [`SPEC.md`](/SPEC.md), qui est normatif — mais **comment**
 le graphe est construit pour produire ce comportement.
 
 Deux documents, deux lecteurs. Un comportement observé doit se lire dans `SPEC.md` et se
-retrouver dans [`research/baseline-1.14.4.md`](../research/baseline-1.14.4.md) avec sa
+retrouver dans [`research/baseline-1.14.4.md`](/research/baseline-1.14.4.md) avec sa
 localisation. Une décision de structure se lit ici, et se justifie dans `docs/adr/`.
 
 ## 1. Le principe directeur
@@ -13,7 +13,7 @@ localisation. Une décision de structure se lit ici, et se justifie dans `docs/a
 **La sémantique est figée, l'architecture est libre.**
 
 Le comportement observable est reproduit exactement, quirks compris — c'est
-[ADR-0001](./adr/0001-clone-exact-de-la-baseline.md). La structure interne ne l'est pas :
+[ADR-0001](/docs/adr/0001-clone-exact-de-la-baseline.md). La structure interne ne l'est pas :
 elle est redessinée pour être lisible et pour servir une cible ES2020 sans transpilation,
 tant que la structure ne change aucun résultat observable.
 
@@ -79,7 +79,7 @@ champ `_source` est un `Signal`, son champ `_target` un `Computed` ou un `Effect
 | `signal._targets` — les abonnés | la cible la plus récente | en tête, O(1) | `_targetPrev`, vers les plus anciennes | seule la longueur compte |
 | `node._sources` — les dépendances | la source lue en premier | en tête, O(1) | `_next`, vers les plus récentes | l'ordre d'utilisation est sémantique |
 
-**La règle est dans [ADR-0009](./adr/0009-geometrie-de-la-liste-des-dependances.md)**, qui donne le
+**La règle est dans [ADR-0009](/docs/adr/0009-geometrie-de-la-liste-des-dependances.md)**, qui donne le
 sens de chaque maillon et pourquoi le mauvais est silencieux. Ce tableau ne fait que nommer les
 colonnes.
 
@@ -361,8 +361,8 @@ C'est aussi le seul qui demande de concevoir plutôt que de transcrire.
 
 ### Le principe : un défaut est corrigé sauf s'il est figé
 
-[ADR-0001](./adr/0001-clone-exact-de-la-baseline.md) impose de reproduire la sémantique, quirks
-compris. Il faut le lire avec [ADR-0005](./adr/0005-defauts-non-figes-de-createmodel.md), qui
+[ADR-0001](/docs/adr/0001-clone-exact-de-la-baseline.md) impose de reproduire la sémantique, quirks
+compris. Il faut le lire avec [ADR-0005](/docs/adr/0005-defauts-non-figes-de-createmodel.md), qui
 précise la règle opératoire :
 
 > Un défaut de la baseline est corrigé **sauf** si la matrice de conformité a observé un
@@ -552,7 +552,7 @@ Les identifiants, les mots-clés et les noms d'API restent en anglais par néces
 
 ### La règle anti-bug
 
-[ADR-0001](./adr/0001-clone-exact-de-la-baseline.md) impose de reproduire la sémantique de la
+[ADR-0001](/docs/adr/0001-clone-exact-de-la-baseline.md) impose de reproduire la sémantique de la
 baseline, quirks compris. Le code contient donc des expressions qui **ressemblent** à des bugs
 et n'en sont pas :
 
@@ -580,9 +580,9 @@ pourquoi une valeur ne doit pas être observée.
 
 
 Cinq écarts avec l'architecture de la baseline : les quatre premiers sont couverts par
-[ADR-0004 — Classes ES2020 plutôt que prototypes ES5](./adr/0004-classes-es2020-plutot-que-prototypes-es5.md),
+[ADR-0004 — Classes ES2020 plutôt que prototypes ES5](/docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md),
 le cinquième par `SPEC.md` §15.2. [ADR-0005 — Les défauts non figés de `createModel` sont
-corrigés](./adr/0005-defauts-non-figes-de-createmodel.md) couvre les sept écarts de `createModel`
+corrigés](/docs/adr/0005-defauts-non-figes-de-createmodel.md) couvre les sept écarts de `createModel`
 ci-dessous, qui sont d'une autre nature.
 
 | Écart | Effet observable |
@@ -594,7 +594,7 @@ ci-dessous, qui sont d'une autre nature.
 | La borne de drainage n'est pas figée à 102 | `SPEC.md` §15.2 |
 
 Et les sept écarts de `createModel` listés dans `SPEC.md` §16.6, tous couverts par
-[ADR-0005](./adr/0005-defauts-non-figes-de-createmodel.md).
+[ADR-0005](/docs/adr/0005-defauts-non-figes-de-createmodel.md).
 
 Aucun de ces écarts ne change le résultat d'un test de la matrice. Ils sont consignés dans
 `SPEC.md` §21.2 et, pour `createModel`, dans `SPEC.md` §16.6.

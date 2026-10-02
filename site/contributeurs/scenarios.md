@@ -1,7 +1,7 @@
 # Scénarios de conformité
 
 Comment les **231 comportements** de
-[`research/baseline-1.14.4.md`](../research/baseline-1.14.4.md) deviennent la table de
+[`research/baseline-1.14.4.md`](/research/baseline-1.14.4.md) deviennent la table de
 scénarios de `signals.test.ts`. Ce document est l'entrée de la plus grosse pièce de travail du
 projet : le corpus de tests.
 
@@ -96,9 +96,9 @@ La porte est un script de quelques lignes, comme celle de
 ## 5. Les trois sondes destructives ne le sont plus
 
 Le ticket annonçait trois sondes qui exigeraient un isolation. Après
-[ADR-0004](./adr/0004-classes-es2020-plutot-que-prototypes-es5.md),
-[ADR-0005](./adr/0005-defauts-non-figes-de-createmodel.md) et
-[ADR-0008](./adr/0008-registry-file-partout-et-tsx-true-exige.md), aucune n'en est une :
+[ADR-0004](/docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md),
+[ADR-0005](/docs/adr/0005-defauts-non-figes-de-createmodel.md) et
+[ADR-0008](/docs/adr/0008-registry-file-partout-et-tsx-true-exige.md), aucune n'en est une :
 
 | Sonde | Ce qu'elle est devenue |
 |---|---|

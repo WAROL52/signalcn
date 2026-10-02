@@ -6,13 +6,13 @@
 # porte qui ne gêne plus personne parce qu'elle a été désactivée. La porte complète reste là où
 # elle est née : `npm run porte` en local, et le job `rapide` en CI.
 #
-# Ce fichier ne dit pas ce que ces étapes coûtent : `docs/ci.md` §1 est le tableau des coûts
+# Ce fichier ne dit pas ce que ces étapes coûtent : `site/contributeurs/ci.md` §1 est le tableau des coûts
 # mesurés, et une durée écrite ici serait la seconde vérité sur le même fait.
 #
 # L'ordre est SÉVÉRITÉ : la forme d'un code qui ne compile pas se corrige avant le code lui-même.
 #
 # Les commandes vivent dans `package.json`, comme celles de la CI : ce fichier appelle, il ne
-# décide pas. Voir `docs/ci.md` §7.
+# décide pas. Voir `site/contributeurs/ci.md` §7.
 pre-commit:
   jobs:
     - name: forme

@@ -3,7 +3,7 @@
 Quatre jobs, sur chaque pull request comme sur chaque push sur `master` — le tag de release n'y
 change rien. Le troisième ne bloque rien : c'est un canari sur la dernière CLI publiée, et il
 répond à une seule question. Le quatrième construit le site, et c'est un contrôle : son échec met
-la pull request en rouge. Voir [`ci.yml`](../.github/workflows/ci.yml).
+la pull request en rouge. Voir [`ci.yml`](../../.github/workflows/ci.yml).
 
 Les commandes vivent dans `package.json`, pas dans le YAML. Le YAML appelle, il ne décide pas —
 c'est la même règle que pour les drapeaux de couverture, et pour la même raison : une option

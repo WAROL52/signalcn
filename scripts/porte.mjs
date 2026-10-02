@@ -4,7 +4,7 @@
  * `porte()` et le `RACINE` existaient en double dans deux verifieurs, et deux copies d'un
  * helper de test divergent : l'une gagne une option, l'autre non, et rien ne le dit. Le dépôt
  * a déjà tranché cette question — « une option qui vit à un seul endroit ne peut pas être
- * oubliée ailleurs » (`docs/ci.md`) — alors autant l'appliquer ici.
+ * oubliée ailleurs » (`site/contributeurs/ci.md`) — alors autant l'appliquer ici.
  */
 
 import { dirname, resolve } from "node:path"

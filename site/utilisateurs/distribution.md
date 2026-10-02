@@ -95,7 +95,7 @@ Conséquence mesurée sur les commentaires : avec `registry:file`, le fichier in
 **identique à la source, octet pour octet** — JSDoc d'en-tête, commentaires de ligne et JSDoc
 attachés compris. Avec `registry:lib`, seul le bloc JSDoc d'en-tête était perdu. La convention
 de commentaire de la source de vérité est donc libre de toute contrainte d'installation, et
-elle est spécifiée dans [`docs/architecture.md`](./architecture.md) §15.
+elle est spécifiée dans [`docs/architecture.md`](../technique/architecture.md) §15.
 
 ## 6. La preuve : installation réelle
 
