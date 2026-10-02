@@ -130,8 +130,9 @@ jobs:
   #
   # Le déploiement sur GitHub Pages n'est PAS ici, et ne peut pas y être : un job qui déploie ne
   # peut pas être un check requis, et surtout un déploiement réussi ne doit pas pouvoir masquer un
-  # build cassé. Il ira dans un workflow distinct, déclenché par le push sur master — écrit quand la
-  # politique de versionnement du site sera tranchée (#51). Voir site/contributeurs/ci.md §4.
+  # build cassé. Il est dans deploy.yml, déclenché par le TAG — la politique de versionnement du
+  # site (#51) dit « version courante seule », donc le site est la version livrée. Voir
+  # site/contributeurs/ci.md §4 et §5.
   documentation-statique:
     name: documentation-statique
     runs-on: ubuntu-latest
