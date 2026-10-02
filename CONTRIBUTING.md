@@ -25,23 +25,27 @@ passer, c'est un défaut chez nous.
 
 ## Les portes
 
-`npm run porte` enchaîne tout. C'est le seul juge : un commit qui le laisse rouge n'est pas prêt,
-quelle que soit la qualité du diff.
+`npm run porte` enchaîne tout, sauf `verifier-installation` : celle-là est le job `distribution`,
+qui tourne en parallèle et coûte 97 secondes à lui seul. Pour le reste, c'est le seul juge : un
+commit qui laisse `porte` rouge n'est pas prêt, quelle que soit la qualité du diff.
+
+L'ordre des lignes est celui du job rapide de la CI, qui est **par sévérité et non par coût** : le
+premier message lu est celui qui décide de ce qu'on regarde ensuite. La dernière ligne n'appartient
+pas à ce job, et sa ligne le dit.
 
 | Porte | Ce qu'elle attrape |
 |---|---|
 | `npm run harnais` | Le produit est faux. La table entière rejouée contre la baseline. |
 | `npm run couverture` | Une couverture qui baisse, du code mort, une exclusion de couverture. |
+| `npm run typecheck` | Le code ne compile pas. |
 | `npm test` | La suite, source. |
 | `npm run build` + `verifier-build` | Un artefact non reproductible, `--keep-names` inopérant, une taille. |
 | `npm run parite` | La table sur les quatre cibles — baseline, source, build, minifié. |
-| `npm run documentation` | Un `README` qui ment sur la surface, ou une divergence non consignée. |
 | `verifier-derive` | Un artefact committé périmé. |
-| `verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. |
+| `npm run documentation` | Un `README` qui ment sur la surface, ou une divergence non consignée. |
+| `npm run verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. **Hors `porte`** : c'est le job `distribution`, en parallèle. |
 
-La CI les exécute dans cet ordre, qui est **par sévérité et non par coût** — le premier message lu
-est celui qui décide de ce qu'on regarde ensuite. [`docs/ci.md`](./docs/ci.md) donne le détail et le
-coût de chacune.
+[`docs/ci.md`](./docs/ci.md) donne le détail et le coût de chacune.
 
 ## Les quatre pièges
 
@@ -76,7 +80,7 @@ construction : le fichier sort du rapport et le chiffre passe.
   Le zéro-dépendance est vérifié par deux passes disjointes — voir
   [`docs/zero-dependency.md`](./docs/zero-dependency.md).
 - **Pas de `.d.ts` publié.** La référence en publie un, nous non : c'est une divergence assumée au
-§21.
+  §21.2 de la SPEC.
 - **Pas de code de framework dans le cœur.** Ni React, ni Preact, ni Vue, ni Angular.
 - **Pas de dépendance de test.** `node:test` et les modules natifs, rien d'autre.
 

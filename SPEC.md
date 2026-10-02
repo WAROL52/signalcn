@@ -152,7 +152,7 @@ L'égalité est une **identité stricte `!==`**, pas une identité de valeur. Co
 _value, _version, _node, _targets, _batchSnapshotVersion, _watched, _unwatched, name
 ```
 
-Un `Signal` n'a pas de `_flags` : ce n'est pas un effet. Ce sont les noms de **signalcn**, pas ceux du paquet installé : là, `_version` s'appelle `i`. Le couple clés/ordre est identique des deux côtés ; le nom diverge. La ligne est au §21.
+Un `Signal` n'a pas de `_flags` : ce n'est pas un effet. Ce sont les noms de **signalcn**, pas ceux du paquet installé : là, `_version` s'appelle `i`. Le couple clés/ordre est identique des deux côtés ; le nom diverge. La ligne est au §21.1.
 
 ## 6. Computed
 
@@ -175,7 +175,7 @@ Le comportement inclut :
 
 `for..in` en expose les mêmes douze. Les méthodes de prototype sont **non énumérables**, ce qui est le comportement normal d'une classe.
 
-`signalcn` diverge ici de la baseline, qui construit `Computed.prototype` comme une instance de `Signal` — un prototype partagé, mutable et vivant — et rend ses méthodes énumérables. Voir `SPEC.md` §21.
+`signalcn` diverge ici de la baseline, qui construit `Computed.prototype` comme une instance de `Signal` — un prototype partagé, mutable et vivant — et rend ses méthodes énumérables. Voir `SPEC.md` §21.2.
 
 ## 7. Dépendances dynamiques
 
@@ -218,7 +218,7 @@ La fonction retournée n'est **ni une arrow, ni l'instance `Effect`** : `name ==
 
 Le mécanisme est une **fonction ordinaire qui ferme sur l'instance**, et non `_dispose.bind(effect)`. La forme liée satisfait l'identité et casse `using` : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même, et accepte une fonction ordinaire. Le `bind` était donc le seul obstacle — `§8.3` ne demande `this` qu'au *callback*, pas au dispositeur.
 
-C'est une **divergence assumée**, et elle est consignée au §21 (`effect#41`, `dispose#3`) : `using` passe ici et lève `TypeError: Symbol(Symbol.dispose) is not a function` sur le paquet installé. Ce n'est pas un défaut de la référence — c'est un choix, fait parce qu'un dispositeur lié rend `using` inutilisable.
+C'est une **divergence assumée**, et elle est consignée au §21.1 (`effect#41`, `dispose#3`) : `using` passe ici et lève `TypeError: Symbol(Symbol.dispose) is not a function` sur le paquet installé. Ce n'est pas un défaut de la référence — c'est un choix, fait parce qu'un dispositeur lié rend `using` inutilisable.
 
 ### 8.3 `this`
 
@@ -524,7 +524,7 @@ pas dictée par la compatibilité. Sept écarts y sont assumés, tous couverts p
 | **Quatre gardes** défensives. | Une fabrique qui ne renvoie pas un objet lève une `TypeError` nommée avant toute mutation, au lieu de réussir silencieusement en mode sloppy. Un `Symbol.dispose` fourni par l'utilisateur n'est plus écrasé. |
 
 Aucun de ces écarts ne change le résultat d'un scénario de la matrice. Ils sont ajoutés à
-`SPEC.md` §21.
+`SPEC.md` §21.2.
 
 ## 17. Génération des artefacts
 
@@ -561,7 +561,7 @@ Un changement manuel d'un artefact généré est interdit. La CI doit échouer s
 
 **Le test minifié vise le runtime minifié.** Enchaîner `signals.test.ts → signals.test.js → signals.test.min.js` sans réécriture de l'import laisserait le test minifié importer `./signals.js`, et le runtime minifié — un artefact distribué — ne serait couvert que par des smoke tests. Le specifier est donc réécrit après minification.
 
-**`--keep-names` est obligatoire à la minification.** Le nom du wrapper d'`action` vaut `"actionWrapper"` (§4, et la matrice de conformité le fige) ; sans ce drapeau, il devient la chaîne vide.
+**`--keep-names` est obligatoire à la minification.** Le nom du wrapper d'`action` vaut `"actionWrapper"` (§21, et la matrice de conformité le fige) ; sans ce drapeau, il devient la chaîne vide.
 
 La chaîne complète est spécifiée dans [`docs/build.md`](docs/build.md) et justifiée dans [ADR-0006](docs/adr/0006-tsc-emet-esbuild-minifie.md).
 
@@ -711,23 +711,46 @@ exige un seul fichier lu, et une recherche à chaîne fixe sur l'artefact minifi
 
 ## 21. Divergences assumées
 
-Les écarts suivants sont **volontaires**. Aucun n'affecte le comportement observable au sens où la compatibilité le définit, et chacun est **enregistré** : une entrée de matrice qui n'est pas confrontable à l'artefact doit avoir sa ligne ici, et une porte le vérifie.
+Les écarts suivants sont **volontaires**. Aucun n'affecte le comportement observable au sens où la compatibilité le définit, et chacun est **enregistré**.
 
-Le référent est **le paquet installé** (`@preact/signals-core@1.14.4` tel qu'on l'installe), pas ses sources. Une propriété s'y appelle `i`, pas `_version`. La matrice le dit par entrée, dans `COUVERTURE`, où une destination peut être un `source:<réf>` — l'observation n'existe que sur les sources — ou un `divergence:<ancre>` — signalcn fait délibérément autre chose. Ces vingt-deux entrées ne sont donc **pas** des échecs de conformité : ce sont des écarts, et les voici.
+Le référent est **le paquet installé** (`@preact/signals-core@1.14.4` tel qu'on l'installe), pas ses sources. Une propriété s'y appelle `i`, pas `_version`. La matrice le dit par entrée, dans `COUVERTURE`, où une destination peut être un `source:<réf>` — l'observation n'existe que sur les sources — ou un `divergence:<ancre>` — signalcn fait délibérément autre chose.
+
+Deux listes se suivent, et elles ne se recouvrent pas. **§21.1** est le registre des entrées de matrice qu'une porte doit constater : elle est vérifiée par une porte, dans les deux sens. **§21.2** est ce qui n'a pas d'entrée, parce qu'aucun scénario ne peut le rejouer — c'est donc une prose, et une prose n'est gardée par personne.
+
+### 21.1 Le registre des vingt-deux entrées marquées
+
+Ces vingt-deux entrées ne sont **pas** des échecs de conformité : ce sont des écarts, et les voici. Une porte refuse qu'une entrée marquée n'ait pas sa ligne ici, et qu'une ligne cite une entrée absente du registre.
 
 | Entrées | Divergence | Raison |
 |---|---|---|
-| `signal#3`, `signal#4`, `computed#20`, `computed#21`, `effect#36b`, `effect#37`, `effect#39`, `dispose#10`, `subscribe#12` | Les propriétés **interne** portent des noms lisibles. L'artefact les minifie : `v`, `i`, `n`, `t`, `l`, `W`, `Z`. | `§5.3` fait de ces noms le contrat de **signalcn**. Le couple clés/ordre, lui, est identique des deux côtés — mesuré sur 8 clés pour un signal, 12 pour un computé, 22 en `for..in`. C'est le nom qui diverge, pas la structure. |
-| `signal#6b`, `signal#7b`, `signal#8b`, `computed#22b` | Le compteur `_version` est un **nom** ; le compte de notifications qu'il atteste est le même. | Ces entrées mêlent un comportement et d'un nom. Découpées, la branche reste confrontable au paquet, et le nom part ici. |
+| `signal#3`, `signal#4`, `computed#20`, `computed#21`, `effect#36b`, `effect#37` | Les propriétés **internes** portent des noms lisibles. L'artefact les minifie : `v`, `i`, `n`, `t`, `l`, `W`, `Z`. | `§5.3` fait de ces noms le contrat de **signalcn**. Le couple clés/ordre, lui, est identique des deux côtés — mesuré sur 8 clés pour un signal, 12 pour un computé, 22 en `for..in`. C'est le nom qui diverge, pas la structure. |
+| `signal#6b`, `signal#7b`, `signal#8b` | Le compteur `_version` est un **nom** ; le compte de notifications qu'il atteste est le même. | Ces entrées mêlent un comportement et d'un nom. Découpées, la branche reste confrontable au paquet, et le nom part ici. |
+| `computed#22b` | L'observable est la **valeur** des drapeaux du prototype partagé après une lecture `.value` qui l'empoisonne. | Les valeurs se lisent sur l'artefact comme sur les sources ; les champs qui les portent y sont renommés, donc l'observation n'existe que sur les sources. Le poison, lui, n'est pas une divergence : nous le supprimons (§21.2). |
+| `effect#39`, `dispose#10` | Les méthodes de prototype sont **énumérables** chez la baseline — `Object.keys(Effect.prototype)` rend cinq noms. Les nôtres ne le sont pas. | Ce qui diverge est l'énumération, pas le nom des méthodes : ADR-0004 refuse d'échanger le comportement normal d'une classe ES2020 contre une énumération. Voir §21.2. |
+| `subscribe#12` | L'effet interne créé par `subscribe` se nomme `sub` ; l'artefact minifie le nom, donc `name` y vaut `undefined`. | Un nom interne n'est pas une API. Aucun code applicatif ne le lit, et le figer demanderait de publier une convention de la baseline — le même refus que pour les propriétés de la première ligne. |
 | `action#6`, `modele#2b`, `modele#4b`, `modele#5b`, `modele#11b` | Les enveloppes se nomment `actionWrapper` ; l'artefact renvoie la chaîne vide. | La matrice fige ce nom, et `--keep-names` le conserve à la génération (§17.2). Le renommage du wrapper casserait la moitié des entrées de `createModel`. |
 | `computed#10`, `effect#40b` | L'ordre de la liste des dépendances, et l'atteinte du garde `Out-of-order effect`, ne s'observent que par les champs `_sources` / `_start`. | Le **comportement** est identique : l'ordre de lecture des sources change, et l'API publique ne déclenche jamais le désordre. Ce qui diverge est l'instrument d'observation, pas l'observé. Voir [ADR-0009](docs/adr/0009-geometrie-de-la-liste-des-dependances.md). |
-| `effect#41`, `dispose#3` | `using` **fonctionne** chez signalcn et **lève** `TypeError: Symbol(Symbol.dispose) is not a function` sur le paquet. | Le dispositeur est une fonction ordinaire qui ferme sur l'instance, et non `effect._dispose.bind(effect)` — V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même. C'est un choix, pas un accident : il rend `using` utilisable, ce qu'un dispositeur lié ne permet pas. §8.3. |
+| `effect#41`, `dispose#3` | `using` **fonctionne** chez signalcn et **lève** `TypeError: Symbol(Symbol.dispose) is not a function` sur le paquet. | Le dispositeur est une fonction ordinaire qui ferme sur l'instance, et non `effect._dispose.bind(effect)` — V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur elle-même. C'est un choix, pas un accident : il rend `using` utilisable, ce qu'un dispositeur lié ne permet pas. §8.2. |
 
 Deux lignes de ce tableau remplacent des affirmations qui se contredisaient.
 
 **§5.3** renvoyait ici pour annoncer que les huit noms own sont « un contrat de compatibilité — voir §21 ». Le renvoi était juste, la cible vide : ils n'y étaient pas. Ils y sont maintenant.
 
 **§8.3** qualifiait le dispositeur ordinaire de « Aucune divergence, aucun ADR ». C'était faux au sens où cette section l'emploie : `using` passe ici et lève là, c'est observable, et c'est consigné.
+
+### 21.2 Les sept écarts qui ne passent par aucune entrée
+
+Ceux-ci n'ont pas d'entrée de matrice : le paquet installé ne les publie pas, donc aucun scénario ne peut les rejouer, et le registre n'a rien à consigner. Ils sont donc consignés ici, et nulle part ailleurs — une prose qui renvoie à cette section a donc une cible.
+
+| Divergence | Raison |
+|---|---|
+| Les membres internes de `Effect` et `Computed` (`_fn`, `_flags`, `_notify`, `_start`, `_dispose`, `_sources`) portent des **types internes**, dont le nœud `Node` n'est pas exporté. La baseline publie un `.d.ts` où ils sont typés sur des structures qui lui sont propres ; nous n'en publions pas. | Ce sont des noms d'implémentation, dont la baseline elle-même ne garantit pas la stabilité. Aucun code applicatif ne les appelle. Exposer `Node` pour les typer reviendrait à figer une structure d'implémentation dans la surface publique. |
+| `EffectFn` n'est pas un type exporté nommé. | Il ne l'est pas dans la baseline non plus. |
+| Les méthodes de prototype sont **non énumérables**. `for..in` sur un signal expose 8 clés au lieu de 17, sur un computed 12 au lieu de 22. `Object.keys(Computed.prototype)` est vide au lieu de douze noms de champs. | Le comportement normal d'une classe ES2020. Aucun outil ne s'appuie sur l'énumération des méthodes. Voir [ADR-0004](docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md). |
+| `Computed.prototype` **ne porte pas d'état**. Lire `.value` dessus échoue sans rien empoisonner. | La baseline en fait une instance de `Signal` : un prototype partagé dont une lecture `.value` condamne le prototype pour tous les computeds du même realm. Supprimer cet état supprime le quirk. Voir [ADR-0004](docs/adr/0004-classes-es2020-plutot-que-prototypes-es5.md). |
+| `Computed.prototype.constructor` vaut `Computed`, et non `Signal`. | Conséquence directe du précédent, et un correctif : l'introspection de type par `.constructor` est juste. |
+| La borne de drainage **n'est pas figée** à 102 (§15.2). | Cent est un ordre de grandeur, pas une constante sémantique. Le mécanisme est contractuel, le compte ne l'est pas. |
+| Les **sept écarts de `createModel`** (§16.6). | Le veto `brand` par valeur, les clés propres, la descension par descripteur, la mémoïsation, l'absence de clé `"undefined"`, l'avertissement asynchrone, et quatre gardes. Voir [ADR-0005](docs/adr/0005-defauts-non-figes-de-createmodel.md). |
 
 Toute divergence supplémentaire exige un ADR.
 

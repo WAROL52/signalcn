@@ -129,11 +129,11 @@ export function makeLog() {
     return log;
 }
 /**
- * Les tranches ENCORE OUVERTES qui peuvent porter une entree de matrice. Nommees, pas ecrites en
- * clair dans le registre : la revue a releve que « l'effet » etait pointe sur #25, qui est
- * `subscribe()` — et un rappel de `subscribe` s'execute en `untracked`, donc il ne peut pas
- * prouver qu'une conversion suit la dependance. Un numero ecrit en clair dans une chaine n'est
- * pas relu.
+ * La table des scénarios rejoues contre le paquet installé. Chacun porte un NOM, et c'est ce nom
+ * que le registre cite, jamais un numero d'entree : la revue a releve que « l'effet » etait
+ * pointe sur #25, qui est `subscribe()` — et un rappel de `subscribe` s'execute en `untracked`,
+ * donc il ne peut pas prouver qu'une conversion suit la dependance. Un numero ecrit en clair dans
+ * une chaine n'est pas relu.
  *
  * IL Y AVAIT UNE SECONDE FORME de destination : le numéro d'un ticket encore ouvert, avec la liste
  * `TICHETS` qui portait la promesse et `registre-complet` qui la vérifiait. Elle a été retirée —
@@ -3655,7 +3655,7 @@ export const COUVERTURE = {
     // `_start`, donc un interne que l'artefact n'a pas sous ce nom.
     "effect#40": "signalcn-seul/hors-ordre",
     "effect#40b": "signalcn-seul/gardes-internes + source:src/index.ts#L842",
-    "effect#41": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.3",
+    "effect#41": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.2",
     // ---- `batch` et `untracked` -----------------------------------------------------------------
     //
     // Vingt-quatre des vingt-six entrées `batch` et neuf des treize `untracked` sont couvertes par
@@ -3715,19 +3715,19 @@ export const COUVERTURE = {
     // SUBSTITUTION de la fonction est differentielle, le nom ne l'est pas.
     "modele#1": "modele/forme-et-enveloppement",
     "modele#2": "modele/forme-et-enveloppement",
-    "modele#2b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
+    "modele#2b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
     "modele#3": "modele/forme-et-enveloppement",
     "modele#4": "modele/forme-et-enveloppement",
-    "modele#4b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
+    "modele#4b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
     "modele#5": "modele/forme-et-enveloppement",
-    "modele#5b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
+    "modele#5b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
     "modele#6": "modele/forme-et-enveloppement",
     "modele#7": "modele/forme-et-enveloppement",
     "modele#8": "modele/forme-et-enveloppement",
     "modele#9": "modele/forme-et-enveloppement",
     "modele#10": "modele/forme-et-enveloppement",
     "modele#11": "modele/getter-cyclique-et-primitives",
-    "modele#11b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#4",
+    "modele#11b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
     "modele#12": "modele/getter-cyclique-et-primitives",
     "modele#13": "modele/capture-des-effets",
     "modele#14": "modele/arguments-et-this",
@@ -3785,7 +3785,7 @@ export const COUVERTURE = {
     "action#3": "action/this-et-arguments",
     "action#4": "action/this-et-arguments",
     "action#5": "action/this-et-arguments",
-    "action#6": "signalcn-seul/wrapper-nomme + divergence:SPEC.md#4",
+    "action#6": "signalcn-seul/wrapper-nomme + divergence:SPEC.md#17.2",
     "action#7": "action/batch-autour-duntracked",
     "action#8": "action/batch-autour-duntracked",
     "action#9": "action/batch-autour-duntracked",
@@ -3814,7 +3814,7 @@ export const COUVERTURE = {
     // LIÉE, et V8 refuse alors cette méthode. On garde l'identité en passant par une fermeture :
     // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
     "dispose#2": "signalcn-seul/symbol-dispose-et-using",
-    "dispose#3": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.3",
+    "dispose#3": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.2",
     // dispose#4 : `subscribe` renvoie aussi un disposeur, et il porte `Symbol.dispose`.
     "dispose#4": "subscribe/sur-un-compute",
     // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
@@ -3856,7 +3856,7 @@ export const ENTREES_ATTENDUES = [
     // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
     ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
     ...Array.from({ length: 34 }, (_, i) => `modele#${i + 1}`),
-    // Les neuf entrées NÉES DU DÉCOUPAGE. Une entrée qui asserte un comportement vérifiable ET
+    // Les dix entrées NÉES DU DÉCOUPAGE. Une entrée qui asserte un comportement vérifiable ET
     // un nom que l'artefact minifie est deux entrées : l'une comparable, l'autre marquée. La
     // lettre reprend le précédent de `computed#3b` et `computed#18b`, et le mot `b` signifie
     // « branche » — le complément, jamais un doublon.
@@ -3878,6 +3878,19 @@ export const ENTREES_ATTENDUES = [
 // importait le moteur au niveau superieur, l'oracle serait indisponible tant que le moteur
 // manque, et l'ordre rouge-vert n'aurait plus de juge. `NODE_TEST_CONTEXT` est pose par
 // `node --test` dans chaque fichier de test, et nowhere ailleurs.
+/** Les MORCEAUX d'une destination : un nom de scénario, un nom de test `signalcn-seul`, ou un marqueur. */
+export const morceaux = (destination) => destination.split("+").map((d) => d.trim());
+/**
+ * LA forme d'un marqueur : `source:<réf>` ou `divergence:<réf>`. Deux espèces, parce qu'elles n'ont
+ * pas la même conséquence.
+ *
+ * C'est l'unique définition du dépôt, et elle est ici parce que ce fichier est la source unique du
+ * registre. Trois consommateurs la lisent : `registre-complet` en exige la forme, `REJOUABLES` en
+ * déduit ce qui est rejouable, et `scripts/verifier-documentation.mjs` en retrouve les entrées à
+ * consigner au §21. Un motif écrit deux fois dérive — et il avait déjà dérivé : la porte cherchait
+ * `source:` n'importe où dans la destination, la suite cherchait `source:` ou `divergence:`.
+ */
+export const MARQUEUR = /^(source|divergence):\S+$/;
 // ---- Une seule source pour `matrice` ----------------------------------------------------
 //
 // Le registre `COUVERTURE` est l'unique endroit qui dit quelle entrée est couverte par quoi.
@@ -3886,7 +3899,7 @@ export const ENTREES_ATTENDUES = [
 // en silence — et personne ne verrait rien, parce que le harnais ne fait qu'un décompte.
 function entreesCouvertesPar(nomScenario) {
     return Object.entries(COUVERTURE)
-        .filter(([, destination]) => destination.split("+").map(d => d.trim()).includes(nomScenario))
+        .filter(([, destination]) => morceaux(destination).includes(nomScenario))
         .map(([id]) => id)
         .sort();
 }
@@ -4317,11 +4330,13 @@ export const NB_TESTS = scenarios.length + Object.keys(testsSignalcnSeul).length
  * entrées qu'il couvre seraient confrontables, parce que le test lit alors, quelque part, un champ
  * que l'artefact a minifié.
  *
- * C'est le seul endroit du dépôt qui sait ça, et il le sait à partir de la source unique.
+ * Le motif qui décide de cela est `MARQUEUR`, plus haut : le même que `registre-complet` exige et
+ * que la porte de documentation cherche. Il est écrit UNE fois dans le dépôt, donc ces trois
+ * lectures ne peuvent pas dire trois choses différentes — ce qu'elles faisaient.
  */
 export const REJOUABLES = Object.keys(testsSignalcnSeul).filter((nom) => {
     const cite = `signalcn-seul/${nom}`;
-    return !Object.values(COUVERTURE).some((destination) => destination.includes(cite) && /(^|\+ )?(source|divergence):/.test(destination));
+    return !Object.values(COUVERTURE).some((destination) => destination.includes(cite) && morceaux(destination).some((morceau) => MARQUEUR.test(morceau)));
 });
 if (process.env.NODE_TEST_CONTEXT) {
     const runtime = import("./signals.js");
@@ -4378,11 +4393,10 @@ if (process.env.NODE_TEST_CONTEXT) {
         // c'est une porte — celle de documentation — qui vérifie qu'elle y est. Cette suite ne peut
         // pas le faire elle-même : elle est un artefact distribué, et SPEC.md n'est pas distribué.
         //
-        // La forme est exigee : un marqueur sans référence pointe nulle part, et une référence sans
-        // espèce n'est pas un marqueur.
-        const MARQUEUR = /^(source|divergence):\S+$/;
+        // La forme est `MARQUEUR`, ci-dessus, et elle n'est écrite qu'une fois dans le dépôt : ici, dans
+        // `REJOUABLES`, et dans la porte de documentation.
         for (const [id, destination] of Object.entries(COUVERTURE)) {
-            for (const morceau of destination.split("+").map(d => d.trim())) {
+            for (const morceau of morceaux(destination)) {
                 assert.ok(noms.has(morceau) || MARQUEUR.test(morceau), `${id} cite "${morceau}", qui n'est ni un test ni un marqueur de la forme ` +
                     `"source:<ref>" ou "divergence:<ref>". Toute destination se justifie : un scénario, ` +
                     `un test \`signalcn-seul\`, ou un marqueur qui dise où l'observation a été prise.`);
@@ -4393,7 +4407,7 @@ if (process.env.NODE_TEST_CONTEXT) {
         // défaut qu'un registre doit interdire : il_a_l'air de couvrir, et rien ne le rattache à une
         // entrée. Un `gardes-internes` s'est trouvé orphelin de la même façon, écrit un commit plus
         // tôt, sans qu'aucune porte ne bronche.
-        const citees = new Set(Object.values(COUVERTURE).flatMap((destination) => destination.split("+").map((d) => d.trim())));
+        const citees = new Set(Object.values(COUVERTURE).flatMap((destination) => morceaux(destination)));
         const orphelins = [...Object.keys(testsSignalcnSeul)]
             .map((nom) => `signalcn-seul/${nom}`)
             .filter((nom) => !citees.has(nom));

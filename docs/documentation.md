@@ -80,25 +80,34 @@ recopie un chemin qui demande un alias qu'il n'a pas.
 
 ## 3. Les divergences assumées, pour l'adopter
 
-`SPEC.md` §21 compte sept divergences assumées, spécifiées pour un mainteneur. Un adopter qui
-migre depuis Preact a besoin d'une réponse à une seule question : **qu'est-ce qui change pour
-moi ?**
+`SPEC.md` §21 en porte **deux listes, et elles ne se recouvrent pas**. La première, §21.1, est le
+registre des **vingt-deux entrées de matrice** que le paquet installé ne peut pas porter : chacune
+est marquée dans `COUVERTURE`, et une porte refuse qu'une entrée marquée n'ait pas sa ligne — ou
+qu'une ligne cite une entrée absente. Un adopter n'y cherche pas sa réponse : ce sont des entrées
+de test, et la plupart n'annoncent qu'un nom que le paquet minifie. La seconde, §21.2, est la liste
+des **écarts réels**, ceux qui n'ont pas d'entrée de matrice parce qu'aucun scénario ne peut les
+rejouer.
+
+C'est donc §21.2 qui répond à la seule question qu'un adopter qui migre depuis Preact se pose :
+**qu'est-ce qui change pour moi ?**
 
 Le README porte donc une section « Différences connues », reformulée dans ce seul sens, qui
 pointe vers l'ADR pour le pourquoi. **Pas de duplication** : le README dit l'effet, l'ADR dit
 la raison. Les deux ne dérivent pas l'un de l'autre.
 
-Les sept entrées de `SPEC.md` §21 se répartissent ainsi :
-
 | Divergence | Pour l'adopter |
 |---|---|
-| Internes de `Effect` / `Computed` non typés | Aucun impact : personne ne les appelle |
+| Internes de `Effect` / `Computed` non typés, et pas de `.d.ts` publié | Aucun impact : personne ne les appelle, et le typage se fait à la main |
 | `EffectFn` non exporté | Un type de plus à écrire à la main, sans impact |
 | Méthodes de prototype non énumérables | `for..in` sur un signal : 8 clés au lieu de 17 |
 | `Computed.prototype` sans état | Plus d'empoisonnement global du prototype |
 | `Computed.prototype.constructor` correct | Un correctif, pas une régression |
 | Seuil de cycle non figé | Le compte peut différer, le comportement non |
 | Les sept écarts de `createModel` | Le veto `brand` par valeur, les clés propres, la descension par descripteur, la mémoïsation, l'absence de clé `"undefined"`, l'avertissement asynchrone, quatre gardes |
+
+Ces sept lignes sont celles de `SPEC.md` §21.2, reformulées pour l'adopter. Ce tableau n'est pas
+gardé par une porte — une porte ne réécrit pas de la prose — donc il se garde à la relecture.
+Ce qui est gardé par une porte, c'est le README, et c'est ce qui compte pour l'adopter.
 
 ## 4. Ce que ce document ne décide pas
 

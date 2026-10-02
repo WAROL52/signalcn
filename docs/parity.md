@@ -14,6 +14,14 @@ Il n'y a pas de test de parité. Il y a **une seule table de scénarios**, exéc
 | `node --test` | `signals.js` | le build |
 | `node --test` | `signals.min.js` | le minifié |
 
+La première exécution ne se limite pas à la table : le harnais rejoue aussi les **cinq tests
+`signalcn-seul` rejouables** contre le paquet installé. Ce sont des tests dont aucune observation
+ne dépend d'un nom minifié : ils ne lisent que l'API publique, ou des symboles et des méthodes qui
+gardent leur nom dans l'artefact. Les rejouer prouve que leurs assertions sont aussi celles de la
+référence, et pas seulement celles de signalcn. Les autres portent un marqueur dans le registre,
+donc l'observation n'existe que sur les sources : ce ne sont pas des tests oubliés. La liste n'est
+pas écrite ici, elle est déduite du registre.
+
 Les attentes sont les mêmes dans les quatre cas, donc « les trois cibles passent » signifie
 « les trois cibles sont indiscernables de la baseline ». C'est exactement `SPEC.md` §19, sans
 un test supplémentaire.

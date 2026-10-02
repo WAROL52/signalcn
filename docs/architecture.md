@@ -597,4 +597,4 @@ Et les sept écarts de `createModel` listés dans `SPEC.md` §16.6, tous couvert
 [ADR-0005](./adr/0005-defauts-non-figes-de-createmodel.md).
 
 Aucun de ces écarts ne change le résultat d'un test de la matrice. Ils sont consignés dans
-`SPEC.md` §21 et, pour `createModel`, dans `SPEC.md` §16.6.
+`SPEC.md` §21.2 et, pour `createModel`, dans `SPEC.md` §16.6.

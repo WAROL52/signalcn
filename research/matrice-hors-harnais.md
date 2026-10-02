@@ -1,6 +1,6 @@
-# Les 32 entrées de matrice que le harnais ne rejoue pas
+# Les 32 entrées de matrice que le harnais ne rejouait pas
 
-Ce que la matrice publie pour 32 de ses 221 entrées, et **où** cette observation est vérifiable.
+Ce que la matrice publie pour 32 de ses 231 entrées, et **où** cette observation est vérifiable.
 
 Point de départ du ticket `#33` : le paquet publié minifie ses propres propriétés.
 `Object.keys(signal(1))` rend `["v","i","n","t","l","W","Z","name"]`, `signal(1)._version` vaut
@@ -22,12 +22,15 @@ qui atteint un observable est rouge s'il lève sur le paquet, vert s'il y passe.
    (1138 lignes), sont transpilées dans `scripts/` avant import : `node_modules` refuse le
    type-stripping de Node. Chaque sonde est écrite une fois et jouée **sur les deux**, dans la même
    exécution, pour que la comparaison vienne de la machine et non d'une lecture.
-2. **Les 32 entrées ne sont pas tapées à la main.** `COUVERTURE` est importé depuis
-   `registry/default/signals.test.ts`, filtré sur les destinations contenant `signalcn-seul`. Le
-   registre rend **32**, dont 9 que couvre aussi un scénario de la table. Le compte du ticket est
-   confirmé par le fichier, pas par un recomptage.
+2. **Les entrées examinées ne sont pas tapées à la main.** `COUVERTURE` est importé depuis
+   `registry/default/signals.test.ts`, filtré sur les destinations contenant `signalcn-seul`. La
+   campagne en a examiné **32**, dont 9 que couvrait aussi un scénario de la table ; le registre en
+   rend **33** aujourd'hui — huit de celles-ci sont depuis couvertes par un scénario de la table,
+   et les neuf entrées nées du découpage y sont entrées. Une seule l'est encore, `signal#15`. Le
+   compte du ticket est un instantané de la campagne : c'est lui qui fait foi ici, pas un
+   recomptage.
 3. **L'observable est la colonne « Observé »** de `research/baseline-1.14.4.md`, pas la colonne
-   « Localisation `src/index.ts` ». La seconde est une citation de ligne source pour les 221 entrées
+   « Localisation `src/index.ts` ». La seconde est une citation de ligne source pour les 231 entrées
    : elle ne distingue rien et n'a pas servi de critère.
 4. **Règle de verdict, appliquée uniformément :**
    - `artefact` — tout ce que la matrice publie comme observé pour cette entrée se vérifie sur le
@@ -70,7 +73,7 @@ C'est un **constat**, pas un contrat : rien dans le paquet ne publie cette corre
 mangler peut la changer d'une version à l'autre. Elle permet de *lire* l'artefact, pas d'écrire une
 attende que l'artefact porterait.
 
-## Les 32 entrées
+## Les 32 entrées examinées
 
 `Scénario` est la destination de la table dans `COUVERTURE`, vide quand l'entrée n'est couverte que
 par un test `signalcn-seul`. L'observable est celui de la matrice, suivi de ce que le paquet installé
@@ -149,7 +152,7 @@ et rien de ce que ces deux entrées décrivent. Le verdict `artefact` de ces deu
 sonde, pas sur la suite : `registre-complet` passe, et il ne voit pas la différence.
 
 **4. `effect#40` pointe vers le mauvais test.** Son observable — `Error: Out-of-order effect` — se
-rejoue dans `signalcn-seul/gardes-internes`, qui est enregistré par `node --test` (96 tests verts) et
+rejoue dans `signalcn-seul/gardes-internes`, qui est enregistré par `node --test` (98 tests verts) et
 que **aucune entrée de `COUVERTURE` ne cite**. L'entrée `effect#40` pointe vers
 `signalcn-seul/hors-ordre`, qui vérifie l'ordre de fermeture imbriquée par l'API publique et n'atteint
 pas ce message. Le verdict `ambigu` masque ce déplacement : l'entrée n'a pas une observation introuvable,

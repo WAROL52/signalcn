@@ -19,7 +19,7 @@
 | Registry items | `6`, exigeant `"tsx": true` chez le consommateur |
 | Couverture mesurée | `99,61 / 98,50 / 100,00` — lignes, branches, fonctions |
 | Seuil de release | La valeur mesurée, **pas 100 %** — [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md) : les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus |
-| Prochaine version | `v1.0.0` — les deux tags sont posés |
+| Prochaine version | **aucune** — les deux tags sont posés, et la ligne du dessous dit laquelle |
 | Version courante | `v1.0.0`, tags `v0.1.0` et `v1.0.0` |
 | Mainteneur | `WAROL52` |
 | Dépôt | `github.com/WAROL52/signalcn`, public |
@@ -97,7 +97,7 @@
 
 ## 4. Phase P1 — Squelette du moteur
 
-  > **Preuve** — `npm test` : 98 tests, 0 échec. Les dix exports sont dans `signals.ts`.
+> **Preuve** — `npm test` : 98 tests, 0 échec. Les dix exports sont dans `signals.ts`.
 > Le cœur est complet ; `P1` n'attend plus rien.
 
 Le modèle interne est spécifié dans [`docs/architecture.md`](./docs/architecture.md). Ce qui suit est
@@ -219,7 +219,7 @@ Chaîne spécifiée dans [`docs/build.md`](./docs/build.md).
 > et testé ; `v1.0.0` sur celui qui ajoute parité, portes, distribution et documentation. Les deux
 > runs sont `success`.
 >
-> **Il reste quatre cases ouvertes, et trois d'entre elles disent la même chose** : la couverture
+> **Il reste quatre cases ouvertes, et les quatre d'entre elles disent la même chose** : la couverture
 > n'est pas à 100 %. Ce n'est pas un oubli — c'est [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md),
 > et la case reste ouverte parce qu'elle est littéralement fausse, pas parce qu'on l'a oubliée.
 

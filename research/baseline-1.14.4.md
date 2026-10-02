@@ -16,7 +16,7 @@ comme une observation de l'artefact — et le marqueur, désormais, le dit.
 Les lignes **BRANCHE** ne sont pas des doublons. Ce sont les compléments nés d'un découpage : une
 entrée qui asserte un comportement confrontable *et* un nom qui ne l'est pas a été coupée en deux.
 La branche garde l'observable de la mère — c'est le même fait observé par un autre point — et ce qui
-la sépare est **le point d'observation**, jamais le comportement. Neuf branches.
+la sépare est **le point d'observation**, jamais le comportement. Onze branches.
 
 La campagne qui a établi tout cela pour les 32 entrées hors harnais, verdict par verdict, est
 [`matrice-hors-harnais.md`](./matrice-hors-harnais.md).
@@ -54,7 +54,7 @@ Node utilisé : v24.18.1.
 | `Signal.prototype.subscribe(fn)` | 18 | 17 |
 | Conversions `toString` / `toJSON` / `valueOf` / `brand` | 15 | 12 |
 | `dispose` et `Symbol.dispose` | 14 | 9 |
-| **Total** | **224** | **175** |
+| **Total** | **231** | **175** |
 
 ---
 
@@ -246,12 +246,9 @@ par probe**.
 |---|---|---|---|---|---|
 | 1 | Crée une instance `Signal` | `L494-498` | `signal(1).value === 1`, `_version === 0` | oui | — |
 | 2 | Sans argument → `undefined` | `L494-497` | `signal().value === undefined`, identique à `signal(undefined)` | partiellement (CHANGELOG 1.7.0) | — |
-| 2b | **BRANCHE** — Sans argument → `undefined` | `L494-497` | `signal().value === undefined`, identique à `signal(undefined)` | partiellement (CHANGELOG 1.7.0) | — |
 | 3 | 8 propriétés d'instance, dans cet ordre | `L368-377` | `Object.keys(signal(1))` = `["_value","_version","_node","_targets","_batchSnapshotVersion","_watched","_unwatched","name"]` | non | ordre exact des clés |
 | 4 | Pas de `_flags` sur un `Signal` | `L368-377` | `"_flags" in signal(1) === false`, `signal(1)._flags === undefined` | non | un `Signal` n'est pas un `Effect` |
-| 4b | **BRANCHE** — Pas de `_flags` sur un `Signal` | `L368-377` | `"_flags" in signal(1) === false`, `signal(1)._flags === undefined` | non | un `Signal` n'est pas un `Effect` |
 | 5 | Écriture → notification immédiate et synchrone | `L461-485` | `["e:0","before","e:1","after"]` | oui (README §`signal`) | le flush est terminé avant la fin de l'instruction |
-| 5b | **BRANCHE** — Écriture → notification immédiate et synchrone | `L461-485` | `["e:0","before","e:1","after"]` | oui (README §`signal`) | le flush est terminé avant la fin de l'instruction |
 | 6 | Égalité `!==` stricte : `NaN` notifie | `L462` | `s = NaN`, effect re-exécuté **2 fois**, `_version === 1` | non | `Object.is` n'est **pas** utilisé |
 | 6b | **BRANCHE** — Égalité `!==` stricte : `NaN` notifie | `L462` | `s = NaN`, effect re-exécuté **2 fois**, `_version === 1` | non | `Object.is` n'est **pas** utilisé |
 | 7 | `0 → -0` ne notifie pas | `L462` | 1 run au total, `_version === 0`, `Object.is(value,-0) === false` (valeur restée `0`) | non | — |
@@ -261,7 +258,6 @@ par probe**.
 | 9 | Nouvel objet de même forme notifie | `L462` | 2 runs, `_version === 1` ; ré-écriture de l'objet d'origine → `_version === 2` | non | identité, pas égalité structurelle |
 | 10 | `0 → undefined` notifie ; `undefined → undefined` non | `L462` | 2 runs / 1 run | non | — |
 | 11 | Écriture identique : aucune notification | `L462` | 1 run, `_version` inchangé | non | — |
-| 11b | **BRANCHE** — Écriture identique : aucune notification | `L462` | 1 run, `_version` inchangé | non | — |
 | 12 | Auto-écriture dans un effect : aucune boucle | `L462` | `effect(() => { n++; s.value = s.value })` → `n === 1` | non | — |
 | 13 | Écriture hors de tout effect : aucun flush | `L481-483` | effect sans dépendance : `n === 1` après 2 écritures | oui (README §`effect` « lazy ») | — |
 | 14 | `peek()` = `untracked(() => value)` | `L449-451` | effect lisant `s.peek()` : 1 run malgré `s=1` | oui (README + CHANGELOG 1.0.0/1.0.1) | — |

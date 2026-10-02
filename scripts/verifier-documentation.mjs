@@ -105,11 +105,14 @@ porte(
 // du marqueur, et laisse la correspondance à cette porte.
 
 const COUVERTURE_MODULE = await import(join(RACINE, "registry", "default", "signals.test.ts"))
-const { COUVERTURE } = COUVERTURE_MODULE
+const { COUVERTURE, MARQUEUR, morceaux } = COUVERTURE_MODULE
 const spec = await readFile(join(RACINE, "SPEC.md"), "utf8")
 
+// La forme d'un marqueur est celle du fichier de test — `MARQUEUR` — et non un motif écrit ici.
+// Un motif écrit deux fois dérive, et ceux-ci divergeaient déjà : celui de la suite testait la
+// destination entière, celui-ci la cherchait n'importe où dedans. Un seul mot, une seule définition.
 const marquees = Object.entries(COUVERTURE)
-  .filter(([, destination]) => /source:|divergence:/.test(destination))
+  .filter(([, destination]) => morceaux(destination).some((morceau) => MARQUEUR.test(morceau)))
   .map(([id]) => id)
 
 // La section §21, et les identifiants d'entrée que ses lignes de tableau portent.
@@ -133,6 +136,13 @@ porte(
   sansMarqueur.length === 0,
   `${sansMarqueur.length} sans marqueur : ${sansMarqueur.join(", ")}`,
 )
+// Le compte reste en dur, et c'est délibéré : c'est le SEUL contrôle de ce fichier qui ne se
+// déduit pas, et il ne peut pas se déduire. Les deux portes au-dessus comparent deux listes ; celle
+//-ci compare la longueur d'une liste à une constante. Elle existe parce que les deux autres
+// passent sur un §21 vidé : si la réécriture avait supprimé le registre, chaque entrée marquée
+// aurait gardé sa ligne et chaque ligne aurait gardé son entrée — dans le vide. Une constante en
+// dur est ici un garde-fou, pas une faiblesse : la changer, c'est dire à voix haute que le nombre
+// d'entrées non confrontables vient de bouger.
 porte(
   "le §21 consigne les 22 entrees non confrontables",
   marquees.length === 22,
@@ -167,23 +177,33 @@ porte("le README porte une section « Différences connues »", /^## Différence
 const { ENTREES_ATTENDUES, scenarios } = COUVERTURE_MODULE
 const attendus = { entrees: ENTREES_ATTENDUES.length, scenarios: scenarios.length }
 
+// Chaque ancre est [fichier, motif, une valeur attendue par groupe capturé, libellé].
+//
+// Deux chiffres dans la même phrase sont DEUX contrôles, pas un : le motif du ROADMAP capture le
+// nombre de scénarios ET celui des comportements, et comparer le premier seulement laissait le
+// second libre de mentir — « 999 comportements » passait. Le libellé est écrit, jamais déduit du
+// fichier et de l'unité : deux ancres du même document en portaient sinon le même, et un échec ne
+// disait pas laquelle des deux était tombée.
 const ancrees = [
-  ["SPEC.md", /> \*\*Annexe :\*\*.*?— (\d+) comportements/, attendus.entrees, "comportements"],
-  ["research/baseline-1.14.4.md", /^\*\*(\d+) comportements\*\* documentés/m, attendus.entrees, "comportements"],
-  ["docs/scenarios.md", /Comment les \*\*(\d+) comportements\*\*/, attendus.entrees, "comportements"],
-  ["docs/scenarios.md", /pour (\d+) comportements\./, attendus.entrees, "comportements"],
-  ["ROADMAP.md", /comportements upstream — (\d+) entrées,/, attendus.entrees, "entrées"],
-  ["ROADMAP.md", /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/, attendus.scenarios, "scénarios"],
+  ["SPEC.md", /> \*\*Annexe :\*\*.*?— (\d+) comportements/, [attendus.entrees], "SPEC.md annonce le bon nombre de comportements"],
+  ["research/baseline-1.14.4.md", /^\*\*(\d+) comportements\*\* documentés/m, [attendus.entrees], "research/baseline-1.14.4.md annonce le bon nombre de comportements"],
+  ["research/baseline-1.14.4.md", /^\| \*\*Total\*\* \| \*\*(\d+)\*\* \|/m, [attendus.entrees], "le tableau recapitulatif de la baseline annonce le bon total"],
+  ["docs/scenarios.md", /Comment les \*\*(\d+) comportements\*\*/, [attendus.entrees], "docs/scenarios.md annonce le bon nombre de comportements"],
+  ["docs/scenarios.md", /pour (\d+) comportements\./, [attendus.entrees], "docs/scenarios.md annonce le bon nombre de comportements, dans la repartition"],
+  ["ROADMAP.md", /comportements upstream — (\d+) entrées,/, [attendus.entrees], "ROADMAP.md annonce le bon nombre de entrées"],
+  ["ROADMAP.md", /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/, [attendus.scenarios, attendus.entrees], "ROADMAP.md annonce le bon nombre de scenarios ET de comportements"],
 ]
 
-for (const [fichier, motif, attendu, unite] of ancrees) {
+for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
   const texteFichier = await readFile(join(RACINE, fichier), "utf8")
   const trouve = texteFichier.match(motif)
-  const cite = trouve ? Number(trouve[1]) : null
+  const cites = trouve ? trouve.slice(1, 1 + attendusAncre.length).map(Number) : null
   porte(
-    `${fichier} annonce le bon nombre de ${unite}`,
-    cite === attendu,
-    cite === null ? "l'ancre est introuvable — la phrase a ete reecrite ?" : `${cite} annonces, ${attendu} reels`,
+    libelle,
+    cites !== null && cites.every((cite, i) => cite === attendusAncre[i]),
+    cites === null
+      ? "l'ancre est introuvable — la phrase a ete reecrite ?"
+      : `${cites.join(" / ")} annonces, ${attendusAncre.join(" / ")} reels`,
   )
 }
 
