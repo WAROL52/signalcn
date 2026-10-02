@@ -533,7 +533,7 @@ les modifie, et par l'utilisateur qui les installe.
 **Aucune contrainte d'installation ne s'applique aux commentaires.** Vérifié : avec
 `registry:file`, le fichier installé est identique à la source, octet pour octet. Avec
 `registry:lib`, seul le bloc JSDoc d'en-tête aurait été perdu. C'est une raison de plus pour
-`registry:file`, et c'est pourquoi `docs/distribution.md` porte cette mesure.
+`registry:file`, et c'est pourquoi `site/utilisateurs/distribution.md` porte cette mesure.
 
 ### Deux formes, deux besoins
 

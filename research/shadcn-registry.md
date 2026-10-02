@@ -899,7 +899,7 @@ la CLI.
 > fichier — décide de l'extension installée. Avec `registry:lib`, les items `signals` et
 > `signals-js` convergent vers le même nom de fichier. Voir
 > [`docs/adr/0008-registry-file-partout-et-tsx-true-exige.md`](../docs/adr/0008-registry-file-partout-et-tsx-true-exige.md)
-> et [`docs/distribution.md`](/utilisateurs/distribution.md). Le reste de cette recherche reste
+> et [`site/utilisateurs/distribution.md`](/utilisateurs/distribution.md). Le reste de cette recherche reste
 > valable ; cette section-là ne vaut plus.
 
 
