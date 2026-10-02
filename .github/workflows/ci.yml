@@ -9,10 +9,10 @@ on:
 
 # Quatre jobs — rapide, distribution, canari, documentation-statique — et non un par contrôle. Le
 # coût dominant n'est pas la commande : c'est le démarrage de runner. Les contrôles hors
-# installation coûtent 25,5 secondes ensemble, et les séparer en paierait treize démarrages pour
-# lire treize messages différents. Voir site/contributeurs/ci.md §1.
+# installation coûtent 25,8 secondes ensemble, et les séparer en paierait quatorze démarrages pour
+# lire quatorze messages différents. Voir site/contributeurs/ci.md §1.
 #
-# Le job « distribution » est séparé parce qu'il coûte 4,2 fois plus que tous les autres
+# Le job « distribution » est séparé parce qu'il coûte 4,1 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
 #
 # Le job « documentation-statique » est séparé pour la même raison de coût — il installe le
@@ -77,6 +77,12 @@ jobs:
       # sans que la suite le remarque : rien ne dit que le bloc d'import nomme la vraie surface.
       - name: documentation — le README declare la surface reelle
         run: npm run documentation
+      # Le dernier, et le seul qui ne juge pas le changement proposé : il compare le ruleset
+      # versionné aux jobs que ce fichier déclare. Sans lui, un cinquième job ajouté ici sans
+      # être requis au ruleset laisserait la PR suivante se fusionner sans son contrôle. Il ne
+      # dépend d'aucun build — il lit deux fichiers du dépôt — donc le placer ici est gratuit.
+      - name: ruleset — les checks requis sont ceux de la CI
+        run: npm run verifier-ruleset
 
   distribution:
     name: distribution / installation
@@ -97,13 +103,15 @@ jobs:
       - run: npm ci
       - run: npm run verifier-installation
 
-  # Le canari ne BLOQUE pas. Il répond à une seule question : la version publiée de la CLI fait-elle
-  # encore ce que la nôtre fait ? Elle le fera ne plus à un moment, et le jour où elle casse, une
-  # alerte non bloquante donne le temps de reagIR au lieu de subir.
+# Le canari BLOQUE. Il portait `continue-on-error` parce qu'il ne pouvait pas faire autrement : un
+  # job ainsi marqué ne peut pas être un check requis, et le ruleset exige les quatre jobs. Il répond
+  # à une seule question : la version publiée de la CLI fait-elle encore ce que la nôtre fait ? Elle
+  # ne le fera plus à un moment, et le prix de le savoir est qu'une version publiée qui casse bloque
+  # les fusions au lieu de les alerter. `verifier-ruleset` interdit de remettre `continue-on-error`
+  # ici : le ruleset afficherait alors un contrôle qui ne bloque rien.
   canari:
     name: canari / derniere CLI publiee
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
