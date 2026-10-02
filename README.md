@@ -52,16 +52,7 @@ Le chemin d'import est **relatif** et il l'est volontairement : ni alias, ni `pa
 `tsconfig`, ni paquet. Le fichier installé est un fichier, et un chemin d'import qui demande une
 configuration est un fichier que le projet consommateur n'a pas à connaître.
 
-## Deux exigences, et leurs raisons
-
-| Exigence | Raison |
-|---|---|
-| `"tsx": true` dans le `components.json` | C'est ce drapeau qui décide de l'extension installée. Les items TypeScript arrivent en `.ts` seulement avec lui ; sans lui, l'extension est imposée et le fichier installé contient du TypeScript sous un nom `.js` — il échoue bruyamment à la première exécution. |
-| `shadcn` **`4.10.0`** ou plus récent | L'installation se fait par adresse `owner/repo/item`, et cet adressage n'existe pas avant cette version. Un plancher plus bas produirait une commande qui ne résout rien. |
-
-Ces deux exigences sont mesurées, pas supposées : la porte d'installation les éprouve à chaque
-pull request sur deux versions de la CLI, et le canari surveille la dernière version publiée.
-
+```ts
 const count = signal(0)
 
 const doubled = computed(() => count.value * 2)
@@ -78,6 +69,16 @@ batch(() => {
 
 dispose()
 ```
+
+## Deux exigences, et leurs raisons
+
+| Exigence | Raison |
+|---|---|
+| `"tsx": true` dans le `components.json` | C'est ce drapeau qui décide de l'extension installée. Les items TypeScript arrivent en `.ts` seulement avec lui ; sans lui, l'extension est imposée et le fichier installé contient du TypeScript sous un nom `.js` — il échoue bruyamment à la première exécution. |
+| `shadcn` **`4.10.0`** ou plus récent | L'installation se fait par adresse `owner/repo/item`, et cet adressage n'existe pas avant cette version. Un plancher plus bas produirait une commande qui ne résout rien. |
+
+Ces deux exigences sont mesurées, pas supposées : la porte d'installation les éprouve à chaque
+pull request sur deux versions de la CLI, et le canari surveille la dernière version publiée.
 
 `untracked()` permet de lire un signal sans en faire une dépendance du contexte réactif courant :
 
