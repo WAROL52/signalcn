@@ -4,7 +4,7 @@
 > **Rôle :** Contrat comportemental et technique
 > **Référence de compatibilité :** `@preact/signals-core@1.14.4`, version figée
 > **Annexe :** [`research/baseline-1.14.4.md`](./research/baseline-1.14.4.md) — 231 comportements observables, établis par probe
-> **Structure :** [`site/technique/architecture.md`](/technique/architecture.md) — comment le graphe est construit
+> **Structure :** [`site/technique/architecture.md`](site/technique/architecture) — comment le graphe est construit
 
 ## 1. Objectif
 
@@ -12,7 +12,7 @@ Cette spécification définit les comportements que `signalcn` DOUT exposer ains
 
 L'implémentation est indépendante et écrite en TypeScript. Elle n'a pas besoin de reproduire la structure interne de Preact. La conformité est évaluée à travers les comportements observables et la sémantique de l'API.
 
-**Règle de lecture :** ce document est le contrat sur le **comportement**. Il ne décrit pas la structure interne, qui relève de [`site/technique/architecture.md`](/technique/architecture.md) — sauf les points où la structure est elle-même observable, qui sont alors normatifs ici. L'annexe est la preuve. Quand ce document dit « DOUT », l'annexe donne le résultat observé qui le prouve ; quand ce document ne dit rien, l'annexe fait foi. En cas de contradiction entre les deux, l'annexe l'emporte et le présent document doit être amendé.
+**Règle de lecture :** ce document est le contrat sur le **comportement**. Il ne décrit pas la structure interne, qui relève de [`site/technique/architecture.md`](site/technique/architecture) — sauf les points où la structure est elle-même observable, qui sont alors normatifs ici. L'annexe est la preuve. Quand ce document dit « DOUT », l'annexe donne le résultat observé qui le prouve ; quand ce document ne dit rien, l'annexe fait foi. En cas de contradiction entre les deux, l'annexe l'emporte et le présent document doit être amendé.
 
 ## 2. Baseline de compatibilité
 
@@ -40,7 +40,7 @@ Toute montée de version upstream est un changement de contrat de compatibilité
 - Comportement observable déterministe selon le présent contrat.
 
 Ces interdits sont **vérifiés en CI**, pas affirmés. Le contrôle, sa liste de motifs et sa
-justification sont spécifiés dans [`site/technique/zero-dependency.md`](/technique/zero-dependency.md). La liste
+justification sont spécifiés dans [`site/technique/zero-dependency.md`](site/technique/zero-dependency). La liste
 se dérive de la baseline, qui n'utilise aucun global, aucune horloge, aucun aléa et aucune
 primitive asynchrone.
 
@@ -511,7 +511,7 @@ Si la fabrique lève, les effets capturés sont perdus : ils survivent à tout d
 `createModel` est le seul export qui a une logique propre, donc le seul où la structure n'est
 pas dictée par la compatibilité. Sept écarts y sont assumés, tous couverts par
 [ADR-0005](docs/adr/0005-defauts-non-figes-de-createmodel.md) et détaillés dans
-[`site/technique/architecture.md`](/technique/architecture.md) §11 à §14.
+[`site/technique/architecture.md`](site/technique/architecture) §11 à §14.
 
 | Écart | Effet observable |
 |---|---|
@@ -563,7 +563,7 @@ Un changement manuel d'un artefact généré est interdit. La CI doit échouer s
 
 **`--keep-names` est obligatoire à la minification.** Le nom du wrapper d'`action` vaut `"actionWrapper"` (§21, et la matrice de conformité le fige) ; sans ce drapeau, il devient la chaîne vide.
 
-La chaîne complète est spécifiée dans [`site/contributeurs/build.md`](/contributeurs/build.md) et justifiée dans [ADR-0006](docs/adr/0006-tsc-emet-esbuild-minifie.md).
+La chaîne complète est spécifiée dans [`site/contributeurs/build.md`](site/contributeurs/build) et justifiée dans [ADR-0006](docs/adr/0006-tsc-emet-esbuild-minifie.md).
 
 ### 17.3 Items du registry
 
@@ -577,11 +577,11 @@ C'est `tsx` dans le `components.json` du **consommateur** qui décide de l'exten
 
 Le chemin d'import dans le README est **relatif** : `./signals.js`. Ni alias, ni `tsconfig` `paths`.
 
-Le chemin d'installation est spécifié dans [`site/utilisateurs/distribution.md`](/utilisateurs/distribution.md) et justifié dans [ADR-0008](docs/adr/0008-registry-file-partout-et-tsx-true-exige.md).
+Le chemin d'installation est spécifié dans [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution) et justifié dans [ADR-0008](docs/adr/0008-registry-file-partout-et-tsx-true-exige.md).
 
 La distribution repose sur les adresses `owner/repo/item`, qui **n'existent pas avant `shadcn@4.10.0`**. C'est la version minimale supportée, et elle doit être déclarée à l'utilisateur.
 
-Le plancher ne vient pas du schéma d'item, qui fonctionne jusqu'à `4.8.0` : il vient uniquement de cet adressage. La CI teste donc une **matrice de deux versions**, le plancher déclaré et la dernière connue, plus un canari non bloquant sur `latest`. La politique est spécifiée dans [`site/utilisateurs/distribution.md`](/utilisateurs/distribution.md) §8.
+Le plancher ne vient pas du schéma d'item, qui fonctionne jusqu'à `4.8.0` : il vient uniquement de cet adressage. La CI teste donc une **matrice de deux versions**, le plancher déclaré et la dernière connue, plus un canari non bloquant sur `latest`. La politique est spécifiée dans [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution) §8.
 
 ## 18. Tests et couverture
 
@@ -650,7 +650,7 @@ Aucun fichier d'exclusion n'a donc à exister : la liste des interdits tient en 
 
 ## 19. Parité TypeScript / JavaScript
 
-Le pipeline qui exécute l'ensemble de ces contrôles est spécifié dans [`site/contributeurs/ci.md`](/contributeurs/ci.md).
+Le pipeline qui exécute l'ensemble de ces contrôles est spécifié dans [`site/contributeurs/ci.md`](site/contributeurs/ci).
 
 Les comportements suivants doivent être équivalents entre :
 
@@ -680,7 +680,7 @@ Une seule table de scénarios est exécutée quatre fois : contre la baseline, c
 
 **Tolérance zéro** entre les cibles. Aucune liste de divergences acceptables : une divergence est un bug de build, pas une tolérance à consigner.
 
-La stratégie complète est spécifiée dans [`site/utilisateurs/parity.md`](/utilisateurs/parity.md).
+La stratégie complète est spécifiée dans [`site/utilisateurs/parity.md`](site/utilisateurs/parity).
 
 ## 20. Contraintes d'architecture
 
@@ -706,7 +706,7 @@ signalcn/angular
 sans changer le contrat du moteur central.
 
 Le contrôle de zéro-dépendance runtime est spécifié dans
-[`site/technique/zero-dependency.md`](/technique/zero-dependency.md) : deux passes, un relevé de metafile qui
+[`site/technique/zero-dependency.md`](site/technique/zero-dependency) : deux passes, un relevé de metafile qui
 exige un seul fichier lu, et une recherche à chaîne fixe sur l'artefact minifié.
 
 ## 21. Divergences assumées
