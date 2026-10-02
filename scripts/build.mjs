@@ -20,11 +20,11 @@
  * Rien n'est compilé deux fois et rien n'est bundlé : le produit distribué est la source.
  */
 
-import { build } from "esbuild"
-import { readdir, unlink, writeFile } from "node:fs/promises"
-import { fileURLToPath } from "node:url"
-import { dirname, join, resolve } from "node:path"
 import { spawnSync } from "node:child_process"
+import { readdir, unlink, writeFile } from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import { build } from "esbuild"
 
 const RACINE = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const ITEMS = join(RACINE, "registry", "default")

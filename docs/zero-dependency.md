@@ -82,9 +82,11 @@ qu'on contourne par lassitude.
 Elle s'exécute à chaque pull request, pour deux raisons : elle coûte quelques secondes, et une
 dépendance ajoutée par mégarde est aussi grave qu'une régression de couverture.
 
-Elle porte sur le **produit distribué**, jamais sur le dépôt. Le dépôt a une devDependency, la
-baseline, et un `node_modules` de plusieurs centaines de mégaoctets : un contrôle qui viserait
-le dépôt trouverait toujours des dépendances, et ne prouverait rien.
+Elle porte sur le **produit distribué**, jamais sur le dépôt. Le dépôt a sept `devDependencies` —
+la baseline, le compilateur, le bundler, les types de Node, la CLI du registry, le formateur et le
+hook de commit — et un `node_modules` de plusieurs centaines de mégaoctets : un contrôle qui viserait
+le dépôt trouverait toujours des dépendances, et ne prouverait rien. Aucune de ces sept n'est
+lisible par le cœur distribué, et c'est ce que les deux passes mesurent.
 
 ## 6. Vérifié
 

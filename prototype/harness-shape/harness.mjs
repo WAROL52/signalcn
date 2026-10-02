@@ -2,8 +2,8 @@
 // Il ne compare rien. Il fait tourner la MÊME table contre la baseline, et les
 // MÊMES assertions font foi. Une divergence, c'est un test en échec.
 
-import { scenarios, makeLog } from "./scenarios.mjs"
 import * as baseline from "@preact/signals-core"
+import { makeLog, scenarios } from "./scenarios.mjs"
 
 const api = {
   signal: baseline.signal,
@@ -16,9 +16,11 @@ let passed = 0
 const failures = []
 
 console.log("")
+
 import { readFileSync } from "node:fs"
+
 const version = JSON.parse(
-  readFileSync("node_modules/@preact/signals-core/package.json", "utf8")
+  readFileSync("node_modules/@preact/signals-core/package.json", "utf8"),
 ).version
 console.log(`  HARNES DIFFÉRENTIEL — baseline @preact/signals-core@${version}`)
 console.log("  " + "─".repeat(74))

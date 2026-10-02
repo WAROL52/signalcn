@@ -25,9 +25,9 @@
  * Une liste écrite deux fois dérive sans bruit, et celle-ci serait la seconde à le faire.
  */
 
-import { build } from "esbuild"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
+import { build } from "esbuild"
 
 import { RACINE, reporter } from "./porte.mjs"
 
@@ -45,8 +45,8 @@ const spec = await readFile(join(RACINE, SPEC), "utf8")
 const lignes = spec
   .slice(spec.indexOf("\n## 1. "), spec.indexOf("\n## 2. "))
   .split("\n")
-  .filter(ligne => ligne.startsWith("| **"))
-const motifs = lignes.flatMap(ligne => [...ligne.matchAll(/`([^`]+)`/g)].map(m => m[1]))
+  .filter((ligne) => ligne.startsWith("| **"))
+const motifs = lignes.flatMap((ligne) => [...ligne.matchAll(/`([^`]+)`/g)].map((m) => m[1]))
 
 // Une liste vide ferait passer la recherche sans rien vérifier : c'est le seul mode de défaillance
 // d'un contrôle par liste, et il se voit ici plutôt que dans un faux VERT.
@@ -61,7 +61,7 @@ porte(
 
 // ---- Passe 1 : le metafile, pour la structure -----------------------------------------------
 
-const mesure = async options =>
+const mesure = async (options) =>
   await build({
     entryPoints: [COEUR],
     // Les clés de `metafile.inputs` sont relatives au répertoire de travail : sans cette ligne,
@@ -88,17 +88,17 @@ porte(
 )
 
 const { metafile: externe } = await mesure({ packages: "external" })
-const imports = Object.values(externe.outputs).flatMap(sortie => sortie.imports)
+const imports = Object.values(externe.outputs).flatMap((sortie) => sortie.imports)
 porte(
   "aucun import dans la sortie, imports laissés externes",
   imports.length === 0,
-  imports.map(i => `${i.path} (${i.kind})`).join(", "),
+  imports.map((i) => `${i.path} (${i.kind})`).join(", "),
 )
 
 // ---- Passe 2 : la recherche à chaîne fixe, sur l'artefact minifié ----------------------------
 
 const artefact = await readFile(join(RACINE, ARTEFACT), "utf8")
-const trouves = motifs.filter(motif => artefact.includes(motif))
+const trouves = motifs.filter((motif) => artefact.includes(motif))
 porte(
   `${ARTEFACT} ne contient aucun des ${motifs.length} motifs interdits`,
   trouves.length === 0,

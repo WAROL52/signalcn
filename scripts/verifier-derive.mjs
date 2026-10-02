@@ -23,8 +23,8 @@
  */
 
 import { spawnSync } from "node:child_process"
-import { fileURLToPath } from "node:url"
 import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const RACINE = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -47,7 +47,7 @@ if (modifie) {
   console.log(
     diff.stdout
       .split("\n")
-      .map(l => `    ${l}`)
+      .map((l) => `    ${l}`)
       .join("\n"),
   )
   process.exit(1)

@@ -7,6 +7,8 @@
   "description": "Moteur de signaux réactifs agnostique des frameworks, distribué comme code source.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "biome": "biome ci",
+    "formater": "biome format --write && biome check --write --only=assist/source/organizeImports",
     "test": "node --test --test-reporter=tap registry/default/signals.test.ts",
     "harnais": "node scripts/harnais.mjs",
     "couverture": "node scripts/porte-couverture.mjs",
@@ -17,14 +19,17 @@
     "documentation": "node scripts/verifier-documentation.mjs",
     "verifier-derive": "node scripts/verifier-derive.mjs",
     "verifier-installation": "node scripts/verifier-installation.mjs",
-    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive"
+    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive",
+    "prepare": "lefthook install"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.15",
     "@preact/signals-core": "1.14.4",
     "@types/node": "24.3.0",
     "esbuild": "0.25.9",
-    "typescript": "5.9.2",
-    "shadcn": "2.10.0"
+    "lefthook": "2.1.16",
+    "shadcn": "2.10.0",
+    "typescript": "5.9.2"
   },
   "engines": {
     "node": ">=22.6"

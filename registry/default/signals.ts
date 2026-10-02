@@ -24,6 +24,7 @@ const BRAND_SYMBOL = Symbol.for("preact-signals")
  * `Node` qui n'existe pas encore serait de l'imagination, et qu'un `any` ferait perdre la
  * vérification de type au moment exact où le graphe arrive.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: fusion DÉLIBÉRÉE — le bloc « SPEC §5.1 — la marque, posée sur le prototype » plus bas explique pourquoi `brand` ne peut pas être un champ de classe.
 export class Signal<T = undefined> {
   _value: T
   _version: number
@@ -420,7 +421,11 @@ export function untracked<T>(fn: () => T): T {
  * UN SEUL point d'accrochage pour l'allocation et le recyclage. C'est la seule façon de garantir
  * que les deux font la même chose, et la différence s'était déjà payée une fois.
  */
-function attacher(noeud: Node, cible: Computed<any> | Effect<any>, source: Signal<any> | Computed<any>): void {
+function attacher(
+  noeud: Node,
+  cible: Computed<any> | Effect<any>,
+  source: Signal<any> | Computed<any>,
+): void {
   noeud._prev = cible._sources
   noeud._next = undefined
   if (cible._sources !== undefined) cible._sources._next = noeud
@@ -432,7 +437,10 @@ function attacher(noeud: Node, cible: Computed<any> | Effect<any>, source: Signa
   if ((cible._flags & TRACKING) !== 0) source._addNode(noeud)
 }
 
-function createNode(source: Signal<any> | Computed<any>, target: Computed<any> | Effect<any>): Node {
+function createNode(
+  source: Signal<any> | Computed<any>,
+  target: Computed<any> | Effect<any>,
+): Node {
   const node: Node = {
     _version: 0,
     _source: source,
@@ -620,7 +628,6 @@ function reconcileBatchSnapshots(): void {
  * drainage continue malgré les erreurs — un effet qui lève n'en empêche pas dix autres de tourner.
  */
 
-
 function endBatch(): void {
   if (batchDepth > 1) {
     batchDepth--
@@ -757,6 +764,7 @@ function disposeSelf(effet: Effect<any>): void {
 /**
  * Un effect : une fonction qui rejoue tant que ses dépendances changent.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: même raison que `Signal` — `brand` vient du `defineProperty` sur `Effect.prototype`, pas d'un champ de classe.
 export class Effect<FnReturn = void | (() => void)> {
   _fn: (() => FnReturn) | undefined
   /** Le cleanup du run en cours, s'il en a rendu un. */
@@ -905,7 +913,10 @@ export type Dispositeur = (() => void) & { [Symbol.dispose]?: () => void }
 
 export function effect<FnReturn = void>(fn: () => FnReturn): Dispositeur
 export function effect<FnReturn = void>(fn: () => FnReturn, options: { name?: string }): Dispositeur
-export function effect<FnReturn = void>(fn: () => FnReturn, options?: { name?: string }): Dispositeur {
+export function effect<FnReturn = void>(
+  fn: () => FnReturn,
+  options?: { name?: string },
+): Dispositeur {
   const effet = new Effect<FnReturn>(fn, options)
   try {
     effet._callback()
@@ -913,22 +924,23 @@ export function effect<FnReturn = void>(fn: () => FnReturn, options?: { name?: s
     effet._dispose()
     throw erreur
   }
-// `SPEC.md` §8.2 exige `name === "bound "`, `length === 0`, `Object.keys()` vide,
-    // `[Symbol.dispose] === d`, utilisable avec `using`, ni une arrow ni l'instance.
-    //
-    // Les six tiennent — mais PAS avec `_dispose.bind(effet)`. V8 refuse une fonction LIÉE dont
-    // `Symbol.dispose` pointe sur elle-même ; une fonction simple passe, une liée non. Le refus
-    // vient donc du `bind`, pas de l'identité — et `this` n'est jamais demandé au dispositeur,
-    // `§8.3` ne le demande qu'au CALLBACK. D'où la fermeture : elle rend les six-tenables.
-    // C'est mesuré, pas supposé : `signalcn-seul/symbol-dispose-et-using` rejoue les deux.
-    const dispositeur = function () {
-      effet._dispose()
-    } as Dispositeur
-    // Un nom de méthode ne peut pas être vide — il serait `dispositeur` — donc la valeur est
-    // écrite explicitement, comme l'exige §8.2.
-    Object.defineProperty(dispositeur, "name", { value: "bound ", configurable: true })
-    dispositeur[Symbol.dispose] = dispositeur
-    return dispositeur
+  // `SPEC.md` §8.2 exige `name === "bound "`, `length === 0`, `Object.keys()` vide,
+  // `[Symbol.dispose] === d`, utilisable avec `using`, ni une arrow ni l'instance.
+  //
+  // Les six tiennent — mais PAS avec `_dispose.bind(effet)`. V8 refuse une fonction LIÉE dont
+  // `Symbol.dispose` pointe sur elle-même ; une fonction simple passe, une liée non. Le refus
+  // vient donc du `bind`, pas de l'identité — et `this` n'est jamais demandé au dispositeur,
+  // `§8.3` ne le demande qu'au CALLBACK. D'où la fermeture : elle rend les six-tenables.
+  // C'est mesuré, pas supposé : `signalcn-seul/symbol-dispose-et-using` rejoue les deux.
+  // biome-ignore lint/complexity/useArrowFunction: SPEC §8.2 exige que le dispositeur ne soit NI une arrow ni l'instance — le correctif de la règle produit exactement ce que la spec interdit, et aucune porte ne le verrait.
+  const dispositeur = function () {
+    effet._dispose()
+  } as Dispositeur
+  // Un nom de méthode ne peut pas être vide — il serait `dispositeur` — donc la valeur est
+  // écrite explicitement, comme l'exige §8.2.
+  Object.defineProperty(dispositeur, "name", { value: "bound ", configurable: true })
+  dispositeur[Symbol.dispose] = dispositeur
+  return dispositeur
 }
 
 /**
@@ -1189,7 +1201,9 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
  * setter. C'est un type séparé, et non une propriété optionnelle — un appelant qui reçoit un
  * `ReadonlySignal` ne doit pas pouvoir écrire dedans, et le typage doit le dire.
  */
-export type ReadonlySignal<T = undefined> = Omit<Signal<T | undefined>, "value"> & { readonly value: T }
+export type ReadonlySignal<T = undefined> = Omit<Signal<T | undefined>, "value"> & {
+  readonly value: T
+}
 
 export function computed<T>(fn: () => T, options?: SignalOptions<T>): ReadonlySignal<T> {
   return new Computed(fn, options)
@@ -1206,7 +1220,9 @@ export function computed<T>(fn: () => T, options?: SignalOptions<T>): ReadonlySi
  * Le `fn` est appelé avec le `this` et les arguments reçus, et sa valeur de retour traverse — y
  * compris une promesse, l'appel n'en fait rien de particulier.
  */
-export function action<TArgs extends unknown[], TReturn>(fn: (...args: TArgs) => TReturn): (...args: TArgs) => TReturn {
+export function action<TArgs extends unknown[], TReturn>(
+  fn: (...args: TArgs) => TReturn,
+): (...args: TArgs) => TReturn {
   // Le nom est un CONTRACT, pas une étiquette : la matrice de conformité le fige, et le pipeline de
   // génération a besoin de `--keep-names` pour le conserver. Sans lui il devient la chaîne vide,
   // et la trace d'erreur qui le cite devient fausse.

@@ -3,8 +3,8 @@
 // Il ne connaît pas la baseline. Il ne voit aucun harnais. Il a juste des tests.
 
 import { test } from "node:test"
-import { scenarios, makeLog } from "./scenarios.mjs"
-import { signal, computed, effect, batch } from "./signals-standin.mjs"
+import { makeLog, scenarios } from "./scenarios.mjs"
+import { batch, computed, effect, signal } from "./signals-standin.mjs"
 
 const api = { signal, computed, effect, batch }
 

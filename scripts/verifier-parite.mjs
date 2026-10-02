@@ -26,11 +26,11 @@
  *   node scripts/verifier-parite.mjs
  */
 
-import { build } from "esbuild"
+import { spawnSync } from "node:child_process"
 import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { spawnSync } from "node:child_process"
+import { build } from "esbuild"
 
 import { RACINE, reporter } from "./porte.mjs"
 
@@ -68,7 +68,8 @@ const ran = (args, cwd = RACINE) => spawnSync(process.execPath, args, { cwd, enc
  */
 function passer(cible) {
   const sortie = ran(["--test", "--test-reporter=tap", join(ITEMS, cible)])
-  const nombre = (cle) => Number(sortie.stdout.match(new RegExp(`^# ${cle} (\\d+)$`, "m"))?.[1] ?? -1)
+  const nombre = (cle) =>
+    Number(sortie.stdout.match(new RegExp(`^# ${cle} (\\d+)$`, "m"))?.[1] ?? -1)
   return {
     code: sortie.status,
     pass: nombre("pass"),
@@ -88,7 +89,9 @@ const harnais = ran([join(RACINE, "scripts", "harnais.mjs")])
 porte(
   "la baseline rejoue la table entiere",
   harnais.status === 0,
-  harnais.status === 0 ? harnais.stdout.match(/\d+ scenarios, \d+ entrees/)?.[0] : harnais.stderr.slice(0, 400),
+  harnais.status === 0
+    ? harnais.stdout.match(/\d+ scenarios, \d+ entrees/)?.[0]
+    : harnais.stderr.slice(0, 400),
 )
 
 // --- 1. Les trois cibles signalcn ---------------------------------------------------------
@@ -156,7 +159,9 @@ for (const cible of ["signals.ts", "signals.js", "signals.min.js"]) {
 // fichier qu'on distribue. On vérifie donc l'import réel, et que les deux runtimes sont bien deux
 // fichiers distincts sur le disque.
 const runtimeDuTest = async (fichier) =>
-  (await readFile(join(ITEMS, fichier), "utf8")).match(/import\("\.\/(signals(?:\.min)?\.js)"\)/)?.[1]
+  (await readFile(join(ITEMS, fichier), "utf8")).match(
+    /import\("\.\/(signals(?:\.min)?\.js)"\)/,
+  )?.[1]
 
 const cibleDuBuild = await runtimeDuTest("signals.test.js")
 const cibleDuMinifie = await runtimeDuTest("signals.test.min.js")

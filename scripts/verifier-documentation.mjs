@@ -92,7 +92,10 @@ porte("le README exige tsx: true", /"?tsx"?:? true|tsx`? :? `?true/i.test(texte)
 porte("le README declare le plancher de CLI", /4\.10\.0/.test(texte))
 // La raison est exigée avec l'exigence : une exigence sans raison secontredit au premier
 // utilisateur qui se plaint, et l'équipe n'a alors plus d'argument à lui opposer.
-const blocExigences = texte.slice(texte.indexOf("## Deux exigences"), texte.indexOf("## API principale"))
+const blocExigences = texte.slice(
+  texte.indexOf("## Deux exigences"),
+  texte.indexOf("## API principale"),
+)
 porte(
   "chaque exigence porte sa raison",
   (blocExigences.match(/\|/g) ?? []).length >= 6,
@@ -125,9 +128,11 @@ const marquees = Object.entries(COUVERTURE)
 // La section §21, et les identifiants d'entrée que ses lignes de tableau portent.
 const section = spec.slice(spec.indexOf("\n## 21. "), spec.indexOf("\n## 22. "))
 const consignees = new Set(
-  [...section.matchAll(/`(?:signal|computed|effect|subscribe|action|dispose|modele|conv)#\d+[a-z]?`/g)].map(
-    (m) => m[0].replaceAll("`", ""),
-  ),
+  [
+    ...section.matchAll(
+      /`(?:signal|computed|effect|subscribe|action|dispose|modele|conv)#\d+[a-z]?`/g,
+    ),
+  ].map((m) => m[0].replaceAll("`", "")),
 )
 
 const sansLigne = marquees.filter((id) => !consignees.has(id))
@@ -167,7 +172,10 @@ for (const metrique of ["lignes", "branches", "fonctions"]) {
   porte(`le contrat de couverture nomme « ${metrique} »`, new RegExp(metrique, "i").test(texte))
 }
 
-porte("le README porte une section « Différences connues »", /^## Différences connues$/m.test(texte))
+porte(
+  "le README porte une section « Différences connues »",
+  /^## Différences connues$/m.test(texte),
+)
 
 // ---- 5. Les COMPTES cités, contre le registre ---------------------------------------------
 //
@@ -192,13 +200,48 @@ const attendus = { entrees: ENTREES_ATTENDUES.length, scenarios: scenarios.lengt
 // fichier et de l'unité : deux ancres du même document en portaient sinon le même, et un échec ne
 // disait pas laquelle des deux était tombée.
 const ancrees = [
-  ["SPEC.md", /> \*\*Annexe :\*\*.*?— (\d+) comportements/, [attendus.entrees], "SPEC.md annonce le bon nombre de comportements"],
-  ["research/baseline-1.14.4.md", /^\*\*(\d+) comportements\*\* documentés/m, [attendus.entrees], "research/baseline-1.14.4.md annonce le bon nombre de comportements"],
-  ["research/baseline-1.14.4.md", /^\| \*\*Total\*\* \| \*\*(\d+)\*\* \|/m, [attendus.entrees], "le tableau recapitulatif de la baseline annonce le bon total"],
-  ["docs/scenarios.md", /Comment les \*\*(\d+) comportements\*\*/, [attendus.entrees], "docs/scenarios.md annonce le bon nombre de comportements"],
-  ["docs/scenarios.md", /pour (\d+) comportements\./, [attendus.entrees], "docs/scenarios.md annonce le bon nombre de comportements, dans la repartition"],
-  ["ROADMAP.md", /comportements upstream — (\d+) entrées,/, [attendus.entrees], "ROADMAP.md annonce le bon nombre de entrées"],
-  ["ROADMAP.md", /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/, [attendus.scenarios, attendus.entrees], "ROADMAP.md annonce le bon nombre de scenarios ET de comportements"],
+  [
+    "SPEC.md",
+    /> \*\*Annexe :\*\*.*?— (\d+) comportements/,
+    [attendus.entrees],
+    "SPEC.md annonce le bon nombre de comportements",
+  ],
+  [
+    "research/baseline-1.14.4.md",
+    /^\*\*(\d+) comportements\*\* documentés/m,
+    [attendus.entrees],
+    "research/baseline-1.14.4.md annonce le bon nombre de comportements",
+  ],
+  [
+    "research/baseline-1.14.4.md",
+    /^\| \*\*Total\*\* \| \*\*(\d+)\*\* \|/m,
+    [attendus.entrees],
+    "le tableau recapitulatif de la baseline annonce le bon total",
+  ],
+  [
+    "docs/scenarios.md",
+    /Comment les \*\*(\d+) comportements\*\*/,
+    [attendus.entrees],
+    "docs/scenarios.md annonce le bon nombre de comportements",
+  ],
+  [
+    "docs/scenarios.md",
+    /pour (\d+) comportements\./,
+    [attendus.entrees],
+    "docs/scenarios.md annonce le bon nombre de comportements, dans la repartition",
+  ],
+  [
+    "ROADMAP.md",
+    /comportements upstream — (\d+) entrées,/,
+    [attendus.entrees],
+    "ROADMAP.md annonce le bon nombre de entrées",
+  ],
+  [
+    "ROADMAP.md",
+    /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/,
+    [attendus.scenarios, attendus.entrees],
+    "ROADMAP.md annonce le bon nombre de scenarios ET de comportements",
+  ],
 ]
 
 for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
@@ -245,8 +288,9 @@ porte(
 // décimale est facultative parce que la ligne la plus longue du tableau, 107 s, n'en a pas.
 const dix = "(\\d+)(?:,(\\d+))?"
 const sectionCouts = ci.slice(ci.indexOf("\n## 1. "), ci.indexOf("\n## 2. "))
-const couts = [...sectionCouts.matchAll(new RegExp(`^\\| (.+?) \\| \\*{0,2}${dix} s\\*{0,2} \\|`, "gm"))]
-  .map((m) => ({ label: m[1], secondes: Number(m[2]) + Number(m[3] ?? 0) / 100 }))
+const couts = [
+  ...sectionCouts.matchAll(new RegExp(`^\\| (.+?) \\| \\*{0,2}${dix} s\\*{0,2} \\|`, "gm")),
+].map((m) => ({ label: m[1], secondes: Number(m[2]) + Number(m[3] ?? 0) / 100 }))
 const installation = couts.find(({ label }) => label.includes("Installation"))
 const rapides = couts.filter(({ label }) => !label.includes("Installation"))
 const somme = rapides.reduce((total, { secondes }) => total + secondes, 0)
@@ -262,7 +306,8 @@ const annonceRatio = ci.match(/\*\*([\d,]+) fois\s+plus\*\*/)
 
 porte(
   "le total du tableau des couts est la somme de ses lignes",
-  annonceTotal !== null && rapides.length > 0 &&
+  annonceTotal !== null &&
+    rapides.length > 0 &&
     presque(Number(annonceTotal[1].replace(",", ".")) - somme),
   annonceTotal === null
     ? "l'ancre du total est introuvable"
@@ -270,12 +315,13 @@ porte(
 )
 porte(
   "le multiple de l'installation est celui du tableau",
-  annonceRatio !== null && installation !== undefined &&
+  annonceRatio !== null &&
+    installation !== undefined &&
     presque(Number(annonceRatio[1].replace(",", ".")) - installation.secondes / somme),
   annonceRatio === null || installation === undefined
     ? "l'ancre du multiple est introuvable"
     : `${annonceRatio[1].replace(".", ",")} annonces, ` +
-      `${(installation.secondes / somme).toFixed(2).replace(".", ",")} mesures`,
+        `${(installation.secondes / somme).toFixed(2).replace(".", ",")} mesures`,
 )
 
 cloture()

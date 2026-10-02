@@ -1,0 +1,18 @@
+# Un hook, et un seul : `pre-commit`.
+#
+# Le contenu est le MINIMUM qui rend un commit mal formé ou non compilable impossible à écrire,
+# et rien de plus. Ni porte complète, ni pre-push : `npm run porte` coûte bien plus que la seconde
+# que ces deux étapes prennent, et une porte au commit est une porte qu'on contourne dès qu'elle
+# gêne — donc une porte qui ne gêne plus personne parce qu'elle a été désactivée. La porte complète
+# reste là où elle est nexe : `npm run porte` en local, et le job `rapide` en CI.
+#
+# L'ordre est SÉVÉRITÉ : la forme d'un code qui ne compile pas se corrige avant le code lui-même.
+#
+# Les commandes vivent dans `package.json`, comme celles de la CI : ce fichier appelle, il ne
+# décide pas. Voir `docs/ci.md` §6.
+pre-commit:
+  jobs:
+    - name: forme
+      run: npm run formater
+    - name: compilation
+      run: npm run typecheck
