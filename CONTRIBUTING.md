@@ -36,8 +36,9 @@ commentaires, eux, restent en français, et la porte ne les lit pas.
 
 La liste d'exception compte **12** mots. Ils sont français *et* anglais, donc le signal « mot
 français » les refuse à tort ; sans elle, la porte tomberait sur du code sain dès son premier
-passage. `lien` n'y est plus : ce n'est pas un mot anglais, et le garder affaiblirait la porte
-au lieu de la protéger.
+passage. `lien` n'y figure pas, et n'y a jamais figuré : il apparaît plus haut, comme exemple de
+mot français qui est aussi anglais — c'est l'argument contre une liste de mots à refuser, pas une
+exception à la règle.
 
 - `parent`
 - `brand`
