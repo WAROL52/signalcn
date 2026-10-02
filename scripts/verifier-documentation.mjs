@@ -348,7 +348,8 @@ porte(
 // 15 tests `signalcn-seul`), et les cinq identifiants que #46 a renommés dans le cœur. Les
 // commentaires ne sont pas lus, et c'est voulu : ils sont en français. Le contrôle ne couvre pas
 // les AUTRES identifiants du cœur — `tete`, `noeud`, `effet` sont encore français — parce que les
-// angliciser n'est pas le travail de ce ticket.
+// angliciser n'est pas le travail de ce ticket. La sortie le dit, en bas de ce §7 : une exclusion
+// que rien n'affiche est une exclusion que le lecteur ne peut pas voir.
 
 const contribution = await readFile(join(RACINE, "CONTRIBUTING.md"), "utf8")
 
@@ -433,5 +434,20 @@ porte(
     .map(([nom, compte]) => `${nom} ${compte}`)
     .join(", "),
 )
+
+// ---- La porte dit ce qu'elle ne vérifie pas -----------------------------------------------
+//
+// Une porte verte sur un tiers de son périmètre ment par omission, et c'est le défaut que
+// [#68] décrit pour une autre porte. Le dépôt a déjà l'état qui dit « ni passé ni échoué » : `--`,
+// dans `porte-couverture`. Cette ligne est donc écrite avec ce préfixe et avec rien d'autre — ni
+// `ok`, ni `ECHEC` — donc elle ne compte ni comme un succès ni comme un échec.
+//
+// ELLE NE PORTE AUCUN NOMBRE, et c'est délibéré. Compter les mots du cœur que le lexique refuse
+// compterait d'abord le vocabulaire de TypeScript : sur vingt et un mots du langage, dix-sept sont
+// absents du lexique, donc `const`, `void`, `any` et les paramètres de type passeraient pour des
+// mots français. Les exclure demanderait une liste — les mots réservés, les abréviations — donc une
+// seconde liste à maintenir pour un chiffre faux. La zone, elle, ne périme pas : elle reste vraie
+// tant que la porte compte cinq identifiants, quoi qu'il advienne du cœur.
+console.log("  --   les identifiants du cœur autres que les cinq de #46 ne sont pas vérifiés")
 
 cloture()
