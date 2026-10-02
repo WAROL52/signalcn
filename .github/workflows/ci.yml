@@ -7,11 +7,12 @@ on:
     branches: [master]
     tags: ["v*"]
 
-# Deux jobs, et non un par contrôle. Le coût dominant n'est pas la commande : c'est le
-# démarrage de runner. Les contrôles rapides coûtent environ une seconde ensemble, et les
-# séparer en paierait sept démarrages pour lire sept messages différents. Voir docs/ci.md §1.
+# Trois jobs — rapide, distribution, canari — et non un par contrôle. Le coût dominant n'est pas
+# la commande : c'est le démarrage de runner. Les contrôles rapides coûtent dix-neuf secondes
+# ensemble, et les séparer en paierait neuf démarrages pour lire neuf messages différents.
+# Voir docs/ci.md §1.
 #
-# Le job « distribution » est séparé parce qu'il coûte vingt-cinq fois plus que tous les autres
+# Le job « distribution » est séparé parce qu'il coûte 5,7 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
 jobs:
   rapide:
@@ -33,8 +34,9 @@ jobs:
       - run: npm ci
       # L'ordre est par SÉVÉRITÉ, pas par coût. Un job qui exécute tout de toute façon ne paie
       # rien de plus pour être dans le bon ordre, et c'est le premier message lu qui décide de
-      # ce qu'on regarde ensuite. Les contrôles 4 et 5 dépendent du 3 : le test minifié vise le
-      # runtime minifié. L'ordre est donc aussi un ordre de dépendance.
+      # ce qu'on regarde ensuite. Les contrôles 6, 7 et 8 dépendent du 5 : le test minifié vise
+      # le runtime minifié, et le diff se fait sur ce que le build vient d'écrire. L'ordre est
+      # donc aussi un ordre de dépendance.
       - name: conformite — harnais differentiel contre la baseline
         run: npm run harnais
       # Position 2 comme dans docs/ci.md §2 : apres la conformite, qui est le seul echec qui dit

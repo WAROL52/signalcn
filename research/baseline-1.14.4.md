@@ -16,7 +16,7 @@ comme une observation de l'artefact — et le marqueur, désormais, le dit.
 Les lignes **BRANCHE** ne sont pas des doublons. Ce sont les compléments nés d'un découpage : une
 entrée qui asserte un comportement confrontable *et* un nom qui ne l'est pas a été coupée en deux.
 La branche garde l'observable de la mère — c'est le même fait observé par un autre point — et ce qui
-la sépare est **le point d'observation**, jamais le comportement. Onze branches.
+la sépare est **le point d'observation**, jamais le comportement. Douze branches.
 
 La campagne qui a établi tout cela pour les 32 entrées hors harnais, verdict par verdict, est
 [`matrice-hors-harnais.md`](./matrice-hors-harnais.md).
@@ -44,17 +44,24 @@ Node utilisé : v24.18.1.
 | Section | Comportements | Entrées marquées « non documenté » |
 |---|---|---|
 | Zones non documentées | 60 | 60 |
-| `signal(initialValue, options?)` | 23 | 15 |
-| `computed(fn, options?)` | 27 | 19 |
-| `effect(fn, options?)` | 41 | 27 |
-| `batch(fn)` | 26 | 18 |
+| `signal(initialValue, options?)` | 26 | 18 |
+| `computed(fn, options?)` | 30 | 22 |
+| `effect(fn, options?)` | 43 | 29 |
+| `batch(fn)` | 27 | 19 |
 | `untracked(fn)` | 13 | 7 |
-| `action(fn)` | 13 | 8 |
-| `createModel(factory)` | 34 | 23 |
+| `action(fn)` | 11 | 7 |
+| `createModel(factory)` | 38 | 30 |
 | `Signal.prototype.subscribe(fn)` | 18 | 17 |
 | Conversions `toString` / `toJSON` / `valueOf` / `brand` | 15 | 12 |
-| `dispose` et `Symbol.dispose` | 14 | 9 |
-| **Total** | **231** | **175** |
+| `dispose` et `Symbol.dispose` | 10 | 5 |
+| **Total** | **231** | **166** |
+
+Les deux colonnes comptent la même population : les lignes de la matrice qui ont une entrée de
+leur côté dans le registre, branche comprise. Deux lignes ne s'additionnent donc pas. La ligne des
+zones n'est pas une onzième section : ce sont les 60 zones transverse, déjà comptées dans les
+tables par primitive. Et six lignes réobservent un fait déjà entré sous un autre point
+d'observation, sans entrée propre — `action#12`, `action#13`, `dispose#11` à `dispose#14` — d'où
+11 entrées pour 13 lignes côté `action`, et 10 pour 14 côté `dispose`.
 
 ---
 
@@ -355,7 +362,7 @@ par probe**.
 | 38 | Le callback ne reçoit aucun argument | `L913` | `arguments.length === 0` | non | — |
 | 39 | `Effect` exporté, méthodes énumérables sur le prototype | `L894-955` | `Object.keys(Effect.prototype)` = `["_callback","_start","_notify","_dispose","dispose"]` | non | API interne entièrement publique |
 | 40 | `"Out-of-order effect"` atteignable seulement via `_start` | `L840-843` | double appel du `finish` → `Error: Out-of-order effect` | non | inatteignable par l'API publique |
-| 40b | `"Out-of-order effect"` atteignable seulement via `_start` | `L840-843` | double appel du `finish` → `Error: Out-of-order effect` | non | inatteignable par l'API publique |
+| 40b | **BRANCHE** — `"Out-of-order effect"` atteignable seulement via `_start` | `L840-843` | double appel du `finish` → `Error: Out-of-order effect` | non | inatteignable par l'API publique |
 | 41 | `effect(fn)` retourné est utilisable avec `using` | `L980` | `["run","body","cleanup"]` | oui (CHANGELOG 1.11.0) | — |
 
 ---

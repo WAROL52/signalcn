@@ -25,6 +25,13 @@
  *   4. LE CONTRAT DE COUVERTURE EST À TROIS MÉTRIQUES. Le README annonçait quatre rubriques
  *      d'un runner qui n'en a que trois ; le contrat qu'il annonce doit être celui qu'on applique.
  *
+ *   5. LE PIPELINE EST CELUI QU'IL DÉCRIT. `docs/ci.md` est la référence des coûts, et ses
+ *      chiffres se périment sans bruit : rien n'exécute un coût, et une ligne fausse dans son
+ *      tableau ne fait tomber aucune porte. Le tableau doit donc sommer — le total annoncé est
+ *      la somme de ses lignes, le multiple annoncé est celui de la ligne d'installation sur ce
+ *      total — et l'ordre de ses contrôles doit être l'ordre des étapes du YAML, parce qu'un
+ *      document qui décrit une CI différente de celle qui tourne est un mensonge de plus.
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
@@ -206,5 +213,69 @@ for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
       : `${cites.join(" / ")} annonces, ${attendusAncre.join(" / ")} reels`,
   )
 }
+
+// ---- 6. Le pipeline décrit par `docs/ci.md`, et celui qui tourne ----------------------------
+//
+// Trois faits, tous dans le même fichier, tous impossibles à voir à l'œil : un coût mesuré ne
+// s'exécute nulle part, et une étape déplacée dans le YAML ne dit rien au document qui l'explique.
+// Le YAML fait foi pour l'ORDRE — c'est lui qui tourne — et le tableau fait foi pour les DURÉES,
+// parce que c'est lui qui les porte. La porte ne mesure rien : elle vérifie que le document
+// répond à lui-même, et qu'il décrit le YAML.
+
+const ci = await readFile(join(RACINE, "docs", "ci.md"), "utf8")
+
+// L'ordre du YAML, dans le job « rapide ». `npm ci` ne porte pas de `npm run` et n'est donc pas
+// capté : ce sont les contrôles, pas l'installation des dépendances.
+const yaml = await readFile(join(RACINE, ".github", "workflows", "ci.yml"), "utf8")
+const jobRapide = yaml.slice(yaml.indexOf("\n  rapide:"), yaml.indexOf("\n  distribution:"))
+const etapes = [...jobRapide.matchAll(/run: npm run ([\w-]+)/g)].map((m) => m[1])
+
+// Le §2 annonce les mêmes contrôles, dans le même ordre, nommés par leur entrée `package.json`.
+const sectionOrdre = ci.slice(ci.indexOf("\n## 2. "), ci.indexOf("\n## 3. "))
+const annonces = [...sectionOrdre.matchAll(/`(npm run [\w-]+)`/g)].map((m) => m[1].slice(8))
+
+porte(
+  "docs/ci.md annonce les controles du job rapide, dans l'ordre du YAML",
+  annonces.length === etapes.length && annonces.every((c, i) => c === etapes[i]),
+  `${annonces.length} annonces (${annonces.join(", ")}), ${etapes.length} etapes (${etapes.join(", ")})`,
+)
+
+// Le tableau des coûts doit sommer. La virgule est une virgule : le document écrit `18,8`, pas
+// `18.8`, et une mesure qui l'ignorerait lirait `18` — un total faux, qui passerait. La partie
+// décimale est facultative parce que la ligne la plus longue du tableau, 107 s, n'en a pas.
+const dix = "(\\d+)(?:,(\\d+))?"
+const sectionCouts = ci.slice(ci.indexOf("\n## 1. "), ci.indexOf("\n## 2. "))
+const couts = [...sectionCouts.matchAll(new RegExp(`^\\| (.+?) \\| \\*{0,2}${dix} s\\*{0,2} \\|`, "gm"))]
+  .map((m) => ({ label: m[1], secondes: Number(m[2]) + Number(m[3] ?? 0) / 100 }))
+const installation = couts.find(({ label }) => label.includes("Installation"))
+const rapides = couts.filter(({ label }) => !label.includes("Installation"))
+const somme = rapides.reduce((total, { secondes }) => total + secondes, 0)
+
+// L'arrondi à une décimale est toléré, et doit l'être : la somme de neuf médianes n'est pas un
+// nombre qu'on écrit — 18,76 s s'écrit « 18,8 s ». Cinq centièmes laissent passer cet arrondi et
+// tombent dès qu'une ligne est périmée, car le plus petit écart possible entre deux médianes de
+// cette liste est de dixièmes de seconde. Le test est `presque(annoncé − mesuré)`, jamais
+// l'inverse : arrondir la différence ferait passer n'importe quoi, y compris treize secondes.
+const presque = (ecart) => Math.abs(ecart) <= 0.05
+const annonceTotal = ci.match(/réunis coûtent \*\*([\d,]+) s\*\*/)
+const annonceRatio = ci.match(/\*\*([\d,]+) fois\s+plus\*\*/)
+
+porte(
+  "le total du tableau des couts est la somme de ses lignes",
+  annonceTotal !== null && rapides.length > 0 &&
+    presque(Number(annonceTotal[1].replace(",", ".")) - somme),
+  annonceTotal === null
+    ? "l'ancre du total est introuvable"
+    : `${annonceTotal[1].replace(".", ",")} annonces, ${somme.toFixed(2).replace(".", ",")} mesures`,
+)
+porte(
+  "le multiple de l'installation est celui du tableau",
+  annonceRatio !== null && installation !== undefined &&
+    presque(Number(annonceRatio[1].replace(",", ".")) - installation.secondes / somme),
+  annonceRatio === null || installation === undefined
+    ? "l'ancre du multiple est introuvable"
+    : `${annonceRatio[1].replace(".", ",")} annonces, ` +
+      `${(installation.secondes / somme).toFixed(2).replace(".", ",")} mesures`,
+)
 
 cloture()

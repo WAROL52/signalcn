@@ -13,25 +13,27 @@ Ce qui n'est observable qu'en combinaison se greffe sur un scénario existant, e
 ajoute alors une ligne de traçabilité de plus. La règle est énonçable, donc vérifiable — ce qui
 était la condition posée.
 
-Cible : **entre soixante et quatre-vingts scénarios** pour 231 comportements. La répartition
-approchée :
+Le corpus compte **82 scénarios** pour 231 comportements. Un scénario n'appartient pas à une
+primitive : il en couvre souvent plusieurs, et c'est le champ `matrice:` qui le dit. La colonne de
+droite compte donc les scénarios qui citent au moins une entrée de la primitive — elle totalise
+89, pas 82.
 
 Les **60 zones transverse** ne s'ajoutent pas : ce sont les comportements 1 à 60 déjà comptés
 dans les tables par primitive, présentés comme un hors-sujet. Elles se répartissent sur les dix
 primitives, pas dans une onzième.
 
-| Primitive | Comportements | Scénarios visés |
+| Primitive | Entrées de matrice | Scénarios qui la couvrent |
 |---|---|---|
-| `signal` | 23 | 8 |
-| `computed` | 27 | 9 |
-| `effect` | 41 | 14 |
-| `batch` | 26 | 9 |
-| `untracked` | 13 | 5 |
-| `action` | 13 | 5 |
-| `createModel` | 34 | 12 |
-| `subscribe` | 18 | 6 |
-| Conversions | 15 | 5 |
-| `dispose` | 14 | 5 |
+| `signal` | 26 | 9 |
+| `computed` | 30 | 17 |
+| `effect` | 43 | 21 |
+| `batch` | 27 | 9 |
+| `untracked` | 13 | 7 |
+| `action` | 11 | 3 |
+| `createModel` | 38 | 7 |
+| `subscribe` | 18 | 3 |
+| Conversions | 15 | 7 |
+| `dispose` | 10 | 6 |
 
 ## 2. La forme d'un scénario
 
@@ -76,18 +78,17 @@ Une porte extrait tous les couples `(section, n)` référencés par les scénari
 échec.**
 
 ```text
-signal#1..23      conversions#1..15
-computed#1..27    dispose#1..14
-effect#1..41      zones#1..60
-batch#1..26       subscribe#1..18
-untracked#1..13   action#1..13
-createModel#1..34
+signal#1..23      conv#1..15
+computed#1..27    dispose#1..10
+effect#1..41      subscribe#1..18
+batch#1..27       action#1..11
+untracked#1..13   modele#1..34
 ```
 
 Cinq des dix sections sont des tables préfixées par un nom de primitive ; la sixth,
-« Conversions », et la septième, « dispose et `Symbol.dispose` », ont des noms à part, et les
-zones transverse sont les comportements 1 à 60 déjà comptés dans les tables par primitive —
-elles ne se comptent pas deux fois.
+« Conversions », et la septième, « dispose et `Symbol.dispose` », ont des noms à part. Les zones
+transverse ne sont pas une onzième : ce sont les comportements 1 à 60 déjà comptés dans les tables
+par primitive, et elles n'ont pas d'entrée propre — elles ne se comptent pas deux fois.
 
 La porte est un script de quelques lignes, comme celle de
 [`docs/documentation.md`](./documentation.md) §2. Elle tourne dans le job rapide.

@@ -26,8 +26,9 @@ passer, c'est un défaut chez nous.
 ## Les portes
 
 `npm run porte` enchaîne tout, sauf `verifier-installation` : celle-là est le job `distribution`,
-qui tourne en parallèle et coûte 97 secondes à lui seul. Pour le reste, c'est le seul juge : un
-commit qui laisse `porte` rouge n'est pas prêt, quelle que soit la qualité du diff.
+qui tourne en parallèle et coûte à elle seule plus que tous les autres réunis — le chiffre est
+mesuré en [`docs/ci.md`](docs/ci.md) §1, qui est sa seule source. Pour le reste, c'est le seul
+juge : un commit qui laisse `porte` rouge n'est pas prêt, quelle que soit la qualité du diff.
 
 L'ordre des lignes est celui du job rapide de la CI, qui est **par sévérité et non par coût** : le
 premier message lu est celui qui décide de ce qu'on regarde ensuite. La dernière ligne n'appartient
