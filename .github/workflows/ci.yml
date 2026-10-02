@@ -7,13 +7,18 @@ on:
     branches: [master]
     tags: ["v*"]
 
-# Trois jobs — rapide, distribution, canari — et non un par contrôle. Le coût dominant n'est pas
-# la commande : c'est le démarrage de runner. Les contrôles rapides coûtent près de vingt secondes
-# ensemble, et les séparer en paierait onze démarrages pour lire onze messages différents.
-# Voir docs/ci.md §1.
+# Quatre jobs — rapide, distribution, canari, documentation-statique — et non un par contrôle. Le
+# coût dominant n'est pas la commande : c'est le démarrage de runner. Les contrôles hors
+# installation coûtent 25,5 secondes ensemble, et les séparer en paierait treize démarrages pour
+# lire treize messages différents. Voir docs/ci.md §1.
 #
-# Le job « distribution » est séparé parce qu'il coûte 5,4 fois plus que tous les autres
+# Le job « distribution » est séparé parce qu'il coûte 4,2 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
+#
+# Le job « documentation-statique » est séparé pour la même raison de coût — il installe le
+# générateur de site — et parce qu'il construit le SITE. C'est un contrôle comme un autre : il
+# échoue, et la pull request est rouge. Le déploiement sur GitHub Pages n'y est PAS, et ne peut
+# pas y être : voir docs/ci.md §4.
 jobs:
   rapide:
     name: rapide
@@ -109,4 +114,30 @@ jobs:
       - name: installation avec la derniere CLI publiee
         run: npm run verifier-installation
         env:
-          SIGNALCN_CLI: '[{"nom":"shadcn latest","paquet":"shadcn@latest"}]' 
+          SIGNALCN_CLI: '[{"nom":"shadcn latest","paquet":"shadcn@latest"}]'
+
+  # Le quatrième job, et le seul qui construise le SITE. Il est un contrôle comme un autre : son
+  # échec met la pull request en rouge, et c'est ce qui le rend listable comme check requis — le
+  # ruleset ne peut pas déclarer un job qui n'existe pas, c'est #52 qui est bloqué par celui-ci.
+  #
+  # Le déploiement sur GitHub Pages n'est PAS ici, et ne peut pas y être : un job qui déploie ne
+  # peut pas être un check requis, et surtout un déploiement réussi ne doit pas pouvoir masquer un
+  # build cassé. Il ira dans un workflow distinct, déclenché par le push sur master — écrit quand la
+  # politique de versionnement du site sera tranchée (#51). Voir docs/ci.md §4.
+  documentation-statique:
+    name: documentation-statique
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: build du site — VitePress, ici comme en local
+        run: npm run documentation-statique
+      # La porte suit le build et ne le relance pas : elle vérifie que le build du site n'a rien
+      # écrit dans registry/ ni à la racine. `verifier-derive` ne le verrait pas — son `git diff`
+      # ne voit ni un fichier NEUF, ni un chemin hors de registry/default/. Voir docs/ci.md §4.
+      - name: proprete — le build du site n'ecrit pas dans les chemins des artefacts
+        run: npm run verifier-proprete

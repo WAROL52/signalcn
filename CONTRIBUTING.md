@@ -31,8 +31,8 @@ mesuré en [`docs/ci.md`](docs/ci.md) §1, qui est sa seule source. Pour le rest
 juge : un commit qui laisse `porte` rouge n'est pas prêt, quelle que soit la qualité du diff.
 
 L'ordre des lignes est celui du job rapide de la CI, qui est **par sévérité et non par coût** : le
-premier message lu est celui qui décide de ce qu'on regarde ensuite. La dernière ligne n'appartient
-pas à ce job, et sa ligne le dit.
+premier message lu est celui qui décide de ce qu'on regarde ensuite. Les deux dernières lignes
+n'appartiennent pas à ce job, et leurs lignes le disent.
 
 | Porte | Ce qu'elle attrape |
 |---|---|
@@ -45,6 +45,7 @@ pas à ce job, et sa ligne le dit.
 | `npm run parite` | La table sur les quatre cibles — baseline, source, build, minifié. |
 | `verifier-derive` | Un artefact committé périmé. |
 | `npm run documentation` | Un `README` qui ment sur la surface, ou une divergence non consignée. |
+| `npm run documentation-statique` + `verifier-proprete` | Un site qui ne se construit pas, un build qui écrit dans les chemins des artefacts. **Hors `rapide`** : c'est le job `documentation-statique`, en parallèle, et dans cet ordre — la propreté observe ce que le build vient d'écrire. |
 | `npm run verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. **Hors `porte`** : c'est le job `distribution`, en parallèle. |
 
 [`docs/ci.md`](./docs/ci.md) donne le détail et le coût de chacune.

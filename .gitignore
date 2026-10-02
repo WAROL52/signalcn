@@ -1,2 +1,8 @@
 node_modules/
 *.tsbuildinfo
+
+# La sortie du build du site, et rien d'autre : elle est régénérée à chaque exécution, et un
+# site committé n'est pas le site de la CI. La porte de propreté vérifie que ces deux lignes
+# suffisent, en interrogeant git et non ce fichier.
+site/.vitepress/dist/
+site/.vitepress/cache/

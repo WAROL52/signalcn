@@ -1,8 +1,9 @@
 # Pipeline CI
 
-Trois jobs, sur chaque pull request comme sur chaque push — le tag de release n'y change rien. Le
-troisième ne bloque rien : c'est un canari sur la dernière CLI publiée, et il répond à une seule
-question. Voir [`ci.yml`](../.github/workflows/ci.yml).
+Quatre jobs, sur chaque pull request comme sur chaque push sur `master` — le tag de release n'y
+change rien. Le troisième ne bloque rien : c'est un canari sur la dernière CLI publiée, et il
+répond à une seule question. Le quatrième construit le site, et c'est un contrôle : son échec met
+la pull request en rouge. Voir [`ci.yml`](../.github/workflows/ci.yml).
 
 Les commandes vivent dans `package.json`, pas dans le YAML. Le YAML appelle, il ne décide pas —
 c'est la même règle que pour les drapeaux de couverture, et pour la même raison : une option
@@ -18,6 +19,7 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
+| Propreté : le build du site n'écrit pas dans les chemins d'artefacts | 0,32 s |
 | Biome : forme et ruleset `recommended` | 0,70 s |
 | Suite source | 0,77 s |
 | Couverture : seuils, code mort, non-régression | 1,53 s |
@@ -25,15 +27,16 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Parité, quatre cibles | 2,53 s |
 | Build + minify + réécriture | 3,17 s |
 | Dérive : le build ne touche aucun artefact committé | 3,17 s |
+| Documentation statique : build du site | 5,42 s |
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles rapides réunis coûtent **19,8 s**. L'installation en coûte **5,4 fois
+Tous les contrôles, hors installation, réunis coûtent **25,5 s**. L'installation en coûte **4,2 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
-Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Trois jobs
-représentent trois démarrages pour onze contrôles qui coûtent ensemble 19,8 secondes.
+Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Quatre jobs
+représentent quatre démarrages pour treize contrôles qui coûtent ensemble 25,5 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -100,9 +103,9 @@ tableau du §1 — par `npm run …`, médiane de cinq : 3,0 s, dont 2,3 s de `t
 
 **Ni Markdown ni YAML.** Biome 2.5.15 ne connaît pas ces deux types de fichiers et les ignore
 silencieusement : `biome check` sur un `.md` ou un `.yml` répond « no files were processed ». C'est
-une limite de l'outil, pas de la configuration — aucun réglage ne les ajoute. Les trente-quatre
-`.md` et les deux `.yml` du dépôt ne sont donc pas vérifiés par ce contrôle, et rien dans la CI ne
-prétend le contraire.
+une limite de l'outil, pas de la configuration — aucun réglage ne les ajoute. Aucun fichier
+Markdown ni YAML du dépôt n'est donc vérifié par ce contrôle, et rien dans la CI ne prétend le
+contraire.
 
 **Le contrôle 10 EST le diff** : `git diff --stat` sur `registry/default/`, après un build que la
 porte relance elle-même. Un diff vide **est** le test, parce que le build est reproductible — et
@@ -125,7 +128,39 @@ registry peut changer d'une version à l'autre — et la recherche a établi que
 plancher fonctionnel — donc `shadcn@latest` en CI signifie que le dépôt peut devenir faux sans
 qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus rapide.
 
-## 4. Au tag de release
+## 4. Job « documentation-statique »
+
+| Contrôle | Ce qu'il attrape |
+|---|---|
+| **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible |
+| **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit dans `registry/` ou à la racine |
+
+Les deux coûts sont ceux du §1 — 5,42 s et 0,32 s — et ils sont dominés par le build : la porte de
+propreté ne lit qu'un `git status`. À comparer aux 107 s de l'installation, qui est le seul coût qui
+mérite qu'on discute de sa fréquence.
+
+**Ce que le build attrape, et ce qu'il n'attrape pas.** Mesuré sur VitePress 1.6.4 : un lien mort
+écrit dans une page fait échouer le build, et une entrée de navigation qui pointe vers une page
+inexistante le laisse **vert**. La navigation est donc le seul endroit où une page morte passerait
+inaperçue — d'où les trois entrées du squelette, qui ne listent que des pages qui existent.
+
+**La propreté est une porte, pas une précaution.** Elle existe parce que `verifier-derive` ne voit
+pas ce que le build du site pourrait écrire : son `git diff` ne parle que de fichiers **suivis** et
+que de `registry/default/`, donc un fichier neuf déposé dans ce répertoire passe, et n'importe quoi
+écrit à la racine passe aussi. Elle vérifie l'état **après** le build et ne le relance pas — l'ordre
+est fait par l'appelant, `porte` comme la CI — et son périmètre est `registry/` plus la racine, soit
+tout ce qu'un build a le droit d'écrire hors de `site/`. Elle vérifie enfin que la sortie du site
+est un fichier ignoré, en posant la question à `git check-ignore` et non en lisant `.gitignore` : le
+fichier reste la seule source, et aucune liste n'est écrite deux fois.
+
+**Le déploiement sur GitHub Pages n'est pas dans ce job.** Un job qui déploie ne peut pas être un
+check requis — GitHub le tient pour non bloquant, exactement comme le canari — et surtout un
+déploiement réussi ne doit pas pouvoir masquer un build cassé : c'est le contraire de ce qu'est un
+contrôle. Il ira dans un workflow distinct, déclenché par le push sur `master`. Ce qui reste à y
+trancher : le `base` du site, qui vaut `/signalcn/` pour une page de projet et n'est écrit nulle
+part tant que le déploiement n'existe pas, et la politique de versionnement du site (#51).
+
+## 5. Au tag de release
 
 Le job « rapide » ne change pas. La non-régression par rapport au merge-base s'applique au tag
 comme en pull request, et le seuil mesuré ne se relâche pas non plus — rien à relâcher : il n'est
@@ -133,7 +168,11 @@ pas à 100 %, et ADR-0011 dit pourquoi.
 
 Le job « distribution » s'exécute exactement comme sur une PR.
 
-## 5. Le déclencheur de release
+Le job « documentation-statique » ne s'exécute pas au tag : ses déclencheurs sont la pull request et
+le push sur `master`. Un site se construit sur une branche comme sur `master`, et rien ne fait
+attendre d'un tag un fichier que le build du jour ne produit pas non plus.
+
+## 6. Le déclencheur de release
 
 Rien de technique ne distingue une pull request de routine d'un cut de version. Un
 mainteneur pousse un tag ; la CI doit être verte ; rien ne change sinon.
@@ -141,7 +180,7 @@ mainteneur pousse un tag ; la CI doit être verte ; rien ne change sinon.
 C'est volontaire. Une règle automatique qui décide de publier introduirait un état que personne
 n'a demandé, et le coût d'une publication inutile dépasse celui d'une décision manuelle.
 
-## 6. Le budget de maintenance
+## 7. Le budget de maintenance
 
 Chaque contrôle est une entrée `package.json`. Le YAML fait trois choses : installer, appeler
 l'entrée, propager le code de sortie. Il ne contient aucun drapeau de couverture, aucun motif
