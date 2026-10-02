@@ -45,7 +45,7 @@ C'est le vrai dividende, et il vaut plus qu'un pourcentage.
 2. **`Signal._notify` était un no-op mort**, absent de la référence. Il n'était nécessaire ni au
    typage (`Node._target` est un `Computed | Effect`) ni à quoi que ce soit. Supprimé : les
    fonctions sont à 100 %.
-3. **Un test de garde ne testait rien.** `signalcn-seul/hors-ordre` comptait sur un deuxième run
+3. **Un test de garde ne testait rien.** `signalcn-seul/nested-effects-run-in-creation-order` comptait sur un deuxième run
    pour atteindre son assertion, et son corps ne lisait aucun signal — donc rien ne pouvait le
    relancer, donc l'assertion n'avait jamais été exécutée. Il passait au vert en ne testant rien,
    ce qui est précisément le défaut qu'un test de garde doit éviter. Il teste maintenant ce que

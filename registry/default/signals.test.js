@@ -197,7 +197,7 @@ export const scenarios = [
         // CE SCÉNARIO NE PROUVE PAS LA NOTIFICATION, et il ne prétend pas. Sans subscriber, le seul
         // compteur d'une notification est `_version`, qui n'a pas le même nom des deux côtés :
         // l'affirmer ici serait une hypothèse, pas une mesure. Une implémentation fondée sur
-        // `Object.is` passerait ce scénario. C'est `signalcn-seul/notifie-sur-stricte-identite` qui
+        // `Object.is` passerait ce scénario. C'est `signalcn-seul/notification-follows-object-is` qui
         // discrimine les deux — et c'est normal qu'il soit d'un seul côté.
         name: "signal/strict-equality-nan",
         matrice: ["signal#6"],
@@ -352,7 +352,7 @@ export const scenarios = [
         // SPEC §5.1 — la marque, et l'absence de `dispose` sur un signal.
         // `brand` est sur le prototype : lisible depuis l'instance, absent des proprietes-own,
         // et traverse par `in`. C'est exactement ce dont la detection de sous-objet d'un modele a
-        // besoin. Le descripteur, lui, diverge — voir `signalcn-seul/descripteurs-de-prototype`.
+        // besoin. Le descripteur, lui, diverge — voir `signalcn-seul/enumeration-skips-the-prototype`.
         name: "signal/brand-and-no-dispose",
         matrice: ["signal#17", "signal#22", "signal#23", "conv#11", "conv#13"],
         run(api, log) {
@@ -3520,16 +3520,16 @@ export const COUVERTURE = {
     "signal#2": "signal/no-argument",
     // signal#3 et #4 sont des affirmations de structure : elles ne peuvent PAS passer contre la
     // baseline, qui minifie ses noms de propriétés. Elles sont donc nôtres seules.
-    "signal#3": "signalcn-seul/structure-de-classe + source:src/index.ts#L368-377",
-    "signal#4": "signalcn-seul/structure-de-classe + source:src/index.ts#L376",
+    "signal#3": "signalcn-seul/class-shape + source:src/index.ts#L368-377",
+    "signal#4": "signalcn-seul/class-shape + source:src/index.ts#L376",
     // La notification demande un observateur : c'est un effet, et le scénario fige son journal.
     "signal#5": "signal/synchronous-notification",
     "signal#6": "signal/strict-equality-nan",
-    "signal#6b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
+    "signal#6b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
     "signal#7": "signal/zero-and-negative-zero",
-    "signal#7b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
+    "signal#7b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
     "signal#8": "signal/zero-and-negative-zero",
-    "signal#8b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
+    "signal#8b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
     "signal#9": "signal/strict-equality-object",
     "signal#10": "signal/strict-equality-object",
     "signal#11": "signal/strict-equality-object",
@@ -3537,13 +3537,13 @@ export const COUVERTURE = {
     "signal#13": "signal/synchronous-notification",
     // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
     "signal#14": "signal/synchronous-notification",
-    "signal#15": "signal/peek + signalcn-seul/descripteurs-de-prototype",
+    "signal#15": "signal/peek + signalcn-seul/enumeration-skips-the-prototype",
     "signal#16": "signal/options-name",
     "signal#17": "signal/brand-and-no-dispose",
     "signal#18": "signal/instance-and-class",
     "signal#19": "signal/instance-and-class",
     "signal#20": "signal/instance-and-class",
-    "signal#21": "signalcn-seul/signal-gele",
+    "signal#21": "signalcn-seul/write-on-frozen-signal-throws",
     "signal#22": "signal/brand-and-no-dispose",
     "signal#23": "signal/brand-and-no-dispose",
     // --- groupe conversions : 15 entrées
@@ -3562,9 +3562,9 @@ export const COUVERTURE = {
     // DIVERGENCE ASSUMÉE : la baseline écrit son prototype à la main, donc ses méthodes y sont
     // énumérables. SPEC §20 impose des classes natives ES2020, dont les méthodes de prototype
     // sont non énumérables. Nous divergons, et c'est le nôtre qui est vérifié.
-    "conv#10": "signalcn-seul/descripteurs-de-prototype",
+    "conv#10": "signalcn-seul/enumeration-skips-the-prototype",
     "conv#11": "signal/brand-and-no-dispose",
-    "conv#12": "signalcn-seul/descripteurs-de-prototype",
+    "conv#12": "signalcn-seul/enumeration-skips-the-prototype",
     "conv#13": "signal/brand-and-no-dispose",
     "conv#14": "conversions/to-json-and-stringify",
     "conv#15": "conversions/follow-the-dependency",
@@ -3587,7 +3587,7 @@ export const COUVERTURE = {
     "computed#9": "computed/reactivation-after-abandon",
     // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
     // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
-    "computed#10": "signalcn-seul/ordre-des-sources + source:src/index.ts#L508-531",
+    "computed#10": "signalcn-seul/sources-in-read-order + source:src/index.ts#L508-531",
     // computed#11 : la relecture paresseuse dans un batch ne relance rien, et le compteur
     // d'évaluations le dit. Elle pointait sur #26, clos.
     "computed#11": "computed/reentrant-read-in-batch",
@@ -3607,10 +3607,10 @@ export const COUVERTURE = {
     // SPEC §21 et ADR-0004. Notre prototype ne porte pas d'état, nos noms sont lisibles, et
     // `constructor` vaut `Computed` et non `Signal` — le correctif que SPEC §21 enregistre. Ces
     // quatre entrées ne sont donc pas différentielles : elles sont nôtres seules.
-    "computed#19": "signalcn-seul/structure-de-classe",
-    "computed#20": "signalcn-seul/structure-de-classe + source:src/index.ts#L644",
-    "computed#21": "signalcn-seul/structure-de-classe + source:src/index.ts#L644",
-    "computed#22": "signalcn-seul/structure-de-classe",
+    "computed#19": "signalcn-seul/class-shape",
+    "computed#20": "signalcn-seul/class-shape + source:src/index.ts#L644",
+    "computed#21": "signalcn-seul/class-shape + source:src/index.ts#L644",
+    "computed#22": "signalcn-seul/class-shape",
     "computed#22b": "source:src/index.ts#L653-655",
     "computed#23": "computed/read-only",
     "computed#24": "computed/read-only",
@@ -3659,24 +3659,25 @@ export const COUVERTURE = {
     "effect#33": "effect/nesting-and-independence",
     // effect#34 : un effet créé dans un COMPUTÉ fuit à chaque évaluation. C'est un quirk figé, et le
     // mesurer demande un observateur — donc un effet dans un effet.
-    "effect#34": "signalcn-seul/effet-dans-un-calcule",
+    "effect#34": "signalcn-seul/computed-leaks-its-effects",
     "effect#35": "effect/shape-of-the-disposer",
     "effect#36": "signalcn-seul/options-de-linstance",
-    "effect#36b": "signalcn-seul/structure-de-classe + source:src/index.ts#L770",
-    "effect#37": "signalcn-seul/drapeaux-initiaux + source:src/index.ts#L776",
+    "effect#36b": "signalcn-seul/class-shape + source:src/index.ts#L770",
+    "effect#37": "signalcn-seul/an-effect-is-observed-a-computed-is-not + source:src/index.ts#L776",
     "effect#38": "effect/first-run-and-arguments",
     // effect#39 : la baseline écrit son prototype à la main, donc ses méthodes y sont énumérables.
     // ADR-0004 refuse cette énumérabilité. DIVERGENCE ASSUMÉE.
-    "effect#39": "signalcn-seul/descripteurs-de-prototype + source:src/index.ts#L907",
-    // La matrice dit « atteignable seulement via `_start` ». `hors-ordre` montre que l'API
+    "effect#39": "signalcn-seul/enumeration-skips-the-prototype + source:src/index.ts#L907",
+    // La matrice dit « atteignable seulement via `_start` ».
+    // `nested-effects-run-in-creation-order` montre que l'API
     // publique ferme en ordre inverse — le cas NORMAL — et n'atteint donc pas le garde ;
-    // `gardes-internes` l'atteint. C'est le second qui couvre l'entrée, le premier qui
+    // `guards-on-an-inconsistent-node` l'atteint. C'est le second qui couvre l'entrée, le premier qui
     // garantit qu'on ne l'atteint pas par accident.
     // Deux observables distincts : le GARDE existe et l'API publique ne le déclenche jamais —
-    // `hors-ordre` le montre, et rejouable contre le paquet ; et son ATTEINTE, qui suppose
-    // `_start`, donc un interne que l'artefact n'a pas sous ce nom.
-    "effect#40": "signalcn-seul/hors-ordre",
-    "effect#40b": "signalcn-seul/gardes-internes + source:src/index.ts#L842",
+    // `nested-effects-run-in-creation-order` le montre, et rejouable contre le paquet ; et son
+    // ATTEINTE, qui suppose `_start`, donc un interne que l'artefact n'a pas sous ce nom.
+    "effect#40": "signalcn-seul/nested-effects-run-in-creation-order",
+    "effect#40b": "signalcn-seul/guards-on-an-inconsistent-node + source:src/index.ts#L842",
     "effect#41": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.2",
     // ---- `batch` et `untracked` -----------------------------------------------------------------
     //
@@ -3742,19 +3743,19 @@ export const COUVERTURE = {
     // SUBSTITUTION de la fonction est differentielle, le nom ne l'est pas.
     "modele#1": "model/shape-and-teardown",
     "modele#2": "model/shape-and-teardown",
-    "modele#2b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
+    "modele#2b": "signalcn-seul/wrapper-covers-every-surface + divergence:SPEC.md#17.2",
     "modele#3": "model/shape-and-teardown",
     "modele#4": "model/shape-and-teardown",
-    "modele#4b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
+    "modele#4b": "signalcn-seul/wrapper-covers-every-surface + divergence:SPEC.md#17.2",
     "modele#5": "model/shape-and-teardown",
-    "modele#5b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
+    "modele#5b": "signalcn-seul/wrapper-covers-every-surface + divergence:SPEC.md#17.2",
     "modele#6": "model/shape-and-teardown",
     "modele#7": "model/shape-and-teardown",
     "modele#8": "model/shape-and-teardown",
     "modele#9": "model/shape-and-teardown",
     "modele#10": "model/shape-and-teardown",
     "modele#11": "model/cyclic-getter-and-primitives",
-    "modele#11b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
+    "modele#11b": "signalcn-seul/wrapper-covers-every-surface + divergence:SPEC.md#17.2",
     "modele#12": "model/cyclic-getter-and-primitives",
     "modele#13": "model/effect-capture",
     "modele#14": "model/arguments-and-this",
@@ -3792,12 +3793,12 @@ export const COUVERTURE = {
     "subscribe#9": "subscribe/where-it-is-created",
     "subscribe#10": "subscribe/untracked-callback",
     "subscribe#11": "subscribe/where-it-is-created",
-    "subscribe#12": "signalcn-seul/nom-de-leffet-interne + source:src/index.ts#L427",
+    "subscribe#12": "signalcn-seul/internal-effect-takes-the-options-name + source:src/index.ts#L427",
     "subscribe#13": "subscribe/where-it-is-created",
     "subscribe#14": "subscribe/where-it-is-created",
     "subscribe#15": "subscribe/unsubscribe-and-errors",
     // subscribe#16 : la forme interne differee et le nom "sub" sont nôtres seuls.
-    "subscribe#16": "signalcn-seul/nom-de-leffet-interne",
+    "subscribe#16": "signalcn-seul/internal-effect-takes-the-options-name",
     // subscribe#17 (ordre avec plusieurs abonnes) et #18 (utilisable avec `using`) : le premier est
     // deja couvert par la fin de `subscribe/where-it-is-created`, le second par la forme du retour dans
     // `subscribe/unsubscribe-and-errors`.
@@ -3806,13 +3807,13 @@ export const COUVERTURE = {
     // --- groupe `action` : 11 entrees
     // `action#6`, le nom du wrapper, est le SEUL cas que la table ne peut pas dire : le paquet publie
     // minifie ses noms de fonctions, donc `f.name` y vaut la chaine vide. Le notre survit parce que
-    // le pipeline passe `--keep-names`, et c'est ce que verifie `signalcn-seul/wrapper-nomme`.
+    // le pipeline passe `--keep-names`, et c'est ce que verifie `signalcn-seul/wrapper-name-is-frozen`.
     "action#1": "action/batch-around-untracked",
     "action#2": "action/batch-around-untracked",
     "action#3": "action/this-and-arguments",
     "action#4": "action/this-and-arguments",
     "action#5": "action/this-and-arguments",
-    "action#6": "signalcn-seul/wrapper-nomme + divergence:SPEC.md#17.2",
+    "action#6": "signalcn-seul/wrapper-name-is-frozen + divergence:SPEC.md#17.2",
     "action#7": "action/batch-around-untracked",
     "action#8": "action/batch-around-untracked",
     "action#9": "action/batch-around-untracked",
@@ -3846,12 +3847,12 @@ export const COUVERTURE = {
     "dispose#4": "subscribe/on-a-computed",
     // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
     // atteignable que sur le bundle réel dans un tel realm ; l'affirmer demanderait de l'éteindre.
-    "dispose#5": "signalcn-seul/symbol-dispose-absent",
+    "dispose#5": "signalcn-seul/symbol-dispose-missing-leaves-no-stray-key",
     "dispose#6": "dispose/idempotent-and-detachment + dispose/cleanup-that-throws-at-dispose",
     "dispose#7": "dispose/during-the-run",
     "dispose#8": "dispose/in-the-queue",
     "dispose#9": "dispose/idempotent-and-detachment",
-    "dispose#10": "signalcn-seul/descripteurs-de-prototype + source:src/index.ts#L907",
+    "dispose#10": "signalcn-seul/enumeration-skips-the-prototype + source:src/index.ts#L907",
 };
 /**
  * Les entrées de matrice des cinq groupes traités ici. Les COMPTES sont écrits en dur, et c'est
@@ -3879,7 +3880,8 @@ export const ENTREES_ATTENDUES = [
     ...Array.from({ length: 11 }, (_, i) => `action#${i + 1}`),
     // `subscribe#16` est la seule voie d'observer un `EffectOptions.name` — l'effet interne est
     // nomme "sub" — et sa forme interne differee. Les deux sont nôtres seules : la baseline minifie
-    // les noms, donc `name` y vaut la chaine vide. Voir `signalcn-seul/nom-de-leffet-interne`.
+    // les noms, donc `name` y vaut la chaine vide. Voir
+    // `signalcn-seul/internal-effect-takes-the-options-name`.
     // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
     ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
     ...Array.from({ length: 34 }, (_, i) => `modele#${i + 1}`),
@@ -3946,7 +3948,7 @@ export const testsSignalcnSeul = {
     // donc la table ne peut pas le dire ; et comme un modèle a des surfaces différentes — une
     // imbriquée, un tableau, un objet cyclique — il faut vérifier que l'enveloppeur est bien tombé
     // dans chaque cas, pas seulement à la racine.
-    "nom-des-fonctions-enveloppees": async ({ signal, createModel }) => {
+    "wrapper-covers-every-surface": async ({ signal, createModel }) => {
         const enveloppee = function () { };
         const imbriquee = function () { };
         const modele = createModel(() => ({
@@ -3975,14 +3977,14 @@ export const testsSignalcnSeul = {
     //
     // On observe le nom par le chemin de la matrice, pas par une propriété inventée ici : le noeud
     //ud de cible du signal porte l'effet qui s'y est abonné.
-    "nom-de-leffet-interne": async ({ signal }) => {
+    "internal-effect-takes-the-options-name": async ({ signal }) => {
         const source = signal(0);
         source.subscribe((v) => void v);
         const nom = source._targets._target
             .name;
         assert.equal(nom, "sub", "l'effet interne d'un abonnement se nomme 'sub'");
     },
-    "wrapper-nomme": async ({ action }) => {
+    "wrapper-name-is-frozen": async ({ action }) => {
         const rendue = action(() => 0);
         assert.equal(rendue.name, "actionWrapper", "le nom du wrapper est fige par la matrice");
         assert.equal(rendue.length, 0, "la signature est vide meme si fn en a");
@@ -3991,7 +3993,7 @@ export const testsSignalcnSeul = {
     // C'est ICI que se joue la moitié de SPEC §5.2 que la table ne peut pas voir. `_version`
     // est le marqueur d'une notification acceptée. Une implémentation `Object.is` resterait à 0
     // sur les deux écritures `NaN` et échouerait ici.
-    "notifie-sur-stricte-identite": async ({ signal: moteur }) => {
+    "notification-follows-object-is": async ({ signal: moteur }) => {
         const nan = moteur(1);
         assert.equal(nan._version, 0);
         nan.value = NaN;
@@ -4015,7 +4017,7 @@ export const testsSignalcnSeul = {
     // à la main, donc ses méthodes y sont énumérables et `for..in` les fait remonter. Une classe
     // ES2020 ne le fait pas. Le prix est ici, et il est bon : une énumération d'API qui change
     // selon le minificateur n'est pas une énumération d'API.
-    "descripteurs-de-prototype": async ({ signal: moteur, Signal, Effect: ClasseEffet }) => {
+    "enumeration-skips-the-prototype": async ({ signal: moteur, Signal, Effect: ClasseEffet }) => {
         for (const proto of [Signal.prototype, ClasseEffet.prototype]) {
             for (const nom of ["peek", "toString", "toJSON", "valueOf", "dispose"]) {
                 const d = Object.getOwnPropertyDescriptor(proto, nom);
@@ -4047,7 +4049,7 @@ export const testsSignalcnSeul = {
     // et c'est une différence d'implémentation interne, pas de comportement : la liste est à sens
     // unique et rien d'observable par la surface publique n'en dépend. Le nôtre suit le document,
     // parce qu'un seul sens de parcours rend le balayage non ambigu.
-    "ordre-des-sources": async ({ signal: moteur, computed }) => {
+    "sources-in-read-order": async ({ signal: moteur, computed }) => {
         const premier = moteur(1);
         const second = moteur(2);
         const troisieme = moteur(3);
@@ -4141,7 +4143,7 @@ export const testsSignalcnSeul = {
     // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
     // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm. Nous
     // ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
-    "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet, }) => {
+    "class-shape": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet }) => {
         const c = computed(() => 1);
         assert.deepEqual(Object.keys(c), [
             "_value",
@@ -4186,7 +4188,7 @@ export const testsSignalcnSeul = {
     // évaluation. C'est un quirk FIGÉ de la baseline, pas un oubli de notre implémentation : un
     // computé est paresseux et sans destructeur, donc l'effet qu'il fabrique n'a personne pour le
     // ramasser. On fige le comportement, on ne le corrige pas.
-    "effet-dans-un-calcule": async ({ signal: moteur, computed, effect: effet }) => {
+    "computed-leaks-its-effects": async ({ signal: moteur, computed, effect: effet }) => {
         const a = moteur(0);
         const journal = [];
         const fabrique = computed(() => {
@@ -4221,7 +4223,7 @@ export const testsSignalcnSeul = {
     },
     // `effect#37` — les drapeaux initiaux. Un effet naît DÉJÀ observed, donc il ouvre les
     // abonnements de ses sources ; un computé naît en train de collecter, mais pas observed.
-    "drapeaux-initiaux": async ({ signal: moteur, computed, Effect: ClasseEffet }) => {
+    "an-effect-is-observed-a-computed-is-not": async ({ signal: moteur, computed, Effect: ClasseEffet, }) => {
         const TRACKING = 32;
         const OUTDATED = 4;
         const e = new ClasseEffet(() => moteur(0).value);
@@ -4239,9 +4241,9 @@ export const testsSignalcnSeul = {
     // donc l'assertion n'était jamais exécutée. Il passait sans rien tester, ce qu'un test de garde
     // ne doit jamais faire : il semble couvrir une branche, et le relevé montre qu'il ne la
     // couvre pas. Il vérifie donc ce qui est vérifiable par l'API — et le garde lui-même est
-    // déplacé dans `gardes-internes`, parce qu'il faut refermer une portée depuis l'intérieur
-    // d'une AUTRE, ce que l'API publique ne permet pas.
-    "hors-ordre": async ({ signal: moteur, effect: effet }) => {
+    // déplacé dans `guards-on-an-inconsistent-node`, parce qu'il faut refermer une portée
+    // depuis l'intérieur d'une AUTRE, ce que l'API publique ne permet pas.
+    "nested-effects-run-in-creation-order": async ({ signal: moteur, effect: effet }) => {
         const source = moteur(0);
         const journal = [];
         const d = effet(function () {
@@ -4258,7 +4260,7 @@ export const testsSignalcnSeul = {
     // signalcn-seul, et par la surface exportée : `Effect` est un des dix exports, et `_fn` et
     // `_flags` sont des internes documentés (SPEC §21). Aucun n'est atteignable par l'API publique :
     // c'est ce qui les distingue des scénarios de la table.
-    "gardes-internes": async ({ Effect: ClasseEffet, signal: moteur, computed }) => {
+    "guards-on-an-inconsistent-node": async ({ Effect: ClasseEffet, signal: moteur, computed }) => {
         const RUNNING = 1 << 0;
         // `_callback` sur un effet sans `_fn` : la garde existe parce qu'un premier run qui leve
         // efface `_fn`, et l'effet reste dans la file de drainage.
@@ -4285,7 +4287,7 @@ export const testsSignalcnSeul = {
         // Le garde de fermeture hors ordre. La portée est ouverte ici, refermée depuis l'intérieur
         // d'un AUTRE effet : le collecteur courant n'est alors plus celui qu'on referme, et c'est le
         // désordre. Par l'API publique il est impossible — deux effets imbriqués se ferment en ordre
-        // inverse, ce que `hors-ordre` vérifie.
+        // inverse, ce que `nested-effects-run-in-creation-order` vérifie.
         const aRefermer = new ClasseEffet(() => 1);
         const finir = aRefermer._start();
         new ClasseEffet(() => {
@@ -4296,7 +4298,7 @@ export const testsSignalcnSeul = {
     // `"undefined"` chez la baseline, et c'est un quasi-leak : `using` devient un no-op qui fuit
     // tous les effets. Le cas POSITIF n'est pas mesurable ici — il faudrait éteindre le symbole
     // dans le realm — donc on ne fige que ce qui l'empêche.
-    "symbol-dispose-absent": async ({ effect: effet }) => {
+    "symbol-dispose-missing-leaves-no-stray-key": async ({ effect: effet }) => {
         const d = effet(() => { });
         assert.equal(
         // biome-ignore lint/suspicious/noPrototypeBuiltins: la cible est ES2020 (`lib` du tsconfig) et `Object.hasOwn` est ES2022 — le correctif de la règle ferait tomber `tsc`.
@@ -4336,7 +4338,7 @@ export const testsSignalcnSeul = {
         assert.deepEqual(journal, ["run", "corps", "cleanup"]);
     },
     // SPEC §14 — un signal gelé lève en écriture. Le mode strict du module de test le fait.
-    "signal-gele": async ({ signal: moteur }) => {
+    "write-on-frozen-signal-throws": async ({ signal: moteur }) => {
         const s = auRuntime(Object.freeze(moteur(1)));
         assert.throws(() => {
             s.value = 2;
@@ -4442,8 +4444,8 @@ if (process.env.NODE_TEST_CONTEXT) {
         // L'AUTRE SENS. Ci-dessus on vérifie que toute destination nommée existe. On ne vérifiait pas
         // qu'inversement tout test est cité — donc un test orphelin passait, ce qui est exactement le
         // défaut qu'un registre doit interdire : il_a_l'air de couvrir, et rien ne le rattache à une
-        // entrée. Un `gardes-internes` s'est trouvé orphelin de la même façon, écrit un commit plus
-        // tôt, sans qu'aucune porte ne bronche.
+        // entrée. Un `guards-on-an-inconsistent-node` s'est trouvé orphelin de la même façon, écrit un commit
+        // plus tôt, sans qu'aucune porte ne bronche.
         //
         // Les DEUX genres passent par là, dans le même esprit et avec le même message : un test
         // `signalcn-seul` ET un scénario. Le contrôle n'en visait qu'un, et l'autre est resté nu —
