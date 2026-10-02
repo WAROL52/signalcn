@@ -3,7 +3,7 @@
 `signalcn` reproduit le comportement observable de `@preact/signals-core@1.14.4` — quirks
 compris. Ce document est le **mode d'emploi** : comment travailler ici, et les quatre pièges qui
 mordent sans prévenir. Les règles de fond sont ailleurs, et il n'y a pas de troisième version
-d'elles ici : [`ROADMAP.md`](site/contributeurs/ROADMAP.md) §2 les porte, [`SPEC.md`](./SPEC.md) est le contrat
+d'elles ici : [`ROADMAP.md`](/contributeurs/ROADMAP.md) §2 les porte, [`SPEC.md`](./SPEC.md) est le contrat
 normatif.
 
 ## Prérequis
@@ -27,7 +27,7 @@ passer, c'est un défaut chez nous.
 
 `npm run porte` enchaîne tout, sauf `verifier-installation` : celle-là est le job `distribution`,
 qui tourne en parallèle et coûte à elle seule plus que tous les autres réunis — le chiffre est
-mesuré en [`site/contributeurs/ci.md`](site/contributeurs/ci.md) §1, qui est sa seule source. Pour le reste, c'est le seul
+mesuré en [`site/contributeurs/ci.md`](/contributeurs/ci.md) §1, qui est sa seule source. Pour le reste, c'est le seul
 juge : un commit qui laisse `porte` rouge n'est pas prêt, quelle que soit la qualité du diff.
 
 L'ordre des lignes est celui du job rapide de la CI, qui est **par sévérité et non par coût** : le
@@ -48,7 +48,7 @@ n'appartiennent pas à ce job, et leurs lignes le disent.
 | `npm run documentation-statique` + `verifier-proprete` | Un site qui ne se construit pas, un build qui écrit dans les chemins des artefacts. **Hors `rapide`** : c'est le job `documentation-statique`, en parallèle, et dans cet ordre — la propreté observe ce que le build vient d'écrire. |
 | `npm run verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. **Hors `porte`** : c'est le job `distribution`, en parallèle. |
 
-[`site/contributeurs/ci.md`](site/contributeurs/ci.md) donne le détail et le coût de chacune.
+[`site/contributeurs/ci.md`](/contributeurs/ci.md) donne le détail et le coût de chacune.
 
 ## Tout passe par une pull request
 
@@ -102,7 +102,7 @@ et quatre artefacts construits. Un `.js` modifié à la main est écrasé au pro
 sortis la moitié des bugs de ce dépôt. Une attente écrite à la main depuis une spécification ne
 prouve que la lecture de cette spécification. Écrivez la sonde, exécutez-la contre
 `@preact/signals-core`, et figez **ce qu'elle a répondu** — y compris quand la réponse est
-contre-intuitive. [`site/contributeurs/scenarios.md`](site/contributeurs/scenarios.md).
+contre-intuitive. [`site/contributeurs/scenarios.md`](/contributeurs/scenarios.md).
 
 **3. Le référent est le paquet installé, pas ses sources.** Une propriété y vaut `i`, pas `_version` :
 le paquet minifie les siennes. Une entrée dont l'observable ne peut rien porter sur l'artefact se
@@ -123,7 +123,7 @@ construction : le fichier sort du rapport et le chiffre passe.
 
 - **Pas de dépendance runtime.** Le code distribué s'exécute sur un Node nu, sans `node_modules`.
   Le zéro-dépendance est vérifié par deux passes disjointes — voir
-  [`site/technique/zero-dependency.md`](site/technique/zero-dependency.md).
+  [`site/technique/zero-dependency.md`](/technique/zero-dependency.md).
 - **Pas de `.d.ts` publié.** La référence en publie un, nous non : c'est une divergence assumée au
   §21.2 de la SPEC.
 - **Pas de code de framework dans le cœur.** Ni React, ni Preact, ni Vue, ni Angular.
@@ -134,13 +134,13 @@ construction : le fichier sort du rapport et le chiffre passe.
 | Question | Document |
 |---|---|
 | Que doit faire le cœur, exactement ? | [`SPEC.md`](./SPEC.md) |
-| Comment est construit le graphe ? | [`site/technique/architecture.md`](site/technique/architecture.md) |
-| Comment s'écrit un scénario ? | [`site/contributeurs/scenarios.md`](site/contributeurs/scenarios.md) |
-| Comment se prouve la conformité ? | [`site/utilisateurs/parity.md`](site/utilisateurs/parity.md) |
-| Comment sont produits les artefacts ? | [`site/contributeurs/build.md`](site/contributeurs/build.md) |
-| Comment s'installent les artefacts ? | [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution.md) |
-| Que fait la CI, et dans quel ordre ? | [`site/contributeurs/ci.md`](site/contributeurs/ci.md) |
-| Qui garde quel document juste ? | [`site/contributeurs/documentation.md`](site/contributeurs/documentation.md) |
+| Comment est construit le graphe ? | [`site/technique/architecture.md`](/technique/architecture.md) |
+| Comment s'écrit un scénario ? | [`site/contributeurs/scenarios.md`](/contributeurs/scenarios.md) |
+| Comment se prouve la conformité ? | [`site/utilisateurs/parity.md`](/utilisateurs/parity.md) |
+| Comment sont produits les artefacts ? | [`site/contributeurs/build.md`](/contributeurs/build.md) |
+| Comment s'installent les artefacts ? | [`site/utilisateurs/distribution.md`](/utilisateurs/distribution.md) |
+| Que fait la CI, et dans quel ordre ? | [`site/contributeurs/ci.md`](/contributeurs/ci.md) |
+| Qui garde quel document juste ? | [`site/contributeurs/documentation.md`](/contributeurs/documentation.md) |
 | Qu'est-ce que le vocabulaire du projet ? | [`CONTEXT.md`](./CONTEXT.md) |
 
 Pour les **agents** : [`AGENTS.md`](./AGENTS.md).
