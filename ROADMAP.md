@@ -10,7 +10,7 @@
 
 | Champ | Valeur |
 |---|---|
-| Phase actuelle | `P8 — Release` — P0 a P7 livrées, P8 attend les deux tags |
+| Phase actuelle | **`v1.0.0` taggée.** P0 a P8 livrées ; restent quatre cases de couverture |
 | Version de référence | `@preact/signals-core@1.14.4` |
 | Dépendances runtime | `0` |
 | Sources de vérité | `signals.ts`, `signals.test.ts` |
@@ -19,8 +19,8 @@
 | Registry items | `6`, exigeant `"tsx": true` chez le consommateur |
 | Couverture mesurée | `99,61 / 98,50 / 100,00` — lignes, branches, fonctions |
 | Seuil de release | La valeur mesurée, **pas 100 %** — [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md) : les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus |
-| Prochaine version | `v0.1.0`, puis `v1.0.0` |
-| Version courante | `v0.0.0`, aucun tag |
+| Prochaine version | `v1.0.0` — les deux tags sont posés |
+| Version courante | `v1.0.0`, tags `v0.1.0` et `v1.0.0` |
 | Mainteneur | `WAROL52` |
 | Dépôt | `github.com/WAROL52/signalcn`, public |
 | Licence | MIT, en place depuis le premier commit |
@@ -215,15 +215,19 @@ Chaîne spécifiée dans [`docs/build.md`](./docs/build.md).
 
 ## 11. Phase P8 — Release
 
-> **En cours.** Tout est vert en local — `npm run porte` : 141 assertions — mais **aucun tag
-> n'est poussé**, et la CI n'a pas encore été observée verte sur une pull request. Ces trois
-> cases se cochent sur des preuves externes, pas sur des intentions.
+> **Deux tags posés, CI verte sur les deux.** `v0.1.0` pointe sur le commit où le cœur fut complet
+> et testé ; `v1.0.0` sur celui qui ajoute parité, portes, distribution et documentation. Les deux
+> runs sont `success`.
+>
+> **Il reste quatre cases ouvertes, et trois d'entre elles disent la même chose** : la couverture
+> n'est pas à 100 %. Ce n'est pas un oubli — c'est [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md),
+> et la case reste ouverte parce qu'elle est littéralement fausse, pas parce qu'on l'a oubliée.
 
-- [ ] CI complète verte.
-- [ ] Couverture à 100 % au tag.
+- [x] CI complète verte — observée verte sur les DEUX tags, `v0.1.0` en 33 s et `v1.0.0` en 53 s.
+- [ ] Couverture à 100 % au tag — **refusée, et c'est une décision** : [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md). Le seuil au tag est la valeur mesurée, et les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus.
 - [x] Porte d'installation verte sur les deux versions de la CLI.
-- [ ] Tag `v0.1.0` — le cœur conforme.
-- [ ] Tag `v1.0.0` — la distribution complète.
+- [x] Tag `v0.1.0` — le cœur conforme, posé sur `ab08551`.
+- [x] Tag `v1.0.0` — la distribution complète, posé sur `9aa60d4`.
 
 ## 12. Roadmap de versions
 
@@ -248,5 +252,25 @@ registre qu'on oublie est celui qui ment.
 
 ## 14. Journal des releases
 
-**Il n'y en a pas encore.** Le projet n'a aucun tag. Les releases sont les tags git ; leurs
-notes vivent avec eux.
+Les releases sont les tags git ; leurs notes vivent avec eux. Le détail est dans les messages de
+tag, qui sont ce que `git show v1.0.0` affiche.
+
+### `v0.1.0` — le cœur conforme et testé
+
+Posé sur `ab08551`, où les dix exports existent et où la suite est verte.
+
+80 scénarios, 198 entrées de matrice, 95 tests. Couverture 99,61 / 95,91 / 98,41. Le registry
+déclare **un** item, `signals` : le moteur est installable, la distribution ne l'est pas.
+
+### `v1.0.0` — la distribution complète
+
+Posé sur `9aa60d4`.
+
+82 scénarios, 203 entrées de matrice, 98 tests, 144 assertions de porte. Parité sur quatre
+cibles, garde du code mort, non-régression face au merge-base, six items du registry éprouvés par
+installation réelle sur deux versions de la CLI, README final et porte de documentation.
+
+Le référent de la matrice y change : il devient **le paquet installé**. Vingt-deux entrées portent
+un marqueur et leur divergence est consignée au §21.
+
+**Écart connu** : la couverture n'est pas à 100 %, par décision documentée.
