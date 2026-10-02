@@ -27,31 +27,35 @@
  * nous. La table ne peut pas dire la structure ; les tests signalcn-seuls le font. Voir #33.
  */
 
-import { test } from "node:test"
 import assert from "node:assert/strict"
+import { test } from "node:test"
 
 // Type seul : efface a la compilation. La surface est INJECTEE dans chaque scenario, c'est ce qui
 // permet au harnais de rejouer la meme table contre une autre implementation.
 import type {
-  signal as signalFn,
-  computed as computedFn,
-  effect as effectFn,
-  Effect as EffectClass,
-  Signal as SignalClass,
   Computed as ComputedClass,
+  computed as computedFn,
+  Effect as EffectClass,
+  effect as effectFn,
   ReadonlySignal,
+  Signal as SignalClass,
+  signal as signalFn,
 } from "./signals.ts"
 
 /** La surface publique injectée dans chaque scénario. */
 export type Api = {
   signal: typeof signalFn
   computed: typeof computedFn
-effect: typeof effectFn
-    batch: <T>(fn: () => T) => T
-    untracked: <T>(fn: () => T) => T
-    action: <TArgs extends unknown[], TReturn>(fn: (...args: TArgs) => TReturn) => (...args: TArgs) => TReturn
-    createModel: (fabrique: (...args: any[]) => any) => ((...args: any[]) => any) & (new (...args: any[]) => any)
-    Effect: typeof EffectClass
+  effect: typeof effectFn
+  batch: <T>(fn: () => T) => T
+  untracked: <T>(fn: () => T) => T
+  action: <TArgs extends unknown[], TReturn>(
+    fn: (...args: TArgs) => TReturn,
+  ) => (...args: TArgs) => TReturn
+  createModel: (
+    fabrique: (...args: any[]) => any,
+  ) => ((...args: any[]) => any) & (new (...args: any[]) => any)
+  Effect: typeof EffectClass
   Signal: typeof SignalClass
   Computed: typeof ComputedClass
 }
@@ -83,7 +87,7 @@ const thisGlobal: unknown = globalThis
  * et la baseline a exactement les mêmes refus de typage. Les affranchir tous par le même point
  * de sortie, c'est que le motif soit visible en un endroit au lieu d'être cinq `as` dispersés.
  */
-const auRuntime = <T,>(valeur: T): any => valeur
+const auRuntime = <T>(valeur: T): any => valeur
 
 /**
  * Combien de fois un effet a tourné, après chaque écriture. C'est LE compteur qui existe des deux
@@ -97,7 +101,12 @@ const auRuntime = <T,>(valeur: T): any => valeur
  * `lire` est ce que l'effet fait du signal, et ne rien lire est un cas LÉGITIME — c'est
  * `effect#3` — pas une omission de l'appelant.
  */
-function compteRuns(api: Api, initiale: unknown, lire: (s: any) => unknown, ecritures: unknown[]): number[] {
+function compteRuns(
+  api: Api,
+  initiale: unknown,
+  lire: (s: any) => unknown,
+  ecritures: unknown[],
+): number[] {
   const jalons: number[] = []
   const s = api.signal<unknown>(initiale)
   let runs = 0
@@ -116,7 +125,7 @@ function compteRuns(api: Api, initiale: unknown, lire: (s: any) => unknown, ecri
 export function makeLog(): Log {
   const entries: string[] = []
   const log = (...parts: unknown[]) => {
-    entries.push(parts.map(p => String(p)).join(" "))
+    entries.push(parts.map((p) => String(p)).join(" "))
   }
   log.entries = entries
   return log
@@ -160,7 +169,7 @@ export const scenarios: Scenario[] = [
       // fonction de l'objet avant de l'appeler, pour retrouver un `this` indéfini. Le harnais a
       //.attrapé ça : la baseline ne levait pas, et elle avait raison de ne pas lever.
       const Constructeur = auRuntime(api.Signal)
-      let sansNew
+      let sansNew: string
       try {
         Constructeur(5)
         sansNew = "aucune erreur"
@@ -215,7 +224,10 @@ export const scenarios: Scenario[] = [
     run(api, log) {
       const versMoinsZero = api.signal(0)
       versMoinsZero.value = -0
-      log("0 vers -0 : la valeur reste 0", versMoinsZero.value === 0 && !Object.is(versMoinsZero.value, -0))
+      log(
+        "0 vers -0 : la valeur reste 0",
+        versMoinsZero.value === 0 && !Object.is(versMoinsZero.value, -0),
+      )
 
       const versZero = api.signal(-0)
       versZero.value = 0
@@ -256,13 +268,16 @@ export const scenarios: Scenario[] = [
       // `signal#9` — « 2 runs, puis ré-écriture de l'objet d'origine », et la version passe à 2.
       log(
         "runs : objet de meme forme puis la meme reference",
-        compteRuns(api, premier, s => s.value, [{ forme: 2 }, premier]).join(" puis "),
+        compteRuns(api, premier, (s) => s.value, [{ forme: 2 }, premier]).join(" puis "),
       )
       log(
         "runs : 0 vers undefined puis undefined vers undefined",
-        compteRuns(api, 0, s => s.value, [undefined, undefined]).join(" puis "),
+        compteRuns(api, 0, (s) => s.value, [undefined, undefined]).join(" puis "),
       )
-      log("runs : ecriture identique", String(compteRuns(api, 1, s => s.value, [1]).join(" puis ")))
+      log(
+        "runs : ecriture identique",
+        String(compteRuns(api, 1, (s) => s.value, [1]).join(" puis ")),
+      )
 
       assert.deepEqual(log.entries, [
         "la valeur relue est la reference ecrite true",
@@ -302,6 +317,7 @@ export const scenarios: Scenario[] = [
       const auto = api.signal(1)
       api.effect(() => {
         autoRuns++
+        // biome-ignore lint/correctness/noSelfAssign: c'est le SCÉNARIO — écrire une valeur identique doit être refusé par l'identité stricte et ne pas réveiller l'effet (`signal#12`).
         auto.value = auto.value
       })
       log("runs : auto-ecriture identique", String(autoRuns))
@@ -316,7 +332,10 @@ export const scenarios: Scenario[] = [
 
       // `signal#14` : `peek()` est exactement `untracked(() => value)`, donc la lecture ne
       // s'abonne à rien.
-      log("runs : lecture par peek, une ecriture", String(compteRuns(api, 1, s => s.peek(), [1]).join(" puis ")))
+      log(
+        "runs : lecture par peek, une ecriture",
+        String(compteRuns(api, 1, (s) => s.peek(), [1]).join(" puis ")),
+      )
 
       assert.deepEqual(log.entries, [
         'drain termine avant l\'instruction suivante ["e:0","before","e:1","after"]',
@@ -359,7 +378,7 @@ export const scenarios: Scenario[] = [
       assert.deepEqual(log.entries, [
         "avec nom n",
         "sans nom undefined",
-        "chaine vide conservee \"\"",
+        'chaine vide conservee ""',
         "ecrit apres coup z",
         "la cle reste presente true",
       ])
@@ -465,12 +484,17 @@ export const scenarios: Scenario[] = [
     name: "conversions/suivent-la-dependance",
     matrice: [],
     run(api, log) {
-      log("toString", String(compteRuns(api, 1, s => s.toString(), [2]).join(" puis ")))
-      log("valueOf", String(compteRuns(api, 1, s => s.valueOf(), [2]).join(" puis ")))
-      log("toJSON", String(compteRuns(api, 1, s => s.toJSON(), [2]).join(" puis ")))
-      log("s + ''", String(compteRuns(api, 1, s => s + "", [2]).join(" puis ")))
+      log("toString", String(compteRuns(api, 1, (s) => s.toString(), [2]).join(" puis ")))
+      log("valueOf", String(compteRuns(api, 1, (s) => s.valueOf(), [2]).join(" puis ")))
+      log("toJSON", String(compteRuns(api, 1, (s) => s.toJSON(), [2]).join(" puis ")))
+      log("s + ''", String(compteRuns(api, 1, (s) => s + "", [2]).join(" puis ")))
 
-      assert.deepEqual(log.entries, ["toString 1 puis 2", "valueOf 1 puis 2", "toJSON 1 puis 2", "s + '' 1 puis 2"])
+      assert.deepEqual(log.entries, [
+        "toString 1 puis 2",
+        "valueOf 1 puis 2",
+        "toJSON 1 puis 2",
+        "s + '' 1 puis 2",
+      ])
     },
   },
   {
@@ -614,11 +638,7 @@ export const scenarios: Scenario[] = [
       a.value = 1
       log("journal", JSON.stringify(journal))
 
-      assert.deepEqual(log.entries, [
-        "eval 0",
-        "eval 1",
-        'journal ["e:0 mirror=0","e:1 mirror=2"]',
-      ])
+      assert.deepEqual(log.entries, ["eval 0", "eval 1", 'journal ["e:0 mirror=0","e:1 mirror=2"]'])
     },
   },
   {
@@ -860,7 +880,10 @@ export const scenarios: Scenario[] = [
       log("apres bascule", String(c.value))
       a.value = "a2"
       log("apres ecriture de a, qui n'est plus lue", String(c.value))
-      log("journal : a n'apparait plus", JSON.stringify(journal.filter(e => e === "a").length === 1))
+      log(
+        "journal : a n'apparait plus",
+        JSON.stringify(journal.filter((e) => e === "a").length === 1),
+      )
 
       assert.deepEqual(log.entries, [
         "1re lecture 1",
@@ -1092,28 +1115,28 @@ export const scenarios: Scenario[] = [
         journal.push(`run:${s.value}`)
         return () => journal.push(`cleanup:${s.value}`)
       })
-        s.value = 1
-        s.value = 2
-        log("journal", JSON.stringify(journal))
-        // `effect#2` dit « re-run à chaque CHANGEMENT de dépendance », pas « sur la dernière lue ».
-        // La liste des sources est chaînée vers les plus ANCIENNES : écrire sur la première lue doit
-        // réveiller autant que écrire sur la dernière. C'est la seule chose que le cas à une seule
-        // source ne prouve pas.
-        const p = api.signal(0)
-        const q = api.signal(0)
-        const chezSoi: string[] = []
-        api.effect(() => {
-          chezSoi.push(`${p.value}:${q.value}`)
-        })
-        p.value = 1
-        q.value = 1
-        p.value = 2
-        log("deux sources", JSON.stringify(chezSoi))
-        assert.deepEqual(log.entries, [
-          'journal ["run:0","cleanup:1","run:1","cleanup:2","run:2"]',
-          'deux sources ["0:0","1:0","1:1","2:1"]',
-        ])
-      },
+      s.value = 1
+      s.value = 2
+      log("journal", JSON.stringify(journal))
+      // `effect#2` dit « re-run à chaque CHANGEMENT de dépendance », pas « sur la dernière lue ».
+      // La liste des sources est chaînée vers les plus ANCIENNES : écrire sur la première lue doit
+      // réveiller autant que écrire sur la dernière. C'est la seule chose que le cas à une seule
+      // source ne prouve pas.
+      const p = api.signal(0)
+      const q = api.signal(0)
+      const chezSoi: string[] = []
+      api.effect(() => {
+        chezSoi.push(`${p.value}:${q.value}`)
+      })
+      p.value = 1
+      q.value = 1
+      p.value = 2
+      log("deux sources", JSON.stringify(chezSoi))
+      assert.deepEqual(log.entries, [
+        'journal ["run:0","cleanup:1","run:1","cleanup:2","run:2"]',
+        'deux sources ["0:0","1:0","1:1","2:1"]',
+      ])
+    },
   },
   {
     // SPEC §8.2 — le dispositeur est `_dispose.bind(effect)` : `name === "bound "`, `length === 0`,
@@ -1370,7 +1393,10 @@ export const scenarios: Scenario[] = [
         t.value = 1
         log("pas d'erreur au rerun", "inattendu")
       } catch (erreur) {
-        log("erreur du rerun relancee par l'ecriture", erreur instanceof Error ? erreur.message : "autre")
+        log(
+          "erreur du rerun relancee par l'ecriture",
+          erreur instanceof Error ? erreur.message : "autre",
+        )
       }
       t.value = 2
       log("runs de l'effet survivant", String(runsT))
@@ -1506,46 +1532,58 @@ export const scenarios: Scenario[] = [
       s.name = "W"
       const d1 = api.effect(() => s.value)
       const d2 = api.effect(() => s.value)
-        d1()
-        d2()
-        s.value = 1
-        log("journal", JSON.stringify(journal))
-        // `effect#21`, cas des DEUX sources : un dispose doit détacher TOUTES celles que l'effet
-        // lit, pas seulement celle qu'il a lue en dernier — sinon les autres restent abonnées à des
-        // sources prévenues par un effet mort. Et l'ordre est celui de LECTURE, pas l'inverse.
-        const hooks: string[] = []
-        const p = api.signal(0, { watched: () => hooks.push("+p"), unwatched: () => hooks.push("-p") })
-        const q = api.signal(0, { watched: () => hooks.push("+q"), unwatched: () => hooks.push("-q") })
-        const d3 = api.effect(() => {
-          p.value
-          q.value
-        })
-        d3()
-        log("deux sources", JSON.stringify(hooks))
-        // Le MÊME cas, mais via un COMPUTÉ à deux sources. C'est là que la géométrie se voit : un
-        // computé branche ses sources à l'abonnement et les débranche au dernier abonné perdu, donc
-        // l'ordre de ses crochets suit le sens de parcours de sa liste de dépendances. La matrice
-        // l'a observé — entrée 52, `["c:unwatched","a:unwatched","b:unwatched"]`, et entrée 9 du
-        // tableau de vérification, `["a+","b+","a-","b-"]` — donc l'ordre de libération est celui de
-        // LECTURE. C'est ce que la géométrie miroir faisait, et pas l'inverse : ADR-0009.
-        const ordre: string[] = []
-        const a = api.signal(0, { watched: () => ordre.push("a+"), unwatched: () => ordre.push("a-") })
-        const b = api.signal(0, { watched: () => ordre.push("b+"), unwatched: () => ordre.push("b-") })
-        const derive = api.computed(() => a.value + b.value, {
-          watched: () => ordre.push("c+"),
-          unwatched: () => ordre.push("c-"),
-        })
-        derive.value
-        const d4 = api.effect(() => derive.value)
-        ordre.length = 0
-        d4()
-        log("crochets d un computé", JSON.stringify(ordre))
-        assert.deepEqual(log.entries, [
-          'journal ["watched W","unwatched W"]',
-          'deux sources ["+p","+q","-p","-q"]',
-          'crochets d un computé ["c-","a-","b-"]',
-        ])
-      },
+      d1()
+      d2()
+      s.value = 1
+      log("journal", JSON.stringify(journal))
+      // `effect#21`, cas des DEUX sources : un dispose doit détacher TOUTES celles que l'effet
+      // lit, pas seulement celle qu'il a lue en dernier — sinon les autres restent abonnées à des
+      // sources prévenues par un effet mort. Et l'ordre est celui de LECTURE, pas l'inverse.
+      const hooks: string[] = []
+      const p = api.signal(0, {
+        watched: () => hooks.push("+p"),
+        unwatched: () => hooks.push("-p"),
+      })
+      const q = api.signal(0, {
+        watched: () => hooks.push("+q"),
+        unwatched: () => hooks.push("-q"),
+      })
+      const d3 = api.effect(() => {
+        p.value
+        q.value
+      })
+      d3()
+      log("deux sources", JSON.stringify(hooks))
+      // Le MÊME cas, mais via un COMPUTÉ à deux sources. C'est là que la géométrie se voit : un
+      // computé branche ses sources à l'abonnement et les débranche au dernier abonné perdu, donc
+      // l'ordre de ses crochets suit le sens de parcours de sa liste de dépendances. La matrice
+      // l'a observé — entrée 52, `["c:unwatched","a:unwatched","b:unwatched"]`, et entrée 9 du
+      // tableau de vérification, `["a+","b+","a-","b-"]` — donc l'ordre de libération est celui de
+      // LECTURE. C'est ce que la géométrie miroir faisait, et pas l'inverse : ADR-0009.
+      const ordre: string[] = []
+      const a = api.signal(0, {
+        watched: () => ordre.push("a+"),
+        unwatched: () => ordre.push("a-"),
+      })
+      const b = api.signal(0, {
+        watched: () => ordre.push("b+"),
+        unwatched: () => ordre.push("b-"),
+      })
+      const derive = api.computed(() => a.value + b.value, {
+        watched: () => ordre.push("c+"),
+        unwatched: () => ordre.push("c-"),
+      })
+      derive.value
+      const d4 = api.effect(() => derive.value)
+      ordre.length = 0
+      d4()
+      log("crochets d un computé", JSON.stringify(ordre))
+      assert.deepEqual(log.entries, [
+        'journal ["watched W","unwatched W"]',
+        'deux sources ["+p","+q","-p","-q"]',
+        'crochets d un computé ["c-","a-","b-"]',
+      ])
+    },
   },
   {
     // SPEC §13.1 — la chaîne A → B → C → Effect. Le drain est en largeur : une génération est
@@ -1566,27 +1604,27 @@ export const scenarios: Scenario[] = [
       api.effect(() => {
         journal.push(`d1:${c2.value}`)
       })
-        a.value = 1
-        log("journal", JSON.stringify(journal))
-        // `effect#32` n'a qu'une source par computé. Un computé à DEUX sources doit raccorder les
-        // DEUX à son effet : sinon la chaîne est coupée à son premier maillon, et une écriture sur
-        // la source lue en premier ne réveille plus personne — alors que le computé, lui, se
-        // recalcule. C'est ce que prouve ici : le computé se met à jour ET l'effet tourne.
-        const p = api.signal(0)
-        const q = api.signal(0)
-        const deux = api.computed(() => p.value * 10 + q.value)
-        const vuParEffet: string[] = []
-        api.effect(() => {
-          vuParEffet.push(String(deux.value))
-        })
-        p.value = 1
-        q.value = 1
-        log("computé a deux sources", JSON.stringify(vuParEffet))
-        assert.deepEqual(log.entries, [
-          'journal ["c1:0","c2:0","d1:0","c1:1","c2:1","d1:1"]',
-          'computé a deux sources ["0","10","11"]',
-        ])
-      },
+      a.value = 1
+      log("journal", JSON.stringify(journal))
+      // `effect#32` n'a qu'une source par computé. Un computé à DEUX sources doit raccorder les
+      // DEUX à son effet : sinon la chaîne est coupée à son premier maillon, et une écriture sur
+      // la source lue en premier ne réveille plus personne — alors que le computé, lui, se
+      // recalcule. C'est ce que prouve ici : le computé se met à jour ET l'effet tourne.
+      const p = api.signal(0)
+      const q = api.signal(0)
+      const deux = api.computed(() => p.value * 10 + q.value)
+      const vuParEffet: string[] = []
+      api.effect(() => {
+        vuParEffet.push(String(deux.value))
+      })
+      p.value = 1
+      q.value = 1
+      log("computé a deux sources", JSON.stringify(vuParEffet))
+      assert.deepEqual(log.entries, [
+        'journal ["c1:0","c2:0","d1:0","c1:1","c2:1","d1:1"]',
+        'computé a deux sources ["0","10","11"]',
+      ])
+    },
   },
   {
     // SPEC §12 — un cleanup qui LÈVE dispose l'effet, même en plein drainage : l'écriture suivante
@@ -1599,7 +1637,10 @@ export const scenarios: Scenario[] = [
       api.effect(() => {
         runs++
         // Le cleanup ne sera appelé qu'au run SUIVANT, donc il faut encore une écriture.
-        if (s.value >= 1) return () => { throw new Error("cleanup boom") }
+        if (s.value >= 1)
+          return () => {
+            throw new Error("cleanup boom")
+          }
       })
       const tentatives: string[] = []
       for (const ecriture of [1, 2, 3]) {
@@ -1622,7 +1663,7 @@ export const scenarios: Scenario[] = [
       log("l'effet suivant tourne-t-il ?", String(runsT))
       d2()
       assert.deepEqual(log.entries, [
-        "tentatives [\"1:aucune\",\"2:cleanup boom\",\"3:aucune\"]",
+        'tentatives ["1:aucune","2:cleanup boom","3:aucune"]',
         "runs 2",
         "l'effet suivant tourne-t-il ? 1",
       ])
@@ -1646,11 +1687,8 @@ export const scenarios: Scenario[] = [
       s.value = 1
       log("journal", JSON.stringify(journal))
       s.value = 2
-      log("d2 n'est pas revenu", String(journal.filter(e => e === "d2:1").length === 0))
-      assert.deepEqual(log.entries, [
-        'journal ["d2:0","d1:0","d1:1"]',
-        "d2 n'est pas revenu true",
-      ])
+      log("d2 n'est pas revenu", String(journal.filter((e) => e === "d2:1").length === 0))
+      assert.deepEqual(log.entries, ['journal ["d2:0","d1:0","d1:1"]', "d2 n'est pas revenu true"])
     },
   },
   {
@@ -1757,7 +1795,10 @@ export const scenarios: Scenario[] = [
       const objet = { marque: 1 }
       log("retour simple", api.batch(() => "ret") === "ret" ? "ret" : "autre")
       log("reference d objet preservee", api.batch(() => objet) === objet ? "oui" : "non")
-      log("retour imbrique remonte", api.batch(() => api.batch(() => "inner")) === "inner" ? "oui" : "non")
+      log(
+        "retour imbrique remonte",
+        api.batch(() => api.batch(() => "inner")) === "inner" ? "oui" : "non",
+      )
       // L'effet a déjà tourné À SA CRÉATION, avant tout batch.
       log("journal avant le batch", JSON.stringify(journal))
       let pendant = ""
@@ -2182,10 +2223,7 @@ export const scenarios: Scenario[] = [
         zero.value = 0
       })
       log("reparti de -0 : runs", String(runsZero))
-      assert.deepEqual(log.entries, [
-        "laisses a NaN : runs 2",
-        "reparti de -0 : runs 1",
-      ])
+      assert.deepEqual(log.entries, ["laisses a NaN : runs 2", "reparti de -0 : runs 1"])
     },
   },
   {
@@ -2271,85 +2309,88 @@ export const scenarios: Scenario[] = [
         journal.push(`apres:${exterieur.value}`)
       })
       exterieur.value = 1
-        // `batch#23` — le meme cycle, mais l effet ouvre son PROPRE batch pour ecrire. Le seuil est
-        // alors atteint a l interieur d un drainage : c est ce qui distingue ce cas du precedent, ou
-        // l ecriture venait du batch de l utilisateur.
-        const propre = api.signal(0)
-        let armePropre = false
-        let runsPropre = 0
-        api.effect(() => {
-          const v = propre.value
-          runsPropre++
-          if (armePropre) api.batch(() => (propre.value = v + 1))
-        })
-        armePropre = true
-        let typePropre = "aucune"
+      // `batch#23` — le meme cycle, mais l effet ouvre son PROPRE batch pour ecrire. Le seuil est
+      // alors atteint a l interieur d un drainage : c est ce qui distingue ce cas du precedent, ou
+      // l ecriture venait du batch de l utilisateur.
+      const propre = api.signal(0)
+      let armePropre = false
+      let runsPropre = 0
+      api.effect(() => {
+        const v = propre.value
+        runsPropre++
+        if (armePropre) api.batch(() => (propre.value = v + 1))
+      })
+      armePropre = true
+      let typePropre = "aucune"
+      try {
+        propre.value = 1
+      } catch (erreur) {
+        typePropre = erreur instanceof Error ? erreur.constructor.name : "autre"
+      }
+      log("batch ecrit par l effet : type", typePropre)
+      log(
+        "batch ecrit par l effet : compte borne",
+        runsPropre > 1 && runsPropre <= 500 ? "oui" : "non",
+      )
+      // `batch#24` et `batch#25` — le ping-pong entre DEUX et TROIS effets, chacun abonné à DEUX
+      // signaux et écrivant celui de l'autre. C'est la LECTURE CROISÉE qui rend la liste des
+      // dépendances à plus d'un élément, et donc ce qui fait que le drainage a une file à vider.
+      //
+      // Les COMPTES EXACTS (52/51, 35/35/34) ne sont pas affirmés : SPEC §15.2 refuse de figer
+      // la borne, §21 le confirme. Ce qui se fige, c'est le CARACTÈRE — chaque effet tourne
+      // plusieurs fois, et une erreur sort. C'est ce que la divergence observée faisait échouer.
+      const formePingPong = (nb: number): [string, boolean] => {
+        const signaux = Array.from({ length: nb }, () => api.signal(0))
+        const runs = new Array<number>(nb).fill(0)
+        const armes = new Array<boolean>(nb).fill(false)
+        for (let i = 0; i < nb; i++) {
+          const idx = i
+          const mien = signaux[idx]
+          if (mien === undefined) continue
+          const suivant = signaux[(idx + 1) % nb]
+          api.effect(() => {
+            // La LECTURE CROISÉE est ce qui compte : sans elle, chaque effet n'a qu'une seule
+            // dépendance, et le ping-pong n'a rien à vider.
+            mien.value
+            suivant?.value
+            runs[idx] = (runs[idx] ?? 0) + 1
+            if (armes[idx] && suivant !== undefined && (runs[idx] ?? 0) < PLAFOND) suivant.value++
+          })
+        }
+        for (let i = 0; i < nb; i++) armes[i] = true
         try {
-          propre.value = 1
+          const premier = signaux[0]
+          if (premier === undefined) return ["aucune", false]
+          premier.value++
         } catch (erreur) {
-          typePropre = erreur instanceof Error ? erreur.constructor.name : "autre"
+          return [erreur instanceof Error ? erreur.constructor.name : "autre", true]
         }
-        log("batch ecrit par l effet : type", typePropre)
-        log("batch ecrit par l effet : compte borne", runsPropre > 1 && runsPropre <= 500 ? "oui" : "non")
-        // `batch#24` et `batch#25` — le ping-pong entre DEUX et TROIS effets, chacun abonné à DEUX
-        // signaux et écrivant celui de l'autre. C'est la LECTURE CROISÉE qui rend la liste des
-        // dépendances à plus d'un élément, et donc ce qui fait que le drainage a une file à vider.
-        //
-        // Les COMPTES EXACTS (52/51, 35/35/34) ne sont pas affirmés : SPEC §15.2 refuse de figer
-        // la borne, §21 le confirme. Ce qui se fige, c'est le CARACTÈRE — chaque effet tourne
-        // plusieurs fois, et une erreur sort. C'est ce que la divergence observée faisait échouer.
-        const formePingPong = (nb: number): [string, boolean] => {
-          const signaux = Array.from({ length: nb }, () => api.signal(0))
-          const runs = new Array<number>(nb).fill(0)
-          const armes = new Array<boolean>(nb).fill(false)
-          for (let i = 0; i < nb; i++) {
-            const idx = i
-            const mien = signaux[idx]
-            if (mien === undefined) continue
-            const suivant = signaux[(idx + 1) % nb]
-            api.effect(() => {
-              // La LECTURE CROISÉE est ce qui compte : sans elle, chaque effet n'a qu'une seule
-              // dépendance, et le ping-pong n'a rien à vider.
-              mien.value
-              suivant?.value
-              runs[idx] = (runs[idx] ?? 0) + 1
-              if (armes[idx] && suivant !== undefined && (runs[idx] ?? 0) < PLAFOND) suivant.value++
-            })
-          }
-          for (let i = 0; i < nb; i++) armes[i] = true
-          try {
-            const premier = signaux[0]
-            if (premier === undefined) return ["aucune", false]
-            premier.value++
-          } catch (erreur) {
-            return [erreur instanceof Error ? erreur.constructor.name : "autre", true]
-          }
-          return ["aucune", false]
-        }
-        // Le PLAFOND borne les écritures pour que le test TERMINE même sur un moteur qui ne
-        // détecte pas le cycle — un test qui pend n'est pas un test, c'est un minuteur. Un moteur
-        // sain s'arrête bien avant : 203 runs pour deux effets, 303 pour trois.
-        const PLAFOND = 500
-        const [typePing, pingTourne] = formePingPong(2)
-        log("ping pong a 2 effets : type", typePing)
-        log("ping pong a 2 effets : tous ont tourne", pingTourne ? "oui" : "non")
-        const [typePing3, ping3Tourne] = formePingPong(3)
-        log("ping pong a 3 effets : type", typePing3)
-        log("ping pong a 3 effets : tous ont tourne", ping3Tourne ? "oui" : "non")
-        log("batch cree dans le drainage", JSON.stringify(journal))
+        return ["aucune", false]
+      }
+      // Le PLAFOND borne les écritures pour que le test TERMINE même sur un moteur qui ne
+      // détecte pas le cycle — un test qui pend n'est pas un test, c'est un minuteur. Un moteur
+      // sain s'arrête bien avant : 203 runs pour deux effets, 303 pour trois.
+      const PLAFOND = 500
+      const [typePing, pingTourne] = formePingPong(2)
+      log("ping pong a 2 effets : type", typePing)
+      log("ping pong a 2 effets : tous ont tourne", pingTourne ? "oui" : "non")
+      const [typePing3, ping3Tourne] = formePingPong(3)
+      log("ping pong a 3 effets : type", typePing3)
+      log("ping pong a 3 effets : tous ont tourne", ping3Tourne ? "oui" : "non")
+      log("batch cree dans le drainage", JSON.stringify(journal))
       assert.deepEqual(log.entries, [
         "cycle borne : runs 51",
         "cycle borne : leve aucune",
         "cycle non borne : type Error",
         "cycle non borne : compte borne oui",
-          "apres une erreur : type Error",
-          "apres une erreur : le compteur repart oui",
-          "batch ecrit par l effet : type Error",
-          "batch ecrit par l effet : compte borne oui",
-          "ping pong a 2 effets : type Error",
-          "ping pong a 2 effets : tous ont tourne oui",
-          "ping pong a 3 effets : type Error",
-          "ping pong a 3 effets : tous ont tourne oui",
+        "apres une erreur : type Error",
+        "apres une erreur : le compteur repart oui",
+        "batch ecrit par l effet : type Error",
+        "batch ecrit par l effet : compte borne oui",
+        "ping pong a 2 effets : type Error",
+        "ping pong a 2 effets : tous ont tourne oui",
+        "ping pong a 3 effets : type Error",
+        "ping pong a 3 effets : tous ont tourne oui",
         'batch cree dans le drainage ["avant:0","dans le batch de l effect","apres:0","avant:1","dans le batch de l effect","apres:1"]',
       ])
     },
@@ -2419,7 +2460,10 @@ export const scenarios: Scenario[] = [
 
       const M5 = api.createModel(() => ({ n: 1 }))
       const m5 = new M5()
-      log("Symbol.dispose non enumerable", `${JSON.stringify(Object.keys(m5))} / ${JSON.stringify(Object.getOwnPropertySymbols(m5).map(String))}`)
+      log(
+        "Symbol.dispose non enumerable",
+        `${JSON.stringify(Object.keys(m5))} / ${JSON.stringify(Object.getOwnPropertySymbols(m5).map(String))}`,
+      )
 
       const journal3: string[] = []
       const M6 = api.createModel(() => ({
@@ -2616,7 +2660,11 @@ export const scenarios: Scenario[] = [
       log("avec new", String(new Modele().s.value))
       log("sans new", String(Modele().s.value))
 
-      const partage = { inc: function () { return this } }
+      const partage = {
+        inc: function () {
+          return this
+        },
+      }
       const Partage = api.createModel(() => partage)
       const instance = new Partage()
       log("l'objet de la fabrique est-il muté en place", String(instance === partage))
@@ -2630,7 +2678,13 @@ export const scenarios: Scenario[] = [
       // et on vérifie que l'instance porte une AUTRE fonction.
       const imbriquee = function () {}
       const imbrique = api.createModel(function () {
-        return { n: 5, inc: function () { return this }, nested: { deep: { inc: imbriquee } } }
+        return {
+          n: 5,
+          inc: function () {
+            return this
+          },
+          nested: { deep: { inc: imbriquee } },
+        }
       })
       const i = new imbrique()
       log("this conserve", String(i.inc() === i))
@@ -2643,7 +2697,10 @@ export const scenarios: Scenario[] = [
       const avecSignal = api.createModel(() => ({ nested: { s: api.signal(1) } }))
       log("ne descend pas dans un signal", String(new avecSignal().nested.s.brand))
 
-      class Classe { m() {} ; inc = function () {} }
+      class Classe {
+        m() {}
+        inc = function () {}
+      }
       const depuisClasse = api.createModel(() => new Classe())
       log("methode de classe non enveloppee", depuisClasse().m.name)
 
@@ -2724,7 +2781,10 @@ export const scenarios: Scenario[] = [
         new Primitive()
         log("fabrique primitive, avec new", "pas d'erreur")
       } catch (erreur) {
-        log("fabrique primitive, avec new", erreur instanceof Error ? erreur.constructor.name : "autre")
+        log(
+          "fabrique primitive, avec new",
+          erreur instanceof Error ? erreur.constructor.name : "autre",
+        )
       }
 
       const Nul = api.createModel(() => null)
@@ -2896,7 +2956,7 @@ export const scenarios: Scenario[] = [
         "18 apres ecriture, avant dispose vu",
         "18 apres dispose vu",
         "21 batch : effets possedes dispose fait",
-        "13 effet d'un getter [\"from getter 0\",\"from getter 0\",\"from getter 1\",\"from getter 1\"]",
+        '13 effet d\'un getter ["from getter 0","from getter 0","from getter 1","from getter 1"]',
         '16 effet perdu apres une fabrique qui leve ["leaked 0","caught:Error","leaked 1"]',
         '17 fabrique imbriquee qui leve ["outer-leak","inner-leak","caught:Error"]',
         '22 effet ne dans un compute ["from computed 0","from computed 1","from computed 2"]',
@@ -3050,7 +3110,11 @@ export const scenarios: Scenario[] = [
 
       // Le seuil d'abonnement vaut sur un AUTRE signal : si c'était `source`, un faux positif
       // passerait pour la bonne raison.
-      const seuil = (other: { value: number }) => c.subscribe(v => { journal.push(v); void other.value })
+      const seuil = (other: { value: number }) =>
+        c.subscribe((v) => {
+          journal.push(v)
+          void other.value
+        })
       const d = seuil(autre)
       log("abonnement immediat", JSON.stringify(journal))
       source.value = 2
@@ -3434,7 +3498,10 @@ export const scenarios: Scenario[] = [
       const objet = { a: 1 }
       log("objet", api.untracked(() => objet) === objet ? "la reference" : "une copie")
       const promesse = Promise.resolve(7)
-      log("promesse passee telle quelle", api.untracked(() => promesse) === promesse ? "oui" : "non")
+      log(
+        "promesse passee telle quelle",
+        api.untracked(() => promesse) === promesse ? "oui" : "non",
+      )
       log("undefined", String(api.untracked(() => undefined)))
       assert.deepEqual(log.entries, [
         "nombre 42",
@@ -3754,7 +3821,7 @@ export const COUVERTURE: Record<string, string> = {
   // écriture restaurative ULTÉRIEURE et un nœud qui n'a pas relu entre-temps — soit deux fois la
   // machinerie de `batch#17`. La garde est en place et se lit ; son falsificateur arrive avec le
   // registre dérivé de la matrice, en #33.
-    "batch#1": "batch/valeur-et-imbrication",
+  "batch#1": "batch/valeur-et-imbrication",
   "batch#2": "batch/ecriture-identique",
   "batch#3": "batch/valeur-et-imbrication",
   "batch#4": "batch/erreur-du-corps-et-profondeur",
@@ -3887,10 +3954,10 @@ export const COUVERTURE: Record<string, string> = {
   "untracked#7": "untracked/refresh-de-compute",
   "untracked#8": "untracked/effet-cree-dedans",
   "untracked#9": "untracked/effet-cree-dedans",
-    "untracked#10": "modele/modeles-imbriques",
-    "untracked#11": "untracked/capture-reposee",
-    "untracked#12": "untracked/capture-reposee",
-    "untracked#13": "untracked/aucune-dependance",
+  "untracked#10": "modele/modeles-imbriques",
+  "untracked#11": "untracked/capture-reposee",
+  "untracked#12": "untracked/capture-reposee",
+  "untracked#13": "untracked/aucune-dependance",
 
   // --- groupe `dispose` : 10 entrées
   "dispose#1": "effect/forme-du-dispositeur",
@@ -4056,8 +4123,9 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   //ud de cible du signal porte l'effet qui s'y est abonné.
   "nom-de-leffet-interne": async ({ signal }) => {
     const source = signal(0)
-    source.subscribe(v => void v)
-    const nom = (source as unknown as { _targets: { _target: { name: string } } })._targets._target.name
+    source.subscribe((v) => void v)
+    const nom = (source as unknown as { _targets: { _target: { name: string } } })._targets._target
+      .name
     assert.equal(nom, "sub", "l'effet interne d'un abonnement se nomme 'sub'")
   },
 
@@ -4087,7 +4155,11 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     parReference.value = objet
     assert.equal(parReference._version, 0, "la même référence ne notifie pas")
     parReference.value = {}
-    assert.equal(parReference._version, 1, "un objet de même forme notifie : identité, pas structure")
+    assert.equal(
+      parReference._version,
+      1,
+      "un objet de même forme notifie : identité, pas structure",
+    )
 
     const vide = moteur(undefined)
     vide.value = undefined
@@ -4192,12 +4264,17 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
       }
       return undefined
     })()
-    assert.equal(noeudMilieuApres, undefined, "après abandon, `milieu` n'a plus de nœud dans la liste")
+    assert.equal(
+      noeudMilieuApres,
+      undefined,
+      "après abandon, `milieu` n'a plus de nœud dans la liste",
+    )
 
     bascule.value = true
     dyn.value
     const milieuReactive: unknown[] = []
-    for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next) milieuReactive.push(n._source)
+    for (let n = auRuntime(dyn)._sources; n !== undefined; n = n._next)
+      milieuReactive.push(n._source)
     assert.equal(milieuReactive.length, 2, "`milieu` redevient une dépendance")
     assert.equal(milieuReactive.includes(milieu), true, "`milieu` est de nouveau dans la liste")
     // Le nœud RÉACTIVÉ est le MÊME objet.
@@ -4227,7 +4304,13 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
   // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm. Nous
   // ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
-  "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet }) => {
+  "structure-de-classe": async ({
+    signal: moteur,
+    computed,
+    Signal,
+    Computed,
+    Effect: ClasseEffet,
+  }) => {
     const c = computed(() => 1)
     assert.deepEqual(Object.keys(c), [
       "_value",
@@ -4260,7 +4343,14 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
 
     // L'effet a six propriétés-own, et le prototype n'en porte aucune.
     const e = new ClasseEffet(() => 1)
-    assert.deepEqual(Object.keys(e), ["_fn", "_cleanup", "_sources", "_nextBatchedEffect", "_flags", "name"])
+    assert.deepEqual(Object.keys(e), [
+      "_fn",
+      "_cleanup",
+      "_sources",
+      "_nextBatchedEffect",
+      "_flags",
+      "name",
+    ])
     const protoEffet = Object.getPrototypeOf(e) as Record<string, unknown>
     assert.equal(protoEffet._fn, undefined, "le prototype d'effet ne porte rien")
   },
@@ -4289,8 +4379,8 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
 
     // Trois évaluations, donc trois effets intérieurs créés, et le journal compte six runs : c'est la
     // fuite, figée. Le compte est vérifié contre la baseline, qui donne exactement le même.
-    assert.equal(journal.filter(e => e.startsWith("outer:")).length, 3, "trois évaluations")
-    assert.equal(journal.filter(e => e.startsWith("inner:")).length, 6, "et six runs d'effets")
+    assert.equal(journal.filter((e) => e.startsWith("outer:")).length, 3, "trois évaluations")
+    assert.equal(journal.filter((e) => e.startsWith("inner:")).length, 6, "et six runs d'effets")
   },
 
   // `effect#36` — `options.name` est visible sur l'INSTANCE, et pas via la valeur de retour :
@@ -4395,9 +4485,10 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   "symbol-dispose-absent": async ({ effect: effet }) => {
     const d = effet(() => {})
     assert.equal(
+      // biome-ignore lint/suspicious/noPrototypeBuiltins: la cible est ES2020 (`lib` du tsconfig) et `Object.hasOwn` est ES2022 — le correctif de la règle ferait tomber `tsc`.
       Object.prototype.hasOwnProperty.call(d, "undefined"),
       false,
-      "aucune clé `\"undefined\"` n'est posée sur le dispositeur",
+      'aucune clé `"undefined"` n\'est posée sur le dispositeur',
     )
   },
 
@@ -4412,20 +4503,24 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
       return () => journal.push("cleanup")
     })
 
-    assert.equal(Symbol.dispose in (d as unknown as object), true, "Symbol.dispose doit être présent")
+    assert.equal(
+      Symbol.dispose in (d as unknown as object),
+      true,
+      "Symbol.dispose doit être présent",
+    )
     assert.equal(
       typeof (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
       "function",
       "et DOIT être une fonction, sinon `using` échoue",
     )
-// Et l'IDENTITÉ : `d[Symbol.dispose] === d`, comme l'exige SPEC §8.2. Elle ne coûte pas
-      // `using`, parce que V8 ne refuse que les fonctions *liées* dont la méthode pointe sur
-      // elles-mêmes — une fonction simple passe. C'est ce que le test ci-dessous mesure.
-      assert.equal(
-        (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
-        d,
-        "SPEC §8.2 exige que la méthode de libération soit le dispositeur lui-même",
-      )
+    // Et l'IDENTITÉ : `d[Symbol.dispose] === d`, comme l'exige SPEC §8.2. Elle ne coûte pas
+    // `using`, parce que V8 ne refuse que les fonctions *liées* dont la méthode pointe sur
+    // elles-mêmes — une fonction simple passe. C'est ce que le test ci-dessous mesure.
+    assert.equal(
+      (d as unknown as Record<symbol, unknown>)[Symbol.dispose],
+      d,
+      "SPEC §8.2 exige que la méthode de libération soit le dispositeur lui-même",
+    )
 
     const portee = () => {
       using _ = d as unknown as { [Symbol.dispose](): void }
@@ -4443,7 +4538,6 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     }, TypeError)
   },
 }
-
 
 /**
  * Combien de tests ce fichier ENREGISTRE, une fois exécuté par `node --test`.
@@ -4496,22 +4590,33 @@ if (process.env.NODE_TEST_CONTEXT) {
 
   for (const { name, run } of scenarios) {
     test(name, async () => {
-const { signal: s, computed, effect, batch, untracked, action, createModel, Signal, Computed, Effect } = await runtime
-        run(
-          {
-            signal: s,
-            computed,
-            effect,
-            Signal,
-            Computed,
-            Effect,
-            batch,
-            untracked,
-            action,
-            createModel,
-          },
-          makeLog(),
-        )
+      const {
+        signal: s,
+        computed,
+        effect,
+        batch,
+        untracked,
+        action,
+        createModel,
+        Signal,
+        Computed,
+        Effect,
+      } = await runtime
+      run(
+        {
+          signal: s,
+          computed,
+          effect,
+          Signal,
+          Computed,
+          Effect,
+          batch,
+          untracked,
+          action,
+          createModel,
+        },
+        makeLog(),
+      )
     })
   }
 
@@ -4523,11 +4628,19 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
 
   // ---- Le registre est complet ------------------------------------------------------
   test("registre-complet", () => {
-    const manquantes = ENTREES_ATTENDUES.filter(id => !(id in COUVERTURE))
-    assert.deepEqual(manquantes, [], `entrées de matrice sans aucune destination : ${manquantes.join(", ")}`)
+    const manquantes = ENTREES_ATTENDUES.filter((id) => !(id in COUVERTURE))
+    assert.deepEqual(
+      manquantes,
+      [],
+      `entrées de matrice sans aucune destination : ${manquantes.join(", ")}`,
+    )
 
-    const surnumeraires = Object.keys(COUVERTURE).filter(id => !ENTREES_ATTENDUES.includes(id))
-    assert.deepEqual(surnumeraires, [], `entrées de couverture qui n'existent pas : ${surnumeraires.join(", ")}`)
+    const surnumeraires = Object.keys(COUVERTURE).filter((id) => !ENTREES_ATTENDUES.includes(id))
+    assert.deepEqual(
+      surnumeraires,
+      [],
+      `entrées de couverture qui n'existent pas : ${surnumeraires.join(", ")}`,
+    )
 
     // Chaque destination nommée doit exister. Les noms viennent de deux côtés : les scénarios d'une
     // part, les clés de l'objet de tests d'autre part — donc aucune liste séparée qui pourrait
@@ -4536,8 +4649,8 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
     // cinq qui vivaient sur un numéro — `computed#26`, `untracked#10` à `#13`, `dispose#4` —
     // sont maintenant couvertes par des scénarios, ou elles ne l'étaient pas.
     const noms = new Set([
-      ...scenarios.map(s => s.name),
-      ...Object.keys(testsSignalcnSeul).map(nom => `signalcn-seul/${nom}`),
+      ...scenarios.map((s) => s.name),
+      ...Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`),
     ])
     // Un MARQUEUR remplace un nom de test quand l'observable ne peut rien porter sur le paquet
     // installé. Deux espèces, parce qu'elles n'ont pas la même conséquence : `source:` dit que
@@ -4576,7 +4689,11 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
       Object.values(COUVERTURE).flatMap((destination) => morceaux(destination)),
     )
     for (const [genre, singulier, liste] of [
-      ["tests signalcn-seul", "Un test", Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`)],
+      [
+        "tests signalcn-seul",
+        "Un test",
+        Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`),
+      ],
       ["scenarios", "Un scenario", scenarios.map(({ name }) => name)],
     ] as const) {
       const orphelins = liste.filter((nom) => !citees.has(nom))

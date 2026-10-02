@@ -22,6 +22,7 @@ const BRAND_SYMBOL = Symbol.for("preact-signals");
  * `Node` qui n'existe pas encore serait de l'imagination, et qu'un `any` ferait perdre la
  * vérification de type au moment exact où le graphe arrive.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: fusion DÉLIBÉRÉE — le bloc « SPEC §5.1 — la marque, posée sur le prototype » plus bas explique pourquoi `brand` ne peut pas être un champ de classe.
 export class Signal {
     constructor(value, options) {
         this._value = value;
@@ -657,6 +658,7 @@ function disposeSelf(effet) {
 /**
  * Un effect : une fonction qui rejoue tant que ses dépendances changent.
  */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: même raison que `Signal` — `brand` vient du `defineProperty` sur `Effect.prototype`, pas d'un champ de classe.
 export class Effect {
     constructor(fn, options) {
         this._fn = fn;
@@ -793,6 +795,7 @@ export function effect(fn, options) {
     // vient donc du `bind`, pas de l'identité — et `this` n'est jamais demandé au dispositeur,
     // `§8.3` ne le demande qu'au CALLBACK. D'où la fermeture : elle rend les six-tenables.
     // C'est mesuré, pas supposé : `signalcn-seul/symbol-dispose-et-using` rejoue les deux.
+    // biome-ignore lint/complexity/useArrowFunction: SPEC §8.2 exige que le dispositeur ne soit NI une arrow ni l'instance — le correctif de la règle produit exactement ce que la spec interdit, et aucune porte ne le verrait.
     const dispositeur = function () {
         effet._dispose();
     };

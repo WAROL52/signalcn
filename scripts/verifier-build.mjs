@@ -12,22 +12,23 @@
  *   node scripts/verifier-build.mjs
  */
 
-import { build } from "esbuild"
-import { readFile, readdir } from "node:fs/promises"
-import { createHash } from "node:crypto"
-import { join } from "node:path"
 import { spawnSync } from "node:child_process"
+import { createHash } from "node:crypto"
+import { readdir, readFile } from "node:fs/promises"
+import { join } from "node:path"
+import { build } from "esbuild"
 
 import { RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 const ITEMS = join(RACINE, "registry", "default")
 
-
 const empreintes = async () => {
   const sortie = {}
   for (const fichier of (await readdir(ITEMS)).sort()) {
-    sortie[fichier] = createHash("sha256").update(await readFile(join(ITEMS, fichier))).digest("hex")
+    sortie[fichier] = createHash("sha256")
+      .update(await readFile(join(ITEMS, fichier)))
+      .digest("hex")
   }
   return sortie
 }
@@ -63,7 +64,7 @@ porte(
  * matrice, celle qui fige des noms, devient fausse sans qu'aucun test ne le dise.
  */
 const sonde = "function nomInterne(){ return 1 }\nexport function expose(){ return nomInterne() }"
-const minifier = async keepNames => {
+const minifier = async (keepNames) => {
   const resultat = await build({
     stdin: { contents: sonde, sourcefile: "sonde.js", loader: "js" },
     bundle: false,
@@ -100,8 +101,10 @@ for (const item of ["signals", "signals.test"]) {
 //
 //    Exiger le même compte de tests des deux côtés attrape exactement ça. La parité complète des
 //    quatre cibles appartient à #30 ; ici on ne vérifie que ce qui se casse en silence.
-const compter = chemin => {
-  const sortie = spawnSync(process.execPath, ["--test", "--test-reporter=tap", chemin], { encoding: "utf8" })
+const compter = (chemin) => {
+  const sortie = spawnSync(process.execPath, ["--test", "--test-reporter=tap", chemin], {
+    encoding: "utf8",
+  })
   const passe = Number(sortie.stdout.match(/^# pass (\d+)$/m)?.[1] ?? -1)
   const echoue = Number(sortie.stdout.match(/^# fail (\d+)$/m)?.[1] ?? -1)
   return { passe, echoue, code: sortie.status }
@@ -110,9 +113,21 @@ const compter = chemin => {
 const source = compter(join(ITEMS, "signals.test.ts"))
 const compile = compter(join(ITEMS, "signals.test.js"))
 const minifie = compter(join(ITEMS, "signals.test.min.js"))
-porte("la source passe", source.echoue === 0 && source.code === 0, `${source.passe} pass, ${source.echoue} fail`)
-porte("le build passe", compile.echoue === 0 && compile.code === 0, `${compile.passe} pass, ${compile.echoue} fail`)
-porte("le minifié passe", minifie.echoue === 0 && minifie.code === 0, `${minifie.passe} pass, ${minifie.echoue} fail`)
+porte(
+  "la source passe",
+  source.echoue === 0 && source.code === 0,
+  `${source.passe} pass, ${source.echoue} fail`,
+)
+porte(
+  "le build passe",
+  compile.echoue === 0 && compile.code === 0,
+  `${compile.passe} pass, ${compile.echoue} fail`,
+)
+porte(
+  "le minifié passe",
+  minifie.echoue === 0 && minifie.code === 0,
+  `${minifie.passe} pass, ${minifie.echoue} fail`,
+)
 porte(
   "les trois cibles comptent le même nombre de tests",
   source.passe === compile.passe && compile.passe === minifie.passe,
@@ -125,7 +140,7 @@ porte(
 for (const fichier of (await readdir(ITEMS)).sort()) {
   if (!fichier.endsWith(".js")) continue
   const contenu = await readFile(join(ITEMS, fichier), "utf8")
-  const fuite = [...contenu.matchAll(/(?:from|import)\s*\(?\s*"([^"]+\.ts)"/g)].map(m => m[1])
+  const fuite = [...contenu.matchAll(/(?:from|import)\s*\(?\s*"([^"]+\.ts)"/g)].map((m) => m[1])
   porte(`${fichier} ne pointe vers aucun .ts`, fuite.length === 0, fuite.join(", "))
 }
 

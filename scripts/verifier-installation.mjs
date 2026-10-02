@@ -29,11 +29,11 @@
  * meme promesse, avec quatre-vingt-dix assertions au lieu de cinq.
  */
 
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { spawnSync } from "node:child_process"
 
 import { RACINE, reporter } from "./porte.mjs"
 
@@ -63,7 +63,11 @@ const CLI = process.env.SIGNALCN_CLI
 const PAIRES = [
   { item: "signals-test", impl: "signals", fichiers: ["signals.ts", "signals.test.ts"] },
   { item: "signals-test-js", impl: "signals-js", fichiers: ["signals.js", "signals.test.js"] },
-  { item: "signals-test-min", impl: "signals-min", fichiers: ["signals.min.js", "signals.test.min.js"] },
+  {
+    item: "signals-test-min",
+    impl: "signals-min",
+    fichiers: ["signals.min.js", "signals.test.min.js"],
+  },
 ]
 
 // ---- 1. La FORME du registre. Aucun réseau, aucun coût -------------------------------------
@@ -77,8 +81,16 @@ porte("les noms sont uniques", parNom.size === items.length)
 for (const item of items) {
   porte(`${item.name} : type registry:file`, item.type === "registry:file", item.type)
   for (const fichier of item.files ?? []) {
-    porte(`${item.name} : ${fichier.path} vise la racine du projet`, fichier.target?.startsWith("~/"), fichier.target)
-    porte(`${item.name} : ${fichier.path} est type registry:file`, fichier.type === "registry:file", fichier.type)
+    porte(
+      `${item.name} : ${fichier.path} vise la racine du projet`,
+      fichier.target?.startsWith("~/"),
+      fichier.target,
+    )
+    porte(
+      `${item.name} : ${fichier.path} est type registry:file`,
+      fichier.type === "registry:file",
+      fichier.type,
+    )
     // `path` est un chemin DU REPO. Le confondre avec `target` est l'erreur qui a valu ce ticket :
     // l'installation passe en local, parce que le transport par chemin lit `content`, et échoue en
     // GitHub, parce que la CLI y lit `path`.
@@ -152,14 +164,20 @@ for (const { nom, paquet, plancher } of CLI) {
 
       const ajout = installer(dossier, paquet, item)
       if (ajout.status !== 0) {
-        porte(`${nom} : ${item} s'installe`, false, (ajout.stderr || ajout.stdout).replace(/\s+/g, " ").slice(0, 300))
+        porte(
+          `${nom} : ${item} s'installe`,
+          false,
+          (ajout.stderr || ajout.stdout).replace(/\s+/g, " ").slice(0, 300),
+        )
         continue
       }
       porte(`${nom} : ${item} s'installe`, true)
 
       // L'ensemble, pas un sous-ensemble. Le dossier de travail du projet est le seul endroit où
       // une installation laisse des traces, donc c'est la seule mesure possible.
-      const presents = (await readdir(dossier)).filter((f) => !["components.json", "tsconfig.json", "src"].includes(f)).sort()
+      const presents = (await readdir(dossier))
+        .filter((f) => !["components.json", "tsconfig.json", "src"].includes(f))
+        .sort()
       porte(
         `${nom} : ${item} installe exactement ${fichiers.join(", ")}`,
         JSON.stringify(presents) === JSON.stringify([...fichiers].sort()),
@@ -182,7 +200,8 @@ for (const { nom, paquet, plancher } of CLI) {
         cwd: dossier,
         encoding: "utf8",
       })
-      const nombre = (cle) => Number(suite.stdout.match(new RegExp(`^# ${cle} (\\d+)$`, "m"))?.[1] ?? -1)
+      const nombre = (cle) =>
+        Number(suite.stdout.match(new RegExp(`^# ${cle} (\\d+)$`, "m"))?.[1] ?? -1)
       porte(
         `${nom} : ${item} — ${nombre("pass")} succes sur ${NB_TESTS} attendus`,
         suite.status === 0 && nombre("pass") === NB_TESTS && nombre("fail") === 0,

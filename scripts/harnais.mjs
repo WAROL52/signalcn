@@ -12,14 +12,17 @@
  */
 
 import * as baseline from "@preact/signals-core"
-
-import { reporter } from "./porte.mjs"
-
 // Le fichier distribué n'enregistre ses tests `node:test` que si `NODE_TEST_CONTEXT` est posé,
 // et il ne l'est pas ici. L'import ne déclenche donc AUCUN test : le harnais ne recompte pas la
 // suite de signalcn, il rejoue la table contre la seule baseline. C'est le comportement voulu —
 // la cible signalcn, c'est `node --test`, et ce sont les mêmes scénarios.
-import { scenarios, makeLog, testsSignalcnSeul, REJOUABLES } from "../registry/default/signals.test.ts"
+import {
+  makeLog,
+  REJOUABLES,
+  scenarios,
+  testsSignalcnSeul,
+} from "../registry/default/signals.test.ts"
+import { reporter } from "./porte.mjs"
 
 const { porte, cloture: reporterCloture } = reporter()
 
@@ -51,7 +54,8 @@ for (const scenario of scenarios) {
     scenario.run(baselineApi, makeLog())
     porte(libelle, true)
   } catch (erreur) {
-    raison = erreur instanceof Error ? erreur.message.split("\n").slice(0, 3).join(" ") : String(erreur)
+    raison =
+      erreur instanceof Error ? erreur.message.split("\n").slice(0, 3).join(" ") : String(erreur)
     porte(libelle, false, raison)
   }
 }
@@ -84,6 +88,8 @@ for (const nom of REJOUABLES) {
 }
 
 console.log("")
-console.log(`  ${total} scenarios, ${nan} entrees de matrice, ${rejoues}/${REJOUABLES.length} tests signalcn-seul rejoues`)
+console.log(
+  `  ${total} scenarios, ${nan} entrees de matrice, ${rejoues}/${REJOUABLES.length} tests signalcn-seul rejoues`,
+)
 
 reporterCloture()

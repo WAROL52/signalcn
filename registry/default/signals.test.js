@@ -78,8 +78,8 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
     var e = new Error(message);
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 });
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import { test } from "node:test";
 /**
  * Le `this` lexical du module. Une flèche le capture — et c'est ce que `effect#10` fige : une
  * fléchée n'obtient PAS l'instance d'effet.
@@ -123,7 +123,7 @@ function compteRuns(api, initiale, lire, ecritures) {
 export function makeLog() {
     const entries = [];
     const log = (...parts) => {
-        entries.push(parts.map(p => String(p)).join(" "));
+        entries.push(parts.map((p) => String(p)).join(" "));
     };
     log.entries = entries;
     return log;
@@ -252,9 +252,9 @@ export const scenarios = [
             // réécrit `premier`, et ELLE NOTIFIÉ : la valeur courante est l'objet de forme 2, donc
             // `premier` n'est plus la même référence. C'est la chaîne que la matrice relève pour
             // `signal#9` — « 2 runs, puis ré-écriture de l'objet d'origine », et la version passe à 2.
-            log("runs : objet de meme forme puis la meme reference", compteRuns(api, premier, s => s.value, [{ forme: 2 }, premier]).join(" puis "));
-            log("runs : 0 vers undefined puis undefined vers undefined", compteRuns(api, 0, s => s.value, [undefined, undefined]).join(" puis "));
-            log("runs : ecriture identique", String(compteRuns(api, 1, s => s.value, [1]).join(" puis ")));
+            log("runs : objet de meme forme puis la meme reference", compteRuns(api, premier, (s) => s.value, [{ forme: 2 }, premier]).join(" puis "));
+            log("runs : 0 vers undefined puis undefined vers undefined", compteRuns(api, 0, (s) => s.value, [undefined, undefined]).join(" puis "));
+            log("runs : ecriture identique", String(compteRuns(api, 1, (s) => s.value, [1]).join(" puis ")));
             assert.deepEqual(log.entries, [
                 "la valeur relue est la reference ecrite true",
                 "un objet de meme forme est accepte true",
@@ -292,6 +292,7 @@ export const scenarios = [
             const auto = api.signal(1);
             api.effect(() => {
                 autoRuns++;
+                // biome-ignore lint/correctness/noSelfAssign: c'est le SCÉNARIO — écrire une valeur identique doit être refusé par l'identité stricte et ne pas réveiller l'effet (`signal#12`).
                 auto.value = auto.value;
             });
             log("runs : auto-ecriture identique", String(autoRuns));
@@ -301,7 +302,7 @@ export const scenarios = [
             log("runs : effet sans dependance, deux ecritures", String(compteRuns(api, 0, () => undefined, [1, 2]).join(" puis ")));
             // `signal#14` : `peek()` est exactement `untracked(() => value)`, donc la lecture ne
             // s'abonne à rien.
-            log("runs : lecture par peek, une ecriture", String(compteRuns(api, 1, s => s.peek(), [1]).join(" puis ")));
+            log("runs : lecture par peek, une ecriture", String(compteRuns(api, 1, (s) => s.peek(), [1]).join(" puis ")));
             assert.deepEqual(log.entries, [
                 'drain termine avant l\'instruction suivante ["e:0","before","e:1","after"]',
                 "runs : auto-ecriture identique 1",
@@ -341,7 +342,7 @@ export const scenarios = [
             assert.deepEqual(log.entries, [
                 "avec nom n",
                 "sans nom undefined",
-                "chaine vide conservee \"\"",
+                'chaine vide conservee ""',
                 "ecrit apres coup z",
                 "la cle reste presente true",
             ]);
@@ -448,11 +449,16 @@ export const scenarios = [
         name: "conversions/suivent-la-dependance",
         matrice: [],
         run(api, log) {
-            log("toString", String(compteRuns(api, 1, s => s.toString(), [2]).join(" puis ")));
-            log("valueOf", String(compteRuns(api, 1, s => s.valueOf(), [2]).join(" puis ")));
-            log("toJSON", String(compteRuns(api, 1, s => s.toJSON(), [2]).join(" puis ")));
-            log("s + ''", String(compteRuns(api, 1, s => s + "", [2]).join(" puis ")));
-            assert.deepEqual(log.entries, ["toString 1 puis 2", "valueOf 1 puis 2", "toJSON 1 puis 2", "s + '' 1 puis 2"]);
+            log("toString", String(compteRuns(api, 1, (s) => s.toString(), [2]).join(" puis ")));
+            log("valueOf", String(compteRuns(api, 1, (s) => s.valueOf(), [2]).join(" puis ")));
+            log("toJSON", String(compteRuns(api, 1, (s) => s.toJSON(), [2]).join(" puis ")));
+            log("s + ''", String(compteRuns(api, 1, (s) => s + "", [2]).join(" puis ")));
+            assert.deepEqual(log.entries, [
+                "toString 1 puis 2",
+                "valueOf 1 puis 2",
+                "toJSON 1 puis 2",
+                "s + '' 1 puis 2",
+            ]);
         },
     },
     {
@@ -590,11 +596,7 @@ export const scenarios = [
             });
             a.value = 1;
             log("journal", JSON.stringify(journal));
-            assert.deepEqual(log.entries, [
-                "eval 0",
-                "eval 1",
-                'journal ["e:0 mirror=0","e:1 mirror=2"]',
-            ]);
+            assert.deepEqual(log.entries, ["eval 0", "eval 1", 'journal ["e:0 mirror=0","e:1 mirror=2"]']);
         },
     },
     {
@@ -825,7 +827,7 @@ export const scenarios = [
             log("apres bascule", String(c.value));
             a.value = "a2";
             log("apres ecriture de a, qui n'est plus lue", String(c.value));
-            log("journal : a n'apparait plus", JSON.stringify(journal.filter(e => e === "a").length === 1));
+            log("journal : a n'apparait plus", JSON.stringify(journal.filter((e) => e === "a").length === 1));
             assert.deepEqual(log.entries, [
                 "1re lecture 1",
                 "apres bascule b",
@@ -1478,8 +1480,14 @@ export const scenarios = [
             // lit, pas seulement celle qu'il a lue en dernier — sinon les autres restent abonnées à des
             // sources prévenues par un effet mort. Et l'ordre est celui de LECTURE, pas l'inverse.
             const hooks = [];
-            const p = api.signal(0, { watched: () => hooks.push("+p"), unwatched: () => hooks.push("-p") });
-            const q = api.signal(0, { watched: () => hooks.push("+q"), unwatched: () => hooks.push("-q") });
+            const p = api.signal(0, {
+                watched: () => hooks.push("+p"),
+                unwatched: () => hooks.push("-p"),
+            });
+            const q = api.signal(0, {
+                watched: () => hooks.push("+q"),
+                unwatched: () => hooks.push("-q"),
+            });
             const d3 = api.effect(() => {
                 p.value;
                 q.value;
@@ -1493,8 +1501,14 @@ export const scenarios = [
             // tableau de vérification, `["a+","b+","a-","b-"]` — donc l'ordre de libération est celui de
             // LECTURE. C'est ce que la géométrie miroir faisait, et pas l'inverse : ADR-0009.
             const ordre = [];
-            const a = api.signal(0, { watched: () => ordre.push("a+"), unwatched: () => ordre.push("a-") });
-            const b = api.signal(0, { watched: () => ordre.push("b+"), unwatched: () => ordre.push("b-") });
+            const a = api.signal(0, {
+                watched: () => ordre.push("a+"),
+                unwatched: () => ordre.push("a-"),
+            });
+            const b = api.signal(0, {
+                watched: () => ordre.push("b+"),
+                unwatched: () => ordre.push("b-"),
+            });
             const derive = api.computed(() => a.value + b.value, {
                 watched: () => ordre.push("c+"),
                 unwatched: () => ordre.push("c-"),
@@ -1564,7 +1578,9 @@ export const scenarios = [
                 runs++;
                 // Le cleanup ne sera appelé qu'au run SUIVANT, donc il faut encore une écriture.
                 if (s.value >= 1)
-                    return () => { throw new Error("cleanup boom"); };
+                    return () => {
+                        throw new Error("cleanup boom");
+                    };
             });
             const tentatives = [];
             for (const ecriture of [1, 2, 3]) {
@@ -1587,7 +1603,7 @@ export const scenarios = [
             log("l'effet suivant tourne-t-il ?", String(runsT));
             d2();
             assert.deepEqual(log.entries, [
-                "tentatives [\"1:aucune\",\"2:cleanup boom\",\"3:aucune\"]",
+                'tentatives ["1:aucune","2:cleanup boom","3:aucune"]',
                 "runs 2",
                 "l'effet suivant tourne-t-il ? 1",
             ]);
@@ -1611,11 +1627,8 @@ export const scenarios = [
             s.value = 1;
             log("journal", JSON.stringify(journal));
             s.value = 2;
-            log("d2 n'est pas revenu", String(journal.filter(e => e === "d2:1").length === 0));
-            assert.deepEqual(log.entries, [
-                'journal ["d2:0","d1:0","d1:1"]',
-                "d2 n'est pas revenu true",
-            ]);
+            log("d2 n'est pas revenu", String(journal.filter((e) => e === "d2:1").length === 0));
+            assert.deepEqual(log.entries, ['journal ["d2:0","d1:0","d1:1"]', "d2 n'est pas revenu true"]);
         },
     },
     {
@@ -2145,10 +2158,7 @@ export const scenarios = [
                 zero.value = 0;
             });
             log("reparti de -0 : runs", String(runsZero));
-            assert.deepEqual(log.entries, [
-                "laisses a NaN : runs 2",
-                "reparti de -0 : runs 1",
-            ]);
+            assert.deepEqual(log.entries, ["laisses a NaN : runs 2", "reparti de -0 : runs 1"]);
         },
     },
     {
@@ -2578,7 +2588,11 @@ export const scenarios = [
             const Modele = api.createModel(() => ({ s: api.signal(1) }));
             log("avec new", String(new Modele().s.value));
             log("sans new", String(Modele().s.value));
-            const partage = { inc: function () { return this; } };
+            const partage = {
+                inc: function () {
+                    return this;
+                },
+            };
             const Partage = api.createModel(() => partage);
             const instance = new Partage();
             log("l'objet de la fabrique est-il muté en place", String(instance === partage));
@@ -2590,7 +2604,13 @@ export const scenarios = [
             // et on vérifie que l'instance porte une AUTRE fonction.
             const imbriquee = function () { };
             const imbrique = api.createModel(function () {
-                return { n: 5, inc: function () { return this; }, nested: { deep: { inc: imbriquee } } };
+                return {
+                    n: 5,
+                    inc: function () {
+                        return this;
+                    },
+                    nested: { deep: { inc: imbriquee } },
+                };
             });
             const i = new imbrique();
             log("this conserve", String(i.inc() === i));
@@ -2605,7 +2625,6 @@ export const scenarios = [
                     this.inc = function () { };
                 }
                 m() { }
-                ;
             }
             const depuisClasse = api.createModel(() => new Classe());
             log("methode de classe non enveloppee", depuisClasse().m.name);
@@ -2848,7 +2867,7 @@ export const scenarios = [
                 "18 apres ecriture, avant dispose vu",
                 "18 apres dispose vu",
                 "21 batch : effets possedes dispose fait",
-                "13 effet d'un getter [\"from getter 0\",\"from getter 0\",\"from getter 1\",\"from getter 1\"]",
+                '13 effet d\'un getter ["from getter 0","from getter 0","from getter 1","from getter 1"]',
                 '16 effet perdu apres une fabrique qui leve ["leaked 0","caught:Error","leaked 1"]',
                 '17 fabrique imbriquee qui leve ["outer-leak","inner-leak","caught:Error"]',
                 '22 effet ne dans un compute ["from computed 0","from computed 1","from computed 2"]',
@@ -2997,7 +3016,10 @@ export const scenarios = [
             const journal = [];
             // Le seuil d'abonnement vaut sur un AUTRE signal : si c'était `source`, un faux positif
             // passerait pour la bonne raison.
-            const seuil = (other) => c.subscribe(v => { journal.push(v); void other.value; });
+            const seuil = (other) => c.subscribe((v) => {
+                journal.push(v);
+                void other.value;
+            });
             const d = seuil(autre);
             log("abonnement immediat", JSON.stringify(journal));
             source.value = 2;
@@ -3955,8 +3977,9 @@ export const testsSignalcnSeul = {
     //ud de cible du signal porte l'effet qui s'y est abonné.
     "nom-de-leffet-interne": async ({ signal }) => {
         const source = signal(0);
-        source.subscribe(v => void v);
-        const nom = source._targets._target.name;
+        source.subscribe((v) => void v);
+        const nom = source._targets._target
+            .name;
         assert.equal(nom, "sub", "l'effet interne d'un abonnement se nomme 'sub'");
     },
     "wrapper-nomme": async ({ action }) => {
@@ -4118,7 +4141,7 @@ export const testsSignalcnSeul = {
     // `Computed.prototype` comme une INSTANCE de signal, donc un prototype partagé, mutable et
     // vivant. Lire `.value` dessus condamne le prototype pour tous les computeds du même realm. Nous
     // ne le faisons pas, et `constructor` vaut `Computed` et non `Signal`.
-    "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet }) => {
+    "structure-de-classe": async ({ signal: moteur, computed, Signal, Computed, Effect: ClasseEffet, }) => {
         const c = computed(() => 1);
         assert.deepEqual(Object.keys(c), [
             "_value",
@@ -4148,7 +4171,14 @@ export const testsSignalcnSeul = {
         assert.deepEqual(enumerables, Object.keys(c), "for..in ne doit rien ajouter du prototype");
         // L'effet a six propriétés-own, et le prototype n'en porte aucune.
         const e = new ClasseEffet(() => 1);
-        assert.deepEqual(Object.keys(e), ["_fn", "_cleanup", "_sources", "_nextBatchedEffect", "_flags", "name"]);
+        assert.deepEqual(Object.keys(e), [
+            "_fn",
+            "_cleanup",
+            "_sources",
+            "_nextBatchedEffect",
+            "_flags",
+            "name",
+        ]);
         const protoEffet = Object.getPrototypeOf(e);
         assert.equal(protoEffet._fn, undefined, "le prototype d'effet ne porte rien");
     },
@@ -4174,8 +4204,8 @@ export const testsSignalcnSeul = {
         assert.equal(fabrique.value, 2);
         // Trois évaluations, donc trois effets intérieurs créés, et le journal compte six runs : c'est la
         // fuite, figée. Le compte est vérifié contre la baseline, qui donne exactement le même.
-        assert.equal(journal.filter(e => e.startsWith("outer:")).length, 3, "trois évaluations");
-        assert.equal(journal.filter(e => e.startsWith("inner:")).length, 6, "et six runs d'effets");
+        assert.equal(journal.filter((e) => e.startsWith("outer:")).length, 3, "trois évaluations");
+        assert.equal(journal.filter((e) => e.startsWith("inner:")).length, 6, "et six runs d'effets");
     },
     // `effect#36` — `options.name` est visible sur l'INSTANCE, et pas via la valeur de retour :
     // le retour est une fonction liée, dont le nom est `bound `. C'est ce qui rend l'instance
@@ -4268,7 +4298,9 @@ export const testsSignalcnSeul = {
     // dans le realm — donc on ne fige que ce qui l'empêche.
     "symbol-dispose-absent": async ({ effect: effet }) => {
         const d = effet(() => { });
-        assert.equal(Object.prototype.hasOwnProperty.call(d, "undefined"), false, "aucune clé `\"undefined\"` n'est posée sur le dispositeur");
+        assert.equal(
+        // biome-ignore lint/suspicious/noPrototypeBuiltins: la cible est ES2020 (`lib` du tsconfig) et `Object.hasOwn` est ES2022 — le correctif de la règle ferait tomber `tsc`.
+        Object.prototype.hasOwnProperty.call(d, "undefined"), false, 'aucune clé `"undefined"` n\'est posée sur le dispositeur');
     },
     // Les deux exigences de SPEC §8.2, côte à côte, parce qu'elles semblaient s'exclure.
     // Elles ne s'excluent pas : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur
@@ -4355,7 +4387,7 @@ if (process.env.NODE_TEST_CONTEXT) {
     const moteurDe = async () => await runtime;
     for (const { name, run } of scenarios) {
         test(name, async () => {
-            const { signal: s, computed, effect, batch, untracked, action, createModel, Signal, Computed, Effect } = await runtime;
+            const { signal: s, computed, effect, batch, untracked, action, createModel, Signal, Computed, Effect, } = await runtime;
             run({
                 signal: s,
                 computed,
@@ -4377,9 +4409,9 @@ if (process.env.NODE_TEST_CONTEXT) {
     }
     // ---- Le registre est complet ------------------------------------------------------
     test("registre-complet", () => {
-        const manquantes = ENTREES_ATTENDUES.filter(id => !(id in COUVERTURE));
+        const manquantes = ENTREES_ATTENDUES.filter((id) => !(id in COUVERTURE));
         assert.deepEqual(manquantes, [], `entrées de matrice sans aucune destination : ${manquantes.join(", ")}`);
-        const surnumeraires = Object.keys(COUVERTURE).filter(id => !ENTREES_ATTENDUES.includes(id));
+        const surnumeraires = Object.keys(COUVERTURE).filter((id) => !ENTREES_ATTENDUES.includes(id));
         assert.deepEqual(surnumeraires, [], `entrées de couverture qui n'existent pas : ${surnumeraires.join(", ")}`);
         // Chaque destination nommée doit exister. Les noms viennent de deux côtés : les scénarios d'une
         // part, les clés de l'objet de tests d'autre part — donc aucune liste séparée qui pourrait
@@ -4388,8 +4420,8 @@ if (process.env.NODE_TEST_CONTEXT) {
         // cinq qui vivaient sur un numéro — `computed#26`, `untracked#10` à `#13`, `dispose#4` —
         // sont maintenant couvertes par des scénarios, ou elles ne l'étaient pas.
         const noms = new Set([
-            ...scenarios.map(s => s.name),
-            ...Object.keys(testsSignalcnSeul).map(nom => `signalcn-seul/${nom}`),
+            ...scenarios.map((s) => s.name),
+            ...Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`),
         ]);
         // Un MARQUEUR remplace un nom de test quand l'observable ne peut rien porter sur le paquet
         // installé. Deux espèces, parce qu'elles n'ont pas la même conséquence : `source:` dit que
@@ -4422,7 +4454,11 @@ if (process.env.NODE_TEST_CONTEXT) {
         // qu'il le rejoue.
         const citees = new Set(Object.values(COUVERTURE).flatMap((destination) => morceaux(destination)));
         for (const [genre, singulier, liste] of [
-            ["tests signalcn-seul", "Un test", Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`)],
+            [
+                "tests signalcn-seul",
+                "Un test",
+                Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`),
+            ],
             ["scenarios", "Un scenario", scenarios.map(({ name }) => name)],
         ]) {
             const orphelins = liste.filter((nom) => !citees.has(nom));

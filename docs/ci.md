@@ -18,6 +18,7 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
+| Biome : forme et ruleset `recommended` | 0,70 s |
 | Suite source | 0,77 s |
 | Couverture : seuils, code mort, non-régression | 1,53 s |
 | Typecheck | 2,15 s |
@@ -27,12 +28,12 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles rapides réunis coûtent **19,1 s**. L'installation en coûte **5,6 fois
+Tous les contrôles rapides réunis coûtent **19,8 s**. L'installation en coûte **5,4 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Trois jobs
-représentent trois démarrages pour dix contrôles qui coûtent ensemble 19,1 secondes.
+représentent trois démarrages pour onze contrôles qui coûtent ensemble 19,8 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -47,21 +48,64 @@ documentation le vérifie : un contrôle ajouté, retiré ou déplacé dans le Y
 | 2 | **Couverture** — `npm run couverture` | Une couverture qui baisse, du code mort livré |
 | 3 | **Typecheck** — `npm run typecheck` | Le code ne compile pas |
 | 4 | **Suite source** — `npm run test` | Un comportement faux, dans la source même |
-| 5 | **Build** — `npm run build` | Un artefact que le projet utilisateur ne peut pas charger |
-| 6 | **Zéro-dépendance** — `npm run zero-dependance` | Une dépendance glissée dans le cœur distribué |
-| 7 | **Portes du build** — `npm run verifier-build` | Un build non reproductible, un `--keep-names` inopérant, un minifié plus gros que l'original |
-| 8 | **Parité** — `npm run parite` | Le build ne reproduit pas la source ; la suite perd des tests en route |
-| 9 | **Dérive** — `npm run verifier-derive` | Un artefact committé que le build ne produit plus |
-| 10 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, ou qui demande un alias |
+| 5 | **Biome** — `npm run biome` | Une forme qui dérive, un smell que `recommended` sait nommer |
+| 6 | **Build** — `npm run build` | Un artefact que le projet utilisateur ne peut pas charger |
+| 7 | **Zéro-dépendance** — `npm run zero-dependance` | Une dépendance glissée dans le cœur distribué |
+| 8 | **Portes du build** — `npm run verifier-build` | Un build non reproductible, un `--keep-names` inopérant, un minifié plus gros que l'original |
+| 9 | **Parité** — `npm run parite` | Le build ne reproduit pas la source ; la suite perd des tests en route |
+| 10 | **Dérive** — `npm run verifier-derive` | Un artefact committé que le build ne produit plus |
+| 11 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, ou qui demande un alias |
 
-Les contrôles 7, 8 et 9 dépendent du 5 : le test minifié vise le runtime minifié, et le diff se
-fait sur ce que le build vient d'écrire. Le contrôle 6 en dépend aussi : il mesure l'artefact
+Les contrôles 8, 9 et 10 dépendent du 6 : le test minifié vise le runtime minifié, et le diff se
+fait sur ce que le build vient d'écrire. Le contrôle 7 en dépend aussi : il mesure l'artefact
 minifié, pas la source. L'ordre n'est donc pas seulement une question de signal, il est aussi un
 ordre de dépendance — ce qui rend la réponse par sévérité gratuite.
 
-**Le contrôle 9 EST le diff** : `git diff --stat` sur `registry/default/`, après un build que la
+Le contrôle 5 est le seul dont la sévérité ne soit pas graduelle : il ne juge pas le code, il
+juge sa **forme**. C'est pourquoi il est après les trois qui jugent le code lui-même, et non
+avant : une ligne mal indentée n'est pas plus grave qu'un comportement faux, et la placer plus
+haut gaspillerait le premier message lu sur un échec que `tsc` ou la suite aurait déjà signalé
+autrement.
+
+Trois choses sur ce contrôle, toutes dans `biome.json`, et toutes à savoir avant d'y toucher.
+
+**Le périmètre, en une seule exclusion.** `registry/default/*.js` est hors du champ : ce sont les
+quatre artefacts que `tsc` et esbuild produisent, et les reformater serait perdu par construction —
+le contrôle 10 les régénère puis compare, donc un fichier reformaté à la main ferait tomber ce
+contrôle. C'est la seule exclusion du dépôt, et c'est un glob sur ce seul répertoire plutôt qu'une
+liste de fichiers, pour qu'un artefact ajouté demain soit couvert sans réécrire la configuration.
+La porte reste verte sur les deux sources `.ts` du même répertoire : **le moteur est formaté**, comme
+le reste.
+
+**Le preset, et lui seul.** `recommended`, pas `strict` ni `style`. Cinq lignes sont coupées, sur
+quatre règles distinctes, chacune avec sa raison écrite sur la ligne même — jamais une règle
+coupée en bloc. Les quatre protègent un fait que le code porte, pas une convenance de gout :
+
+- `noUnsafeDeclarationMerging`, deux fois dans `signals.ts`, où `brand` vient d'un
+  `defineProperty` sur le prototype. La règle le déplacerait dans le corps de classe, ce qui crée
+  une propriété propre et fait passer `Object.keys` de huit clés à neuf — SPEC §5.1 et §5.3.
+- `useArrowFunction`, une fois dans `signals.ts` : le correctif transforme le dispositeur en arrow,
+  et SPEC §8.2 exige qu'il ne soit « ni une arrow ni l'instance ». **Aucune porte ne l'aurait vu** :
+  les six propriétés que §8.2 fige tiennent aussi bien sur une arrow.
+- `noSelfAssign`, dans `signals.test.ts`, où `auto.value = auto.value` est le scénario `signal#12`
+  et non une maladresse.
+- `noPrototypeBuiltins`, dans `signals.test.ts` : la cible est ES2020 et `Object.hasOwn` est ES2022,
+  donc le correctif de la règle — que Biome classe *sûr* — fait tomber `tsc`.
+
+Le hook de commit n'écrit que la **forme** : `npm run formater` enchaîne `biome format --write` et
+le seul assist `organizeImports`. Il n'applique aucun correctif de règle, parce qu'un formateur qui
+réécrit des tests enSilence est un formateur à qui on ne fait plus confiance — et c'est exactement
+ce que faisait `biome check --write` sur les neuf `function () {}` de la table.
+
+**Ni Markdown ni YAML.** Biome 2.5.15 ne connaît pas ces deux types de fichiers et les ignore
+silencieusement : `biome check` sur un `.md` ou un `.yml` répond « no files were processed ». C'est
+une limite de l'outil, pas de la configuration — aucun réglage ne les ajoute. Les trente-quatre
+`.md` et les deux `.yml` du dépôt ne sont donc pas vérifiés par ce contrôle, et rien dans la CI ne
+prétend le contraire.
+
+**Le contrôle 10 EST le diff** : `git diff --stat` sur `registry/default/`, après un build que la
 porte relance elle-même. Un diff vide **est** le test, parce que le build est reproductible — et
-c'est le contrôle 7 qui le vérifie, en rejouant le build et en comparant les condensats : deux
+c'est le contrôle 8 qui le vérifie, en rejouant le build et en comparant les condensats : deux
 exécutions donnent des fichiers identiques, et une source modifiée sans régénération produit bien
 un diff.
 

@@ -8,11 +8,11 @@ on:
     tags: ["v*"]
 
 # Trois jobs — rapide, distribution, canari — et non un par contrôle. Le coût dominant n'est pas
-# la commande : c'est le démarrage de runner. Les contrôles rapides coûtent dix-neuf secondes
-# ensemble, et les séparer en paierait dix démarrages pour lire dix messages différents.
+# la commande : c'est le démarrage de runner. Les contrôles rapides coûtent près de vingt secondes
+# ensemble, et les séparer en paierait onze démarrages pour lire onze messages différents.
 # Voir docs/ci.md §1.
 #
-# Le job « distribution » est séparé parce qu'il coûte 5,6 fois plus que tous les autres
+# Le job « distribution » est séparé parce qu'il coûte 5,4 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
 jobs:
   rapide:
@@ -48,9 +48,13 @@ jobs:
         run: npm run typecheck
       - name: suite source
         run: npm run test
+      # Position 5 comme dans docs/ci.md §2 : la FORME d'un code qui compile et qui passe n'est pas
+      # plus grave que le code lui-même — donc apres les deux, et avant tout ce qui depend du build.
+      - name: biome — forme et corrections du ruleset recommended
+        run: npm run biome
       - name: build
         run: npm run build
-      # Position 6 comme dans docs/ci.md §2 : juste apres le build, parce que la porte mesure
+      # Position 7 comme dans docs/ci.md §2 : juste apres le build, parce que la porte mesure
       # l'artefact minifie — donc elle n'a rien a dire avant qu'il existe — et juste avant les
       # portes du build, parce qu'une dependance glissee dans le coeur est plus grave qu'un build
       # non reproductible.

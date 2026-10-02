@@ -34,11 +34,17 @@ export const scenarios = [
     // SPEC §13.4 — le flush est l'INVERSE de l'ordre de notification
     name: "batch/ordre-de-flush-lifo",
     run(api, log) {
-      const a = api.signal(0), b = api.signal(0), c = api.signal(0)
+      const a = api.signal(0),
+        b = api.signal(0),
+        c = api.signal(0)
       api.effect(() => log("A", a.value))
       api.effect(() => log("B", b.value))
       api.effect(() => log("C", c.value))
-      api.batch(() => { a.value = 1; b.value = 1; c.value = 1 })
+      api.batch(() => {
+        a.value = 1
+        b.value = 1
+        c.value = 1
+      })
       assert.deepEqual(log.entries, ["A 0", "B 0", "C 0", "C 1", "B 1", "A 1"])
     },
   },
@@ -49,7 +55,16 @@ export const scenarios = [
       const s = api.signal(0)
       for (let i = 1; i <= 4; i++) api.effect(() => log("d" + i, s.value))
       s.value = 1
-      assert.deepEqual(log.entries, ["d1 0", "d2 0", "d3 0", "d4 0", "d1 1", "d2 1", "d3 1", "d4 1"])
+      assert.deepEqual(log.entries, [
+        "d1 0",
+        "d2 0",
+        "d3 0",
+        "d4 0",
+        "d1 1",
+        "d2 1",
+        "d3 1",
+        "d4 1",
+      ])
     },
   },
   {
@@ -58,8 +73,13 @@ export const scenarios = [
     run(api, log) {
       const a = api.signal(1)
       let calls = 0
-      const c = api.computed(() => { calls++; return a.value * 2 })
-      c.value; c.value; c.value
+      const c = api.computed(() => {
+        calls++
+        return a.value * 2
+      })
+      c.value
+      c.value
+      c.value
       log("evaluations", calls)
       a.value = 2
       log("apres ecriture", calls)

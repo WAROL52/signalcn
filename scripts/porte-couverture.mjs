@@ -25,7 +25,7 @@
  */
 
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -70,8 +70,10 @@ function mesurer(dossier, planifier = {}) {
     `--test-reporter-destination=${sortie}`,
   ]
   if (planifier.lignes !== undefined) drapeaux.push(`--test-coverage-lines=${planifier.lignes}`)
-  if (planifier.branches !== undefined) drapeaux.push(`--test-coverage-branches=${planifier.branches}`)
-  if (planifier.fonctions !== undefined) drapeaux.push(`--test-coverage-functions=${planifier.fonctions}`)
+  if (planifier.branches !== undefined)
+    drapeaux.push(`--test-coverage-branches=${planifier.branches}`)
+  if (planifier.fonctions !== undefined)
+    drapeaux.push(`--test-coverage-functions=${planifier.fonctions}`)
   drapeaux.push("--test", SUITE)
 
   const resultat = spawnSync(process.execPath, drapeaux, {
@@ -173,7 +175,8 @@ function exclusionsInterdites() {
     // drapeau n'yVit que s'il peut être exécuté.
     if (fichier.endsWith(".js")) continue
     if (fichier.endsWith(".md") || fichier.startsWith("research/")) continue
-    if (!/^(scripts\/|\.github\/|registry\/default\/)/.test(fichier) && fichier !== "package.json") continue
+    if (!/^(scripts\/|\.github\/|registry\/default\/)/.test(fichier) && fichier !== "package.json")
+      continue
     const texte = readFileSync(join(RACINE, fichier), "utf8")
     for (const [motif, nom] of suspects) {
       if (texte.includes(motif)) trouves.push(`${fichier} — ${nom}`)
@@ -198,7 +201,10 @@ function exclusionsInterdites() {
  */
 function baseDuMergeBase() {
   const candidat = ["origin/master", "master", "main"]
-    .map((ref) => ({ ref, present: spawnSync("git", ["rev-parse", "--verify", ref], { cwd: RACINE }).status === 0 }))
+    .map((ref) => ({
+      ref,
+      present: spawnSync("git", ["rev-parse", "--verify", ref], { cwd: RACINE }).status === 0,
+    }))
     .find((c) => c.present)
 
   if (!candidat) return null
