@@ -5,7 +5,7 @@ vers les plus récentes — exactement comme chez `@preact/signals-core`. Elle n
 
 ## Considered Options
 
-- **Garder la géométrie miroir** — refusée. `docs/architecture.md` §3 l'argumentait par « insertion
+- **Garder la géométrie miroir** — refusée. `site/technique/architecture.md` §3 l'argumentait par « insertion
   en tête, `O(1)` », ce qui est vrai des deux côtés : l'argument ne distinguait rien. Elle a coûté
   quatre traversages faux, corrigés en `0d61427`, dont **un seul** trouvé par un test. Un parcours par
   `_prev` part de la tête, où il vaut `undefined`, et rend donc **un nœud au lieu d'une liste** — sans
@@ -25,7 +25,7 @@ vers les plus récentes — exactement comme chez `@preact/signals-core`. Elle n
 > Même règle pour `signal._targets`, qui est toujours dans ce sens-là. Les deux listes partagent
 > donc la même géométrie : insertion en tête, parcours à l'opposé de la tête.
 >
-> Toute affirmation de géométrie hors de ce document est un risque : si `docs/architecture.md` §3 la
+> Toute affirmation de géométrie hors de ce document est un risque : si `site/technique/architecture.md` §3 la
 > répète, elle la **cite**.
 
 ## Consequences

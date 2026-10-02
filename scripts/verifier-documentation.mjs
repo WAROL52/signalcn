@@ -25,7 +25,7 @@
  *   4. LE CONTRAT DE COUVERTURE EST À TROIS MÉTRIQUES. Le README annonçait quatre rubriques
  *      d'un runner qui n'en a que trois ; le contrat qu'il annonce doit être celui qu'on applique.
  *
- *   5. LE PIPELINE EST CELUI QU'IL DÉCRIT. `docs/ci.md` est la référence des coûts, et ses
+ *   5. LE PIPELINE EST CELUI QU'IL DÉCRIT. `site/contributeurs/ci.md` est la référence des coûts, et ses
  *      chiffres se périment sans bruit : rien n'exécute un coût, et une ligne fausse dans son
  *      tableau ne fait tomber aucune porte. Le tableau doit donc sommer — le total annoncé est
  *      la somme de ses lignes, le multiple annoncé est celui de la ligne d'installation sur ce
@@ -219,16 +219,16 @@ const ancrees = [
     "le tableau recapitulatif de la baseline annonce le bon total",
   ],
   [
-    "docs/scenarios.md",
+    "site/contributeurs/scenarios.md",
     /Comment les \*\*(\d+) comportements\*\*/,
     [attendus.entrees],
-    "docs/scenarios.md annonce le bon nombre de comportements",
+    "site/contributeurs/scenarios.md annonce le bon nombre de comportements",
   ],
   [
-    "docs/scenarios.md",
+    "site/contributeurs/scenarios.md",
     /pour (\d+) comportements\./,
     [attendus.entrees],
-    "docs/scenarios.md annonce le bon nombre de comportements, dans la repartition",
+    "site/contributeurs/scenarios.md annonce le bon nombre de comportements, dans la repartition",
   ],
   [
     "ROADMAP.md",
@@ -257,7 +257,7 @@ for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
   )
 }
 
-// ---- 6. Le pipeline décrit par `docs/ci.md`, et celui qui tourne ----------------------------
+// ---- 6. Le pipeline décrit par `site/contributeurs/ci.md`, et celui qui tourne ----------------------------
 //
 // Trois faits, tous dans le même fichier, tous impossibles à voir à l'œil : un coût mesuré ne
 // s'exécute nulle part, et une étape déplacée dans le YAML ne dit rien au document qui l'explique.
@@ -265,7 +265,7 @@ for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
 // parce que c'est lui qui les porte. La porte ne mesure rien : elle vérifie que le document
 // répond à lui-même, et qu'il décrit le YAML.
 
-const ci = await readFile(join(RACINE, "docs", "ci.md"), "utf8")
+const ci = await readFile(join(RACINE, "site", "contributeurs", "ci.md"), "utf8")
 
 // L'ordre du YAML, dans le job « rapide ». `npm ci` ne porte pas de `npm run` et n'est donc pas
 // capté : ce sont les contrôles, pas l'installation des dépendances.
@@ -278,7 +278,7 @@ const sectionOrdre = ci.slice(ci.indexOf("\n## 2. "), ci.indexOf("\n## 3. "))
 const annonces = [...sectionOrdre.matchAll(/`(npm run [\w-]+)`/g)].map((m) => m[1].slice(8))
 
 porte(
-  "docs/ci.md annonce les controles du job rapide, dans l'ordre du YAML",
+  "site/contributeurs/ci.md annonce les controles du job rapide, dans l'ordre du YAML",
   annonces.length === etapes.length && annonces.every((c, i) => c === etapes[i]),
   `${annonces.length} annonces (${annonces.join(", ")}), ${etapes.length} etapes (${etapes.join(", ")})`,
 )

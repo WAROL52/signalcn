@@ -31,15 +31,15 @@
 | Question | Document |
 |---|---|
 | Que doit faire le cœur, exactement ? | [`SPEC.md`](./SPEC.md) |
-| Comment est construit le graphe ? | [`docs/architecture.md`](./docs/architecture.md) |
-| Comment s'écrit la source de vérité ? | [`docs/architecture.md`](./docs/architecture.md) §15 |
-| Comment sont produits les artefacts ? | [`docs/build.md`](./docs/build.md) |
-| Comment se prouve la conformité ? | [`docs/parity.md`](./docs/parity.md), [`docs/scenarios.md`](./docs/scenarios.md) |
-| Comment s'installent les artefacts ? | [`docs/distribution.md`](./docs/distribution.md) |
-| Que fait la CI ? | [`docs/ci.md`](./docs/ci.md) |
-| Qu'est-ce qui est interdit, et comment on le vérifie ? | [`docs/zero-dependency.md`](./docs/zero-dependency.md) |
-| Quelle documentation existe, et qui la garde juste ? | [`docs/documentation.md`](./docs/documentation.md) |
-| Comment on écrit un scénario ? | [`docs/scenarios.md`](./docs/scenarios.md) |
+| Comment est construit le graphe ? | [`site/technique/architecture.md`](site/technique/architecture.md) |
+| Comment s'écrit la source de vérité ? | [`site/technique/architecture.md`](site/technique/architecture.md) §15 |
+| Comment sont produits les artefacts ? | [`site/contributeurs/build.md`](site/contributeurs/build.md) |
+| Comment se prouve la conformité ? | [`site/utilisateurs/parity.md`](site/utilisateurs/parity.md), [`site/contributeurs/scenarios.md`](site/contributeurs/scenarios.md) |
+| Comment s'installent les artefacts ? | [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution.md) |
+| Que fait la CI ? | [`site/contributeurs/ci.md`](site/contributeurs/ci.md) |
+| Qu'est-ce qui est interdit, et comment on le vérifie ? | [`site/technique/zero-dependency.md`](site/technique/zero-dependency.md) |
+| Quelle documentation existe, et qui la garde juste ? | [`site/contributeurs/documentation.md`](site/contributeurs/documentation.md) |
+| Comment on écrit un scénario ? | [`site/contributeurs/scenarios.md`](site/contributeurs/scenarios.md) |
 | Qu'est-ce que le vocabulaire du projet ? | [`CONTEXT.md`](./CONTEXT.md) |
 
 ## 2. Règles de travail
@@ -68,7 +68,7 @@
 - [x] Confirmer la disponibilité du nom `signalcn`.
 - [x] Définir le propriétaire et le nom final du dépôt GitHub.
 - [x] Choisir la licence finale.
-- [x] **Définir les six artefacts indépendants** — sous réserve de `"tsx": true` chez le consommateur. Sans lui, les items TypeScript et JavaScript convergent vers le même nom de fichier. Voir [`docs/distribution.md`](./docs/distribution.md) §2.
+- [x] **Définir les six artefacts indépendants** — sous réserve de `"tsx": true` chez le consommateur. Sans lui, les items TypeScript et JavaScript convergent vers le même nom de fichier. Voir [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution.md) §2.
 
 ### Compatibilité
 
@@ -100,7 +100,7 @@
 > **Preuve** — `npm test` : 98 tests, 0 échec. Les dix exports sont dans `signals.ts`.
 > Le cœur est complet ; `P1` n'attend plus rien.
 
-Le modèle interne est spécifié dans [`docs/architecture.md`](./docs/architecture.md). Ce qui suit est
+Le modèle interne est spécifié dans [`site/technique/architecture.md`](site/technique/architecture.md). Ce qui suit est
 l'implémentation.
 
 ### Signal
@@ -148,7 +148,7 @@ l'implémentation.
 > Le reliquat est decide par [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md),
 > pas par renoncement.
 
-Le découpage est spécifié dans [`docs/scenarios.md`](./docs/scenarios.md) : 82 scénarios pour
+Le découpage est spécifié dans [`site/contributeurs/scenarios.md`](site/contributeurs/scenarios.md) : 82 scénarios pour
 231 comportements, avec traçabilité obligatoire vers la matrice.
 
 - [x] Écrire la table de scénarios.
@@ -185,7 +185,7 @@ Le découpage est spécifié dans [`docs/scenarios.md`](./docs/scenarios.md) : 8
 > load-bearing, tailles, et `npm run verifier-derive` : le build ne touche aucun artefact
 > commité.
 
-Chaîne spécifiée dans [`docs/build.md`](./docs/build.md).
+Chaîne spécifiée dans [`site/contributeurs/build.md`](site/contributeurs/build.md).
 
 - [x] `signals.js` et `signals.test.js` par `tsc`.
 - [x] `signals.min.js` et `signals.test.min.js` par `esbuild --keep-names`.
@@ -209,7 +209,7 @@ Chaîne spécifiée dans [`docs/build.md`](./docs/build.md).
 > exports réels du module construit.
 
 - [x] Rédiger le `README.md` final — l'API n'existe pas encore.
-- [x] Corriger les trois fautes de fait relevées dans [`docs/documentation.md`](./docs/documentation.md) §5.
+- [x] Corriger les trois fautes de fait relevées dans [`site/contributeurs/documentation.md`](site/contributeurs/documentation.md) §5.
 - [x] Ajouter la section « Différences connues », pour l'adopter.
 - [x] Ajouter la porte qui vérifie la surface publique du README.
 

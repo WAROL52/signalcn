@@ -14,4 +14,4 @@ Le cœur est écrit en classes JavaScript natives, avec des champs et des métho
 - **`Computed.prototype.constructor` devient correct** : `Computed`, au lieu de `Signal`.
 - **Le seuil de cycle cesse d'être contractuel.** `SPEC.md` §15.2 exige désormais qu'un cycle asynchrone finisse en `Error` dans un nombre borné d'itérations, sans figer le compte. C'est cohérent avec l'analyse : cent est un ordre de grandeur, pas une constante sémantique, et la détection exacte de cycle serait indécidable.
 - **L'ordre des huit propriétés-own d'un signal ne change pas**, donc `Object.keys`, `{...signal}` et `JSON.stringify` restent compatibles. C'est la surface qui comptait réellement.
-- Ces écarts sont consignés dans `SPEC.md` §21 et détaillés dans `docs/architecture.md` §11.
+- Ces écarts sont consignés dans `SPEC.md` §21 et détaillés dans `site/technique/architecture.md` §11.

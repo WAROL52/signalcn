@@ -2,7 +2,7 @@
 
 Spécification du pipeline qui produit les quatre artefacts générés à partir des deux
 sources de vérité. Le **pourquoi** de chaque choix est dans
-[ADR-0006 — `tsc` émet, esbuild minifie](./adr/0006-tsc-emet-esbuild-minifie.md).
+[ADR-0006 — `tsc` émet, esbuild minifie](/docs/adr/0006-tsc-emet-esbuild-minifie.md).
 
 Deux commandes, dans cet ordre. Toutes deux sont reproductibles : deux exécutions
 produisent des fichiers au condensat identique.
