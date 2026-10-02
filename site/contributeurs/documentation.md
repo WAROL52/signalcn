@@ -3,7 +3,7 @@
 Ce document décide **quelle** documentation existe et **ce qui la garde juste**. Il ne
 rédige rien : l'API n'est pas encore figée, donc le README final attendra. Il ne décide pas
 non plus des commentaires dans `signals.ts` — c'est l'objet d'un ticket séparé — ni du sort de
-`ROADMAP.md`, qui en a un autre.
+`site/contributeurs/ROADMAP.md`, qui en a un autre.
 
 ## 1. Deux publics, deux ensembles
 
@@ -16,7 +16,7 @@ veut utiliser la bibliothèque n'a pas à lire une CI pour savoir comment l'inst
 |---|---|
 | `README.md` | installation, exemple, surface publique, divergences |
 | `SPEC.md` | le contrat normatif de comportement |
-| `PRD.md` | ce que le produit est et pourquoi il existe |
+| `site/contributeurs/PRD.md` | ce que le produit est et pourquoi il existe |
 | [`site/utilisateurs/distribution.md`](../utilisateurs/distribution.md) | où atterrit un artefact, quel chemin d'import |
 | [`site/utilisateurs/parity.md`](../utilisateurs/parity.md) | comment la garantie de conformité s'applique |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
@@ -113,7 +113,7 @@ Ce qui est gardé par une porte, c'est le README, et c'est ce qui compte pour l'
 
 - **Les commentaires et la JSDoc de `signals.ts`.** L'installation par la CLI supprime les
   commentaires flottants ; la forme du code source est un autre arbitrage.
-- **Le sort de `ROADMAP.md`.** Document interne périmable ou document public tenu à jour.
+- **Le sort de `site/contributeurs/ROADMAP.md`.** Document interne périmable ou document public tenu à jour.
 - **La langue des exemples et des commentaires.** Le code est en anglais par nécessité ; le
   reste suit le projet.
 - **Le contenu final du README.** Il ne peut pas être rédigé avant que l'API soit figée.

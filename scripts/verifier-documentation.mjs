@@ -231,13 +231,13 @@ const ancrees = [
     "site/contributeurs/scenarios.md annonce le bon nombre de comportements, dans la repartition",
   ],
   [
-    "ROADMAP.md",
+    "site/contributeurs/ROADMAP.md",
     /comportements upstream — (\d+) entrées,/,
     [attendus.entrees],
     "ROADMAP.md annonce le bon nombre de entrées",
   ],
   [
-    "ROADMAP.md",
+    "site/contributeurs/ROADMAP.md",
     /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/,
     [attendus.scenarios, attendus.entrees],
     "ROADMAP.md annonce le bon nombre de scenarios ET de comportements",

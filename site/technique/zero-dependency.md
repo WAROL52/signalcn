@@ -1,6 +1,6 @@
 # Zéro-dépendance runtime — comment on le prouve
 
-`PRD.md` §9 liste « zéro-dépendance runtime est vérifiée » parmi les critères de succès.
+`site/contributeurs/PRD.md` §9 liste « zéro-dépendance runtime est vérifiée » parmi les critères de succès.
 Rien dans le projet ne le vérifiait. Ce document est ce contrôle : deux passes, deux angles
 morts différents, exécutées à chaque pull request.
 

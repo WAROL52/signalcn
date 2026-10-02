@@ -126,7 +126,7 @@ Puis, chez un utilisateur qui n'a rien installé :
 ## 7. La porte de CI
 
 Un job crée un projet jetable, installe les six items, et exécute les trois suites installées.
-C'est la seule preuve du critère « les six items sont installables » de `PRD.md` §9.
+C'est la seule preuve du critère « les six items sont installables » de `site/contributeurs/PRD.md` §9.
 
 La validation de schéma ne suffit pas, et le projet en a deux exemples mesurés : un nom non
 qualifié dans `registryDependencies` installe silencieusement l'homonyme d'un autre registre,

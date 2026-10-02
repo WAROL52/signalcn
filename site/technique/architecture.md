@@ -547,7 +547,7 @@ personne.
 
 ### La langue
 
-Les commentaires sont en **français**, comme `SPEC.md`, `PRD.md`, le `README.md` et les ADR.
+Les commentaires sont en **français**, comme `SPEC.md`, `site/contributeurs/PRD.md`, le `README.md` et les ADR.
 Les identifiants, les mots-clés et les noms d'API restent en anglais par nécessité.
 
 ### La règle anti-bug

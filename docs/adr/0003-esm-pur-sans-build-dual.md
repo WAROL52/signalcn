@@ -4,7 +4,7 @@ Les artefacts sont des modules ES, et rien d'autre. Pas de sortie CommonJS, pas 
 
 ## Considered Options
 
-- **ESM + CJS + IIFE, comme la baseline** — refusé. La baseline distribue effectivement les trois, mais cela triple le nombre d'artefacts, contredit les six items de `PRD.md` §7, et triple la surface de test de parité (`SPEC.md` §19).
+- **ESM + CJS + IIFE, comme la baseline** — refusé. La baseline distribue effectivement les trois, mais cela triple le nombre d'artefacts, contredit les six items de `site/contributeurs/PRD.md` §7, et triple la surface de test de parité (`SPEC.md` §19).
 - **ESM + IIFE global** — refusé. L'IIFE est le seul moyen de couvrir `<script src>` sans bundler, mais le chemin ESM couvre déjà `<script type="module">`, Vite, Node et tous les bundlers. Le gain ne justifie pas un artefact de plus.
 
 ## Consequences
