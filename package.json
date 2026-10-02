@@ -10,13 +10,14 @@
     "test": "node --test --test-reporter=tap registry/default/signals.test.ts",
     "harnais": "node scripts/harnais.mjs",
     "couverture": "node scripts/porte-couverture.mjs",
+    "zero-dependance": "node scripts/zero-dependance.mjs",
     "build": "node scripts/build.mjs",
     "verifier-build": "node scripts/verifier-build.mjs",
     "parite": "node scripts/verifier-parite.mjs",
     "documentation": "node scripts/verifier-documentation.mjs",
     "verifier-derive": "node scripts/verifier-derive.mjs",
     "verifier-installation": "node scripts/verifier-installation.mjs",
-    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run build && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive"
+    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive"
   },
   "devDependencies": {
     "@preact/signals-core": "1.14.4",

@@ -17,8 +17,18 @@ Deux exigences distinctes, une seule liste :
 
 | Préoccupation | Motifs |
 |---|---|
-| **Sortir du cœur** | `import`, `import(`, `require(`, framework, DOM, `fetch(`, `XMLHttpRequest`, `setTimeout`, `queueMicrotask`, `requestAnimationFrame`, `Promise`, `eval(`, `new Function` |
+| **Sortir du cœur** | `import`, `import(`, `require(`, `window`, `document`, `self`, `fetch(`, `XMLHttpRequest`, `setTimeout`, `queueMicrotask`, `requestAnimationFrame`, `Promise`, `eval(`, `new Function` |
 | **Ne pas être déterministe** | `Date`, `performance`, `Math.random`, `crypto` |
+
+La liste compte **18 motifs**. Elle est **lue** par la porte, jamais recopiée : ce tableau est la
+source, et une liste écrite deux fois dérive sans bruit.
+
+Trois noms remplacent les deux mots `framework` et `DOM` de la première rédaction, et ils sont
+nommés ici parce qu'ils n'étaient pas dans le document : `framework` → `window`, `DOM` →
+`document`, et `self` — que le paragraphe ci-dessus cite déjà. Sans eux, deux cellules du tableau
+étaient des **mots** et non des symboles, et une recherche à chaîne fixe sur « framework »
+n'interdit rien. Un framework **bundlé**, lui, n'a pas à être dans la liste : la passe 1 le voit
+autrement, par son fichier dans `metafile.inputs`.
 
 ## 2. Passe 1 — le metafile, pour la structure
 
@@ -49,7 +59,7 @@ Un grep à chaîne fixe sur **`registry/default/signals.min.js`**, l'artefact qu
 installe, et non sur la source.
 
 **Pourquoi le minifié.** Le minificateur renomme les variables locales mais **ni les globaux ni
-les fonctions natives**. Mesuré : les onze motifs sont détectés dans `signals.min.js`, et un
+les fonctions natives**. Mesuré : les dix-huit motifs sont détectés dans `signals.min.js`, et un
 fichier propre n'en déclenche aucun. La garantie porte donc sur le fichier distribué, et le
 diagnostic pointe dans une sortie d'une seule ligne.
 
@@ -78,11 +88,19 @@ le dépôt trouverait toujours des dépendances, et ne prouverait rien.
 
 ## 6. Vérifié
 
-Le contrôle a été exécuté avant d'être documenté, sur un fichier contenant les onze motifs et
-sur un fichier propre :
+La porte a été rejouée sur un fichier contenant les dix-huit motifs de la liste ci-dessus, puis
+sur l'artefact distribué, qui n'en contient aucun :
 
 | | Fichier piégé | Fichier propre |
 |---|---|---|
-| Motifs détectés | **11 / 11** | 0 / 11 |
+| Motifs détectés | **18 / 18** | 0 / 18 |
 | Faux positifs | — | **aucun** |
 | Fichiers listés par le metafile | 2 | 1 |
+
+La troisième ligne est la vérification du §2 : un fichier qui importe `leftpad` en liste deux,
+`["node_modules/leftpad/index.js", …]`, et un fichier propre en liste un.
+
+La porte **remesure la colonne de droite** à chaque exécution — c'est ce `0 / 18` qu'elle imprime —
+donc elle ne peut pas s'en éloigner sans tomber, et le dénominateur y est celui de la liste, pas un
+nombre recopié. La colonne de gauche est le relevé d'une exécution manuelle, sur un fichier qui n'a
+pas été committé : c'est le seul chiffre du document qu'aucune porte ne peut refaire.

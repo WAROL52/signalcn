@@ -3769,11 +3769,16 @@ export const COUVERTURE: Record<string, string> = {
   "batch#13": "batch/cycle-borne-et-non-borne",
   "batch#14": "batch/trois-niveaux-et-ordre",
   "batch#15": "batch/ecriture-identique",
-  "batch#16": "batch/revert-a-b-a",
+  // batch#16 et batch#20 sont lus par DEUX scénarios chacun. Le second n'est pas un doublon : il
+  // est le SEUL test de la suite qui distingue `===` de `Object.is` dans la réconciliation du
+  // batch. Mesuré : en remplaçant le `===` de `reconcileBatchSnapshots` par `Object.is`, tous les
+  // autres tests restent verts et celui-ci tombe. Sans lui, le scénario était orphelin — présent
+  // dans la table, cité par aucune entrée, donc invisible pour le registre.
+  "batch#16": "batch/revert-a-b-a + batch/identite-stricte-du-snapshot",
   "batch#17": "batch/revert-avec-lecture-paresseuse",
   "batch#18": "batch/revert-avec-lecture-paresseuse",
   "batch#19": "batch/revert-a-b-a",
-  "batch#20": "batch/revert-avec-lecture-paresseuse",
+  "batch#20": "batch/revert-avec-lecture-paresseuse + batch/identite-stricte-du-snapshot",
   "batch#21": "batch/revert-a-b-a",
   "batch#22": "batch/cycle-borne-et-non-borne",
   "batch#23": "batch/cycle-borne-et-non-borne",
@@ -4559,19 +4564,30 @@ const { signal: s, computed, effect, batch, untracked, action, createModel, Sign
     // défaut qu'un registre doit interdire : il_a_l'air de couvrir, et rien ne le rattache à une
     // entrée. Un `gardes-internes` s'est trouvé orphelin de la même façon, écrit un commit plus
     // tôt, sans qu'aucune porte ne bronche.
+    //
+    // Les DEUX genres passent par là, dans le même esprit et avec le même message : un test
+    // `signalcn-seul` ET un scénario. Le contrôle n'en visait qu'un, et l'autre est resté nu —
+    // `batch/identite-stricte-du-snapshot` rejouait la baseline depuis plusieurs tranches sans
+    // qu'aucune entrée le cite, donc sa `matrice` était vide et rien ne le disait. Un orphelin ne
+    // perd rien : le harnais rejoue TOUS les scénarios, table ou non. Il perd ce qui seul compte,
+    // la traçabilité — et une matrice qui ne sait pas ce qu'un scénario rejoue ne peut pas dire
+    // qu'il le rejoue.
     const citees = new Set(
       Object.values(COUVERTURE).flatMap((destination) => morceaux(destination)),
     )
-    const orphelins = [...Object.keys(testsSignalcnSeul)]
-      .map((nom) => `signalcn-seul/${nom}`)
-      .filter((nom) => !citees.has(nom))
-    assert.deepEqual(
-      orphelins,
-      [],
-      `tests signalcn-seul qu'aucune entree de matrice ne cite : ${orphelins.join(", ")}. ` +
-        `Un test que rien ne rattache a une entree ne couvre rien : il semble couvrir, et la ` +
-        `matrice ne le sait pas.`,
-    )
+    for (const [genre, singulier, liste] of [
+      ["tests signalcn-seul", "Un test", Object.keys(testsSignalcnSeul).map((nom) => `signalcn-seul/${nom}`)],
+      ["scenarios", "Un scenario", scenarios.map(({ name }) => name)],
+    ] as const) {
+      const orphelins = liste.filter((nom) => !citees.has(nom))
+      assert.deepEqual(
+        orphelins,
+        [],
+        `${genre} qu'aucune entree de matrice ne cite : ${orphelins.join(", ")}. ` +
+          `${singulier} que rien ne rattache a une entree ne couvre rien : il semble couvrir, ` +
+          `et la matrice ne le sait pas.`,
+      )
+    }
 
     // Et le champ `matrice` de chaque scénario est bien ce que le registre lui attribue. La
     // déduction le garantit, donc un écart ici serait un bug : on le vérifie quand même, parce

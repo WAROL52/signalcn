@@ -9,10 +9,10 @@ on:
 
 # Trois jobs — rapide, distribution, canari — et non un par contrôle. Le coût dominant n'est pas
 # la commande : c'est le démarrage de runner. Les contrôles rapides coûtent dix-neuf secondes
-# ensemble, et les séparer en paierait neuf démarrages pour lire neuf messages différents.
+# ensemble, et les séparer en paierait dix démarrages pour lire dix messages différents.
 # Voir docs/ci.md §1.
 #
-# Le job « distribution » est séparé parce qu'il coûte 5,7 fois plus que tous les autres
+# Le job « distribution » est séparé parce qu'il coûte 5,6 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
 jobs:
   rapide:
@@ -34,9 +34,10 @@ jobs:
       - run: npm ci
       # L'ordre est par SÉVÉRITÉ, pas par coût. Un job qui exécute tout de toute façon ne paie
       # rien de plus pour être dans le bon ordre, et c'est le premier message lu qui décide de
-      # ce qu'on regarde ensuite. Les contrôles 6, 7 et 8 dépendent du 5 : le test minifié vise
-      # le runtime minifié, et le diff se fait sur ce que le build vient d'écrire. L'ordre est
-      # donc aussi un ordre de dépendance.
+      # ce qu'on regarde ensuite. Les contrôles 7, 8 et 9 dépendent du 5 : le test minifié vise
+      # le runtime minifié, et le diff se fait sur ce que le build vient d'écrire. Le contrôle 6
+      # en dépend aussi : il mesure l'artefact minifié, pas la source. L'ordre est donc aussi un
+      # ordre de dépendance.
       - name: conformite — harnais differentiel contre la baseline
         run: npm run harnais
       # Position 2 comme dans docs/ci.md §2 : apres la conformite, qui est le seul echec qui dit
@@ -49,6 +50,12 @@ jobs:
         run: npm run test
       - name: build
         run: npm run build
+      # Position 6 comme dans docs/ci.md §2 : juste apres le build, parce que la porte mesure
+      # l'artefact minifie — donc elle n'a rien a dire avant qu'il existe — et juste avant les
+      # portes du build, parce qu'une dependance glissee dans le coeur est plus grave qu'un build
+      # non reproductible.
+      - name: zero-dependance — le coeur distribue ne lit que lui-meme
+        run: npm run zero-dependance
       - name: portes du build
         run: npm run verifier-build
       # Apres le build, comme dans docs/ci.md §2 : la parite juge les ARTEFACTS, donc elle n'a

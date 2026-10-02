@@ -142,7 +142,7 @@ l'implémentation.
 
 ## 5. Phase P2 — Suite de tests comportementaux
 
-> **Preuve** — `npm run harnais` : 82 scénarios, 203 entrées de matrice, 5/5 tests
+> **Preuve** — `npm run harnais` : 82 scénarios, 205 entrées de matrice, 5/5 tests
 > `signalcn-seul` rejoués sur le paquet installé.
 > **La case « 100 % » reste ouverte** : la couverture mesurée est `99,61 / 98,50 / 100,00`.
 > Le reliquat est decide par [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md),

@@ -15,6 +15,7 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 
 | Contrôle | Coût |
 |---|---|
+| Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
 | Suite source | 0,77 s |
@@ -26,12 +27,12 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles rapides réunis coûtent **18,8 s**. L'installation en coûte **5,7 fois
+Tous les contrôles rapides réunis coûtent **19,1 s**. L'installation en coûte **5,6 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Trois jobs
-représentent trois démarrages pour neuf contrôles qui coûtent ensemble 18,8 secondes.
+représentent trois démarrages pour dix contrôles qui coûtent ensemble 19,1 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -47,18 +48,20 @@ documentation le vérifie : un contrôle ajouté, retiré ou déplacé dans le Y
 | 3 | **Typecheck** — `npm run typecheck` | Le code ne compile pas |
 | 4 | **Suite source** — `npm run test` | Un comportement faux, dans la source même |
 | 5 | **Build** — `npm run build` | Un artefact que le projet utilisateur ne peut pas charger |
-| 6 | **Portes du build** — `npm run verifier-build` | Un build non reproductible, un `--keep-names` inopérant, un minifié plus gros que l'original |
-| 7 | **Parité** — `npm run parite` | Le build ne reproduit pas la source ; la suite perd des tests en route |
-| 8 | **Dérive** — `npm run verifier-derive` | Un artefact committé que le build ne produit plus |
-| 9 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, ou qui demande un alias |
+| 6 | **Zéro-dépendance** — `npm run zero-dependance` | Une dépendance glissée dans le cœur distribué |
+| 7 | **Portes du build** — `npm run verifier-build` | Un build non reproductible, un `--keep-names` inopérant, un minifié plus gros que l'original |
+| 8 | **Parité** — `npm run parite` | Le build ne reproduit pas la source ; la suite perd des tests en route |
+| 9 | **Dérive** — `npm run verifier-derive` | Un artefact committé que le build ne produit plus |
+| 10 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, ou qui demande un alias |
 
-Les contrôles 6, 7 et 8 dépendent du 5 : le test minifié vise le runtime minifié, et le diff se
-fait sur ce que le build vient d'écrire. L'ordre n'est donc pas seulement une question de signal,
-il est aussi un ordre de dépendance — ce qui rend la réponse par sévérité gratuite.
+Les contrôles 7, 8 et 9 dépendent du 5 : le test minifié vise le runtime minifié, et le diff se
+fait sur ce que le build vient d'écrire. Le contrôle 6 en dépend aussi : il mesure l'artefact
+minifié, pas la source. L'ordre n'est donc pas seulement une question de signal, il est aussi un
+ordre de dépendance — ce qui rend la réponse par sévérité gratuite.
 
-**Le contrôle 8 EST le diff** : `git diff --stat` sur `registry/default/`, après un build que la
+**Le contrôle 9 EST le diff** : `git diff --stat` sur `registry/default/`, après un build que la
 porte relance elle-même. Un diff vide **est** le test, parce que le build est reproductible — et
-c'est le contrôle 6 qui le vérifie, en rejouant le build et en comparant les condensats : deux
+c'est le contrôle 7 qui le vérifie, en rejouant le build et en comparant les condensats : deux
 exécutions donnent des fichiers identiques, et une source modifiée sans régénération produit bien
 un diff.
 
