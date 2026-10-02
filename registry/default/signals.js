@@ -306,16 +306,16 @@ const SEUIL_CYCLE = 100;
  * de la baseline le signale déjà.
  */
 export function untracked(fn) {
-    const precedent = currentObserver;
-    const precedentCapture = capturedEffects;
+    const previousObserver = currentObserver;
+    const previousCapture = capturedEffects;
     currentObserver = undefined;
     capturedEffects = undefined;
     try {
         return fn();
     }
     finally {
-        currentObserver = precedent;
-        capturedEffects = precedentCapture;
+        currentObserver = previousObserver;
+        capturedEffects = previousCapture;
     }
 }
 /**
@@ -425,16 +425,16 @@ function cleanupDependency(node) {
     // lecture est donc l'ordre de la liste. ADR-0009.
     let tete = undefined;
     for (let current = node._sources; current !== undefined;) {
-        const precedent = current._prev;
+        const previousNode = current._prev;
         if (current._version === ABANDONNE) {
             current._source._removeNode(current);
             current._dansListe = false;
             // Le nœud quitté se détache de la liste des dépendances, sinon il resterait atteignable par un
             // parcours et continuerait d'y figurer. Les deux maillons sont recousus autour de lui.
-            if (precedent !== undefined)
-                precedent._next = current._next;
+            if (previousNode !== undefined)
+                previousNode._next = current._next;
             if (current._next !== undefined)
-                current._next._prev = precedent;
+                current._next._prev = previousNode;
         }
         else {
             tete = current;
@@ -446,7 +446,7 @@ function cleanupDependency(node) {
         if (current._recycled !== undefined)
             current._source._node = current._recycled;
         current._recycled = undefined;
-        current = precedent;
+        current = previousNode;
     }
     if (tete !== undefined)
         node._sources = tete;
@@ -543,7 +543,7 @@ function endBatch() {
             while (generation !== undefined) {
                 // Défaire le maillon AVANT de lancer le nœud : il ne doit pas se voir lui-même dans la
                 // chaîne qu'on vide, sinon il s'y retrouverait deux fois.
-                const suivant = generation._nextBatchedEffect;
+                const nextEffect = generation._nextBatchedEffect;
                 generation._nextBatchedEffect = undefined;
                 generation._flags &= ~(RUNNING | NOTIFIED);
                 try {
@@ -557,7 +557,7 @@ function endBatch() {
                         premiereErreur = erreur;
                     }
                 }
-                generation = suivant;
+                generation = nextEffect;
             }
         }
     }
@@ -625,7 +625,7 @@ function runCleanupUntracked(effet) {
     if (typeof cleanup !== "function")
         return;
     effet._cleanup = undefined;
-    const precedentObservateur = currentObserver;
+    const previousObserver = currentObserver;
     currentObserver = undefined;
     try {
         cleanup();
@@ -638,7 +638,7 @@ function runCleanupUntracked(effet) {
         throw erreur;
     }
     finally {
-        currentObserver = precedentObservateur;
+        currentObserver = previousObserver;
     }
 }
 /** Détache l'effet de toutes ses sources. Sans l'effet, il ne peut plus être réveillé. */
@@ -713,7 +713,7 @@ export class Effect {
         this._flags &= ~(NOTIFIED | DISPOSED);
         runCleanupUntracked(this);
         cleanupSources(this);
-        const precedentObservateur = currentObserver;
+        const previousObserver = currentObserver;
         currentObserver = this;
         batchDepth++;
         return () => {
@@ -722,7 +722,7 @@ export class Effect {
             if (currentObserver !== this)
                 throw new Error("Out-of-order effect");
             cleanupDependency(this);
-            currentObserver = precedentObservateur;
+            currentObserver = previousObserver;
             // Relâcher `RUNNING` ICI, et nulle part ailleurs. Le drainage le fait aussi pour le nœud
             // qu'il traite, mais un premier run_Create-déclenché hors drainage ne repasse jamais par là :
             // sans ce relâchement, `RUNNING` restait posé pour toujours, et `_dispose()` différait vers
@@ -919,7 +919,7 @@ export class Computed extends Signal {
         // motif que « sans cible, aucune source ne prévient, donc court-circuiter servirait une valeur
         // périmée ». C'était faux : `sourcesAreStale` compare les versions nœud par nœud, et ce parcours
         // ne dépend d'aucun abonnement. La preuve est le scénario
-        // `computed/evaluation-dune-ecriture-non-liee` — un computé nu, deux écritures sur un signal
+        // `computed/unlinked-write-evaluation` — un computé nu, deux écritures sur un signal
         // qu'il ne lit pas, puis une relecture : UNE évaluation des deux côtés, DEUX avec le test. Le
         // coût n'était donc jamais une valeur fausse, mais un recalcul de trop sur toute écriture non
         // liée — donc un effet de plus dans la fuite figée par `effect#34`.
@@ -928,7 +928,7 @@ export class Computed extends Signal {
             this._flags &= ~RUNNING;
             return true;
         }
-        const precedentObservateur = currentObserver;
+        const previousObserver = currentObserver;
         try {
             cleanupSources(this);
             currentObserver = this;
@@ -951,7 +951,7 @@ export class Computed extends Signal {
             this._version++;
         }
         finally {
-            currentObserver = precedentObservateur;
+            currentObserver = previousObserver;
         }
         cleanupDependency(this);
         // `RUNNING` se relâche ICI, inconditionnellement, et NULLE PART ailleurs — la baseline aussi

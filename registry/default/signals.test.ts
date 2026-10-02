@@ -152,7 +152,7 @@ export const scenarios: Scenario[] = [
     // `Signal(5)` sans `new` lève : le constructeur travaille sur `this`, et sans `new` il n'y
     // a pas de `this`. Le message d'erreur n'est pas figé, et c'est délibéré — il vient du
     // moteur, pas de nous. On n'affirme que le type.
-    name: "signal/instance-et-classe",
+    name: "signal/instance-and-class",
     matrice: ["signal#1", "signal#18", "signal#19", "signal#20"],
     run(api, log) {
       const s = api.signal(1)
@@ -189,7 +189,7 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §5.1 — `signal()` sans argument équivaut à `signal(undefined)`.
-    name: "signal/sans-argument",
+    name: "signal/no-argument",
     matrice: ["signal#2"],
     run(api, log) {
       log("signal()", String(api.signal().value))
@@ -205,7 +205,7 @@ export const scenarios: Scenario[] = [
     // l'affirmer ici serait une hypothèse, pas une mesure. Une implémentation fondée sur
     // `Object.is` passerait ce scénario. C'est `signalcn-seul/notifie-sur-stricte-identite` qui
     // discrimine les deux — et c'est normal qu'il soit d'un seul côté.
-    name: "signal/egalite-stricte-nan",
+    name: "signal/strict-equality-nan",
     matrice: ["signal#6"],
     run(api, log) {
       const s = api.signal(NaN)
@@ -219,7 +219,7 @@ export const scenarios: Scenario[] = [
     // precedente est conservee. C'est la trace observable du garde d'identite stricte.
     // Chaque direction part d'un signal neuf : l'ecriture rejetee ne change rien, donc
     // partir du meme signal pour les deux sens testerait deux fois la meme chose.
-    name: "signal/zero-et-negative-zero",
+    name: "signal/zero-and-negative-zero",
     matrice: ["signal#7", "signal#8"],
     run(api, log) {
       const versMoinsZero = api.signal(0)
@@ -247,7 +247,7 @@ export const scenarios: Scenario[] = [
     // `_version` n'a pas le même nom chez la baseline publiée, qui minifie les siens. Ces trois
     // entrées pointaient sur le ticket #24, clos, et n'étaient donc couvertes par AUCUN test — un
     // numéro de ticket est accepté comme destination, donc le vide passait pour une couverture.
-    name: "signal/egalite-stricte-objet",
+    name: "signal/strict-equality-object",
     matrice: ["signal#9", "signal#10", "signal#11"],
     run(api, log) {
       const premier = { forme: 1 }
@@ -297,7 +297,7 @@ export const scenarios: Scenario[] = [
     // `signal#5` est la SEULE des quatre qui notifie, et elle le fait AVANT l'instruction suivante :
     // le drain est terminé, pas\Component à faire. Les trois autres disent ce qui ne réveille pas,
     // et sans elles `signal#5` n'affirmerait qu'un flush, pas une frontière.
-    name: "signal/notification-synchrone",
+    name: "signal/synchronous-notification",
     matrice: [],
     run(api, log) {
       const s = api.signal(0)
@@ -348,7 +348,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §5.1 — `peek()` lit la valeur. CE QUE ÇA NE PREND PAS DE PAS, c'est l'absence de
     // dépendance : la matrice l'atteste par un effet qui ne se ré-exécute pas, et c'est
-    // `signal/notification-synchrone` qui s'en charge. Le descripteur du prototype diverge —
+    // `signal/synchronous-notification` qui s'en charge. Le descripteur du prototype diverge —
     // ADR-0004 — et n'est donc pas une propriété commune : il est vérifié côté signalcn seul.
     name: "signal/peek",
     matrice: ["signal#15"],
@@ -389,7 +389,7 @@ export const scenarios: Scenario[] = [
     // `brand` est sur le prototype : lisible depuis l'instance, absent des proprietes-own,
     // et traverse par `in`. C'est exactement ce dont la detection de sous-objet d'un modele a
     // besoin. Le descripteur, lui, diverge — voir `signalcn-seul/descripteurs-de-prototype`.
-    name: "signal/brand-et-pas-de-dispose",
+    name: "signal/brand-and-no-dispose",
     matrice: ["signal#17", "signal#22", "signal#23", "conv#11", "conv#13"],
     run(api, log) {
       const s = api.signal(1)
@@ -412,8 +412,8 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §5.1 — `toString()` vaut `this.value + ""` et `valueOf()` vaut `this.value`.
     // Ce qui est CONSTANT est figé ici ; le fait que les deux SUIVENT la dépendance est rejoué par
-    // `conversions/suivent-la-dependance`, parce qu'il demande un observateur.
-    name: "conversions/to-string-et-value-of",
+    // `conversions/follow-the-dependency`, parce qu'il demande un observateur.
+    name: "conversions/to-string-and-value-of",
     matrice: ["conv#1", "conv#5"],
     run(api, log) {
       log("toString(42)", api.signal(42).toString())
@@ -434,7 +434,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §5.1 — la conversion en chaine leve sur un `Symbol`. Le moteur fait le travail :
     // `symbole + ""` leve. Aucun `try` dans `toString`, et c'est voulu.
-    name: "conversions/to-string-throw-sur-symbol",
+    name: "conversions/to-string-throw-on-symbol",
     matrice: ["conv#2"],
     run(api, log) {
       let type = "aucune erreur"
@@ -450,7 +450,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §5.1 — il n'existe PAS de `Symbol.toPrimitive`. Sans lui, `+` passe par
     // `valueOf` puis `toString`, ce qui est le comportement fige.
-    name: "conversions/pas-de-symbol-to-primitive",
+    name: "conversions/no-symbol-to-primitive",
     matrice: ["conv#3"],
     run(api, log) {
       log("s[Symbol.toPrimitive]", String(auRuntime(api.signal(1))[Symbol.toPrimitive]))
@@ -459,7 +459,7 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §5.1 — `toJSON()` vaut `this.value`, donc `JSON.stringify` plonge dans le signal.
-    name: "conversions/to-json-et-stringify",
+    name: "conversions/to-json-and-stringify",
     matrice: ["conv#7", "conv#14"],
     run(api, log) {
       log("toJSON d'un objet", JSON.stringify(api.signal({ a: 1 }).toJSON()))
@@ -479,9 +479,9 @@ export const scenarios: Scenario[] = [
     // raison. Ces quatre entrées pointaient sur le ticket #24, clos : rien ne les rejouait.
     //
     // Le `peek()` qui NE suit pas la dépendance est le contre-exemple de ce scénario, et il vit
-    // dans `signal/notification-synchrone` : sans lui, « suit la dépendance » ne serait qu'un mot
+    // dans `signal/synchronous-notification` : sans lui, « suit la dépendance » ne serait qu'un mot
     // plus assertif que son contraire.
-    name: "conversions/suivent-la-dependance",
+    name: "conversions/follow-the-dependency",
     matrice: [],
     run(api, log) {
       log("toString", String(compteRuns(api, 1, (s) => s.toString(), [2]).join(" puis ")))
@@ -499,7 +499,7 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §6, §15.7 — LES CONVERSIONS PROPAGENT L'ERREUR D'UN COMPUTÉ, et aucune ne fait
-    // d'`untracked`. C'est la contrepartie de `computed/erreur-stockee` : le moteur stocke
+    // d'`untracked`. C'est la contrepartie de `computed/cached-error` : le moteur stocke
     // l'erreur dans `_value`, et les cinq points de lecture la relancent — `.value`, `peek`,
     // `toString`, `valueOf`, `toJSON` — la relancent telle quelle. Une conversion qui absorberait
     // l'erreur donnerait `undefined`, ou une chaîne, au lieu de lever.
@@ -507,7 +507,7 @@ export const scenarios: Scenario[] = [
     // `conv#9` pointait sur le ticket #23, clos : le seul scénario qui l'aurait couvert n'a jamais
     // été écrit. Les quatre autres conversions de la série — `toString`, `valueOf`, `toJSON`,
     // `peek` — sont ici avec `.value`, parce que la matrice les relève sur la même ligne.
-    name: "computed/conversions-propagent-l-erreur",
+    name: "computed/conversions-propagate-the-error",
     matrice: [],
     run(api, log) {
       const declencheur = api.signal(false)
@@ -559,7 +559,7 @@ export const scenarios: Scenario[] = [
     //
     // `computed#11` pointait sur le ticket #26, clos. La forme est celle de la colonne « Observé »
     // de la matrice, rejouée telle quelle.
-    name: "computed/lecture-reentrante-dans-batch",
+    name: "computed/reentrant-read-in-batch",
     matrice: [],
     run(api, log) {
       const a = api.signal(0)
@@ -587,7 +587,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §6 — paresseux, puis mis en cache. Rien ne s'exécute avant la première lecture, et
     // trois lectures consécutives donnent UNE évaluation : c'est le même fait, vu deux fois.
-    name: "computed/paresseux-et-cache",
+    name: "computed/lazy-and-cache",
     matrice: ["computed#1", "computed#2"],
     run(api, log) {
       let calls = 0
@@ -619,7 +619,7 @@ export const scenarios: Scenario[] = [
     // l'évaluation, donc avant le run de l'effet qui l'a déclenchée.
     //
     // Cette entrée pointait sur le ticket #24, clos : rien ne la rejouait.
-    name: "computed/ecriture-dans-un-compute",
+    name: "computed/write-in-a-computed",
     matrice: [],
     run(api, log) {
       const a = api.signal(0)
@@ -647,12 +647,12 @@ export const scenarios: Scenario[] = [
     // seul run a eu lieu, et l'écriture de la source ne relance rien.
     //
     // L'asymétrie est le point : une erreur au RE-RUN laisse l'effet vivant
-    // (`effect/erreurs`), une erreur lue pendant la PREMIÈRE évaluation l'enterre. C'est
-    // `computed#17` qui l'atteste, et c'est ce qui fait de `computed/erreur-stockee` un fait sur
+    // (`effect/errors`), une erreur lue pendant la PREMIÈRE évaluation l'enterre. C'est
+    // `computed#17` qui l'atteste, et c'est ce qui fait de `computed/cached-error` un fait sur
     // la LECTURE et de ce scénario un fait sur l'OBSERVATEUR.
     //
     // Cette entrée pointait sur le ticket #24, clos.
-    name: "computed/erreur-vers-l-effet",
+    name: "computed/error-to-effect",
     matrice: [],
     run(api, log) {
       const s = api.signal(1)
@@ -690,7 +690,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §6 — sans abonné, une écriture de source ne réveille rien, et la lecture suivante
     // intègre TOUTES les écritures. Le nombre d'évaluations reste 1 tant qu'on ne lit pas.
-    name: "computed/sans-abonne",
+    name: "computed/no-subscriber",
     matrice: ["computed#3"],
     run(api, log) {
       let calls = 0
@@ -727,7 +727,7 @@ export const scenarios: Scenario[] = [
     // rejouer ce compte : elle ne servait jamais de valeur périmée, seulement un recalcul de trop.
     // Aucun test ne le voyait, parce que la plupart des scénarios observent une VALEUR, et qu'ici la
     // valeur est juste des deux côtés — seul le compte change.
-    name: "computed/evaluation-dune-ecriture-non-liee",
+    name: "computed/unlinked-write-evaluation",
     matrice: [],
     run(api, log) {
       let calls = 0
@@ -761,7 +761,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §6 — invalidation puis recalcul, et `peek()` qui passe par la voie de lecture. Le
     // recalcul n'a lieu qu'à la lecture : c'est ce qui rend le computé paresseux.
-    name: "computed/invalidation-et-recalcul",
+    name: "computed/invalidation-and-recompute",
     matrice: ["computed#4", "computed#7"],
     run(api, log) {
       let calls = 0
@@ -804,7 +804,7 @@ export const scenarios: Scenario[] = [
     // déclencheur est la valeur INCHANGÉE, et `a % 2` est le calcul minimal qui la produit. C'est
     // aussi pour ça que le cas est ici, dans un SCÉNARIO, et pas dans le bloc signalcn-seul : seul
     // le harnais rejoue la table des deux côtés, donc seul un scénario reverra cette garantie.
-    name: "computed/valeur-identique-relisible",
+    name: "computed/identical-value-reread",
     matrice: [],
     run(api, log) {
       // `computed#5` et `computed#6`, dans leur forme exacte : le résultat identique ne notifie
@@ -858,7 +858,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §7 — une dépendance abandonnée cesse de notifier. Le journal montre que `a` n'est
     // plus lue du tout, donc plus consultée.
-    name: "computed/dependances-dynamiques",
+    name: "computed/dynamic-dependencies",
     matrice: ["computed#8"],
     run(api, log) {
       const bascule = api.signal(true)
@@ -896,7 +896,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §7 — la réactivation. Même exigence que l'abandon, vue de l'autre côté : le journal
     // doit reprendre la lecture de `a`, et la valeurIntegrer l'écriture qui a eu lieu entre-temps.
-    name: "computed/reactivation-apres-abandon",
+    name: "computed/reactivation-after-abandon",
     matrice: ["computed#9"],
     run(api, log) {
       const bascule = api.signal(true)
@@ -972,7 +972,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §15 — l'erreur de la dérivation est STOCKÉE, pas recalculée à chaque lecture. C'est ce
     // qui distingue une dérivation d'une fonction : six lectures ne font qu'une évaluation.
-    name: "computed/erreur-stockee",
+    name: "computed/cached-error",
     matrice: ["computed#15", "computed#16"],
     run(api, log) {
       let calls = 0
@@ -1015,7 +1015,7 @@ export const scenarios: Scenario[] = [
     // SPEC §6 — le computé est en lecture seule. Le descripteur n'a pas de setter, donc en mode
     // strict l'affectation lève. Le mode sloppy est un fichier à part, et la suite s'exécute en
     // strict : on n'affirme donc que le strict.
-    name: "computed/lecture-seule",
+    name: "computed/read-only",
     matrice: ["computed#23", "computed#24"],
     run(api, log) {
       const c = api.computed(() => 1)
@@ -1053,7 +1053,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §4.2, §5.1 — `options.name` est un champ public mutable, et la marque est présente :
     // c'est ce qui empêche `createModel` de descendre dans un computé.
-    name: "computed/options-et-marque",
+    name: "computed/options-and-brand",
     matrice: ["computed#25", "computed#27"],
     run(api, log) {
       const c = api.computed(() => 1, { name: "c" })
@@ -1074,7 +1074,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.1 — premier run SYNCHRONE, avant même que `effect()` ne rende la main, et le
     // callback ne reçoit AUCUN argument.
-    name: "effect/premier-run-et-arguments",
+    name: "effect/first-run-and-arguments",
     matrice: ["effect#1", "effect#38"],
     run(api, log) {
       const journal: string[] = []
@@ -1088,7 +1088,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.1 — un effet SANS dépendance ne tourne qu'une fois et n'est jamais re-notifié : il
     // n'a rien à quoi s'abonner. Deux écritures ne le réveillent pas.
-    name: "effect/sans-dependance",
+    name: "effect/no-dependency",
     matrice: ["effect#3"],
     run(api, log) {
       const s = api.signal(0)
@@ -1106,7 +1106,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.1, §12 — re-run à chaque changement, cleanup exécuté JUSTE AVANT le run suivant,
     // et le cleanup voit la valeur COURANTE : celle qui vient d'écrire, pas celle de son run.
-    name: "effect/rerun-et-cleanup",
+    name: "effect/rerun-and-cleanup",
     matrice: ["effect#2", "effect#6", "effect#8"],
     run(api, log) {
       const s = api.signal(0)
@@ -1141,7 +1141,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.2 — le dispositeur est `_dispose.bind(effect)` : `name === "bound "`, `length === 0`,
     // `Object.keys()` vide. Ce n'est ni une arrow, ni l'instance.
-    name: "effect/forme-du-dispositeur",
+    name: "effect/shape-of-the-disposer",
     matrice: ["effect#4", "effect#35"],
     run(api, log) {
       const d = api.effect(() => {})
@@ -1155,7 +1155,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.1 — une valeur de retour qui n'est pas une fonction est IGNORÉE. Pas d'erreur, pas
     // de cleanup : c'est le cas le plus courant du monde, un callback qui renvoie autre chose.
-    name: "effect/retour-non-fonction-ignore",
+    name: "effect/non-function-return-ignored",
     matrice: ["effect#5"],
     run(api, log) {
       const d = api.effect(() => 42)
@@ -1168,7 +1168,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §12 — le cleanup s'exécute HORS de tout contexte de suivi : lire un autre signal ne
     // réabonne pas. Sans quoi le dispose laisserait une dépendance fantôme.
-    name: "effect/cleanup-hors-suivi",
+    name: "effect/cleanup-untracked",
     matrice: ["effect#7"],
     run(api, log) {
       const pilote = api.signal(0)
@@ -1192,7 +1192,7 @@ export const scenarios: Scenario[] = [
     // SPEC §8.3 — `this` est l'INSTANCE d'effet pour une fonction non fléchée ; une flèche capture
     // le `this` lexical du module. On vérifie l'identité de classe, PAS les noms de propriétés :
     // la baseline minifie les siens, donc ils ne sont pas lisibles. Même cause que #33.
-    name: "effect/this-est-linstance",
+    name: "effect/this-is-the-instance",
     matrice: ["effect#9", "effect#10"],
     run(api, log) {
       let cleNonFlechee: unknown
@@ -1217,9 +1217,9 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §13.4 — HORS batch, chaque écriture draine immédiatement, donc l'ordre des runs suit
     // l'ordre des écritures. L'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est
-    // `effect/ordre-dans-batch` qui le rejoue : sans `batch`, la règle n'est pas observable et
+    // `effect/order-in-batch` qui le rejoue : sans `batch`, la règle n'est pas observable et
     // l'affirmer serait inventer.
-    name: "effect/ordre-hors-batch",
+    name: "effect/order-outside-batch",
     matrice: ["effect#15", "effect#17"],
     run(api, log) {
       const a = api.signal(0)
@@ -1248,7 +1248,7 @@ export const scenarios: Scenario[] = [
     // son propre run, et `d2` ne rejoue pas — il ne figure donc pas dans le journal du flush.
     // `effect#17` est la cascade : l'écriture de `d1` réveille `d2`, qui réveille `d1`, donc `d1`
     // tourne deux fois. C'est ce qui distingue les deux entrées, et les fusionner en dirait moins.
-    name: "effect/ordre-dans-batch",
+    name: "effect/order-in-batch",
     matrice: [],
     run(api, log) {
       // effect#15 : A dispose B après le run de B.
@@ -1297,7 +1297,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.4 — un effet qui écrit une dépendance qu'il lit se ré-exécute dans le MÊME drainage. Le
     // drain est en largeur : une génération est vidée entièrement avant la suivante.
-    name: "effect/auto-ecriture",
+    name: "effect/auto-write",
     matrice: ["effect#16"],
     run(api, log) {
       const s = api.signal(0)
@@ -1315,7 +1315,7 @@ export const scenarios: Scenario[] = [
     // SPEC §13.6 — un effet créé dans un effet est INDÉPENDANT et non possédé : le dispose de
     // l'extérieur ne doit pas emporter l'intérieur. L'intérieur est créé UNE FOIS, pas à chaque
     // run, sinon c'est un autre comportement qu'on mesurerait.
-    name: "effect/nesting-et-independance",
+    name: "effect/nesting-and-independence",
     matrice: ["effect#33"],
     run(api, log) {
       const s = api.signal(0)
@@ -1345,7 +1345,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §15.2 — un cycle borné ne lève pas : c'est un cycle, pas une erreur. Le COMPTE de runs
     // d'un cycle non borné n'est pas figé, donc on ne l'affirme pas.
-    name: "effect/cycle-borne",
+    name: "effect/bounded-cycle",
     matrice: ["effect#19"],
     run(api, log) {
       const a = api.signal(0)
@@ -1364,7 +1364,7 @@ export const scenarios: Scenario[] = [
     // SPEC §15 — une exception au PREMIER run dispose l'effet, se propage, et ne rend AUCUN
     // dispositeur. Une exception à un RE-RUN laisse l'effet vivant : la propagation suivante le
     // rappelle, et celle d'après ne lève plus.
-    name: "effect/erreurs",
+    name: "effect/errors",
     matrice: ["effect#20", "effect#22", "effect#24", "effect#18"],
     run(api, log) {
       const s = api.signal(0)
@@ -1428,7 +1428,7 @@ export const scenarios: Scenario[] = [
     // `effect#27`. Ces trois messages sont écrits ici, jamais produits par le moteur, donc le
     // minifié n'a rien à perdre — ce qui est la raison de la règle. Partout ailleurs dans ce
     // fichier, on n'assert que le TYPE.
-    name: "effect/erreurs-de-drainage",
+    name: "effect/draining-errors",
     matrice: [],
     run(api, log) {
       // effect#23 : la première erreur mémorisée est la PREMIÈRE dans l'ordre de flush, donc la
@@ -1588,7 +1588,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §13.1 — la chaîne A → B → C → Effect. Le drain est en largeur : une génération est
     // vidée entièrement avant la suivante.
-    name: "effect/chaine-et-drain",
+    name: "effect/chain-and-drain",
     matrice: ["effect#32"],
     run(api, log) {
       const a = api.signal(0)
@@ -1629,7 +1629,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §12 — un cleanup qui LÈVE dispose l'effet, même en plein drainage : l'écriture suivante
     // ne propage plus. Et il ne casse pas le contexte de suivi, le moteur reste utilisable.
-    name: "dispose/cleanup-qui-leve",
+    name: "dispose/cleanup-that-throws",
     matrice: ["effect#28", "effect#30", "effect#31"],
     run(api, log) {
       const s = api.signal(0)
@@ -1672,7 +1672,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.4 — un effet disposé ALORS qu'il est dans la file de drainage est sauté
     // silencieusement, sans callback.
-    name: "dispose/dans-la-file",
+    name: "dispose/in-the-queue",
     matrice: ["effect#14", "dispose#8"],
     run(api, log) {
       const s = api.signal(0)
@@ -1694,7 +1694,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §12 — dispose externe idempotent, et il détache toutes les dépendances : la source ne
     // garde plus d'abonné, donc plus aucune propagation.
-    name: "dispose/idempotent-et-detachement",
+    name: "dispose/idempotent-and-detachment",
     matrice: ["effect#13", "dispose#6", "dispose#9"],
     run(api, log) {
       const s = api.signal(0)
@@ -1721,7 +1721,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §8.3, §12 — `this.dispose()` pendant le run : cleanup IMMÉDIAT, et l'effet ne peut plus
     // être notifié. Appelé deux fois, un seul cleanup.
-    name: "dispose/pendant-le-run",
+    name: "dispose/during-the-run",
     matrice: ["effect#11", "effect#12", "dispose#7"],
     run(api, log) {
       const s = api.signal(0)
@@ -1739,9 +1739,9 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §12 — un cleanup qui lève AU MOMENT DU DISPOSE remonte, et l'effet est mort. La
-    // différence avec `dispose/cleanup-qui-leve` est nette : là le cleanup était levé en pleine
+    // différence avec `dispose/cleanup-that-throws` est nette : là le cleanup était levé en pleine
     // propagation, ici il est levé par le dispositeur lui-même, donc rien ne le rattrape.
-    name: "dispose/cleanup-qui-leve-au-dispose",
+    name: "dispose/cleanup-that-throws-at-dispose",
     matrice: ["effect#29", "effect#30"],
     run(api, log) {
       const s = api.signal(0)
@@ -1784,7 +1784,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §9.1 — un batch imbriqué ne compte pas la profondeur : il se comporte comme un simple
     // appel. Seul le plus externe draine, et la valeur de retour intérieure remonte.
-    name: "batch/valeur-et-imbrication",
+    name: "batch/value-and-nesting",
     matrice: ["batch#3", "batch#5", "batch#6"],
     run(api, log) {
       const a = api.signal(0)
@@ -1831,7 +1831,7 @@ export const scenarios: Scenario[] = [
     // SPEC §9.1 — trois niveaux d'imbrication, un seul drainage. Et l'ordre de drainage est l'INVERSE de
     // l'ordre de notification, pas l'ordre de création : `b` est écrit en second, donc `C` passe
     // avant `A` et `B`. C'est la règle de §13.4, et elle se lit ici.
-    name: "batch/trois-niveaux-et-ordre",
+    name: "batch/three-levels-and-order",
     matrice: ["batch#7", "batch#14"],
     run(api, log) {
       const a = api.signal(0)
@@ -1863,7 +1863,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §9.2 — l'erreur du corps remonte ET le drainage a lieu quand meme. La profondeur doit etre
     // restauree, sinon l'ecriture suivante ne drainerait plus jamais.
-    name: "batch/erreur-du-corps-et-profondeur",
+    name: "batch/body-error-and-depth",
     matrice: ["batch#4", "batch#10"],
     run(api, log) {
       const a = api.signal(0)
@@ -1894,7 +1894,7 @@ export const scenarios: Scenario[] = [
     // SPEC §9.1 et §9.2 — une exception dans un batch IMBRIQUE ne passe pas par un `finally` local :
     // elle remonte au batch externe, qui draine puis re-throw. Donc RIEN ne draine au milieu, meme si
     // l'exterieur rattrape : `end` passe avant le drainage, et le drainage voit la valeur finale.
-    name: "batch/erreur-interieure-rateepee",
+    name: "batch/caught-inner-error",
     matrice: ["batch#8", "batch#9"],
     run(api, log) {
       const a = api.signal(0)
@@ -1938,7 +1938,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §9.3 — ecrire plusieurs fois la MEME valeur ne notifie qu'une fois, et un effet notifie
     // deux fois ne tourne qu'une fois par drainage. Le temoin lit `a`, donc il a bien une dependance.
-    name: "batch/ecriture-identique",
+    name: "batch/identical-write",
     matrice: ["batch#2", "batch#11", "batch#12", "batch#15"],
     run(api, log) {
       const a = api.signal(0)
@@ -2025,7 +2025,7 @@ export const scenarios: Scenario[] = [
     // SPEC §13.5 — MAIS une lecture paresseuse PENDANT le batch fait perdre le fast-forward. Le
     // noeud a consume la version intermediaire, donc l'effet tourne une seconde fois, avec la
     // valeur REVERTIE. C'est le cas le plus subtil de la tranche, et il tient en un scenario.
-    name: "batch/revert-avec-lecture-paresseuse",
+    name: "batch/revert-with-lazy-read",
     matrice: ["batch#17", "batch#18", "batch#20"],
     run(api, log) {
       const a = api.signal(0)
@@ -2067,7 +2067,7 @@ export const scenarios: Scenario[] = [
     // setter imbrique son propre batch et referme, donc la lecture arrive APRÈS le drainage et la
     // différence ne s'observe pas. Le `untracked` autour de la lecture rend la même garantie — il
     // neutralise le suivi, pas le rafraîchissement — donc il doit réveiller l'effet lui aussi.
-    name: "batch/relecture-reveille-malgre-la-lecture",
+    name: "batch/reread-wakes-despite-read",
     matrice: [],
     run(api, log) {
       const a = api.signal("a")
@@ -2125,11 +2125,11 @@ export const scenarios: Scenario[] = [
     // les deux computés passent avant le premier effet. C'est ce que la matrice note à `computed#18`,
     // et cette entrée pointait sur le ticket #24, clos : rien ne la rejouait.
     //
-    // Elle est distincte de `computed/ordre-alterne-compute-et-effet` (`computed#18b`), qui prend
+    // Elle est distincte de `computed/alternating-computed-and-effect-order` (`computed#18b`), qui prend
     // deux computés INDÉPENDANTS. Les deux formes doivent être figées séparément : les mapper l'une
     // sur l'autre couvrirait une entrée sans la rejouer, ce qui est le trou que ce lot vient de
     // refermer. Voir ADR-0010.
-    name: "computed/ordre-bottom-up-chaine",
+    name: "computed/bottom-up-chain-order",
     matrice: [],
     run(api, log) {
       const a = api.signal(0)
@@ -2163,7 +2163,7 @@ export const scenarios: Scenario[] = [
     // donc il passait devant l'effet qui l'avait déclenché. La matrice l'avait observé
     // (`computed#18`) sans qu'aucun scénario ne le rejoue — le même trou de registre que
     // `computed#5` et `computed#6`.
-    name: "computed/ordre-alterne-compute-et-effet",
+    name: "computed/alternating-computed-and-effect-order",
     matrice: [],
     run(api, log) {
       const a = api.signal(0)
@@ -2199,7 +2199,7 @@ export const scenarios: Scenario[] = [
     // - un signal passe de `-0` a `0` l'est toujours, donc l'effet ne tourne pas. Il faut
     //   CONSTRUIRE le signal a `-0` : ecrire `-0` sur un `0` est ignore (§14), donc l'ecriture
     //   n/registerait meme pas de version.
-    name: "batch/identite-stricte-du-snapshot",
+    name: "batch/strict-snapshot-identity",
     matrice: ["batch#16", "batch#20"],
     run(api, log) {
       const nan = api.signal(0)
@@ -2233,7 +2233,7 @@ export const scenarios: Scenario[] = [
     // Le compte n'est PAS fige (§15.2 et §21 : la borne est un parametre d'implementation), donc ce
     // scenario verifie le CARACTERE de la sortie — « une Error, et un compte borne » — pas un
     // nombre exact. Une assertion sur 102 serait fausse des que le seuil bouge.
-    name: "batch/cycle-borne-et-non-borne",
+    name: "batch/bounded-and-unbounded-cycle",
     matrice: ["batch#13", "batch#22", "batch#23", "batch#26"],
     run(api, log) {
       const borne = api.signal(0)
@@ -2408,7 +2408,7 @@ export const scenarios: Scenario[] = [
     // Et surtout : un cleanup qui LÈVE INTERROMPT les disposes suivants. La boucle n'a pas de
     // `try`, donc le troisième cleanup n'est jamais lancé. Corriger cela changerait le contrat, et
     // c'est pourquoi le commentaire de la boucle dans `signals.ts` le dit.
-    name: "modele/dispose",
+    name: "model/dispose",
     matrice: [],
     run(api, log) {
       const source = api.signal(0)
@@ -2511,7 +2511,7 @@ export const scenarios: Scenario[] = [
     // parent ne possède donc pas ces effets — et ils survivent à son dispose. C'est la raison pour
     // laquelle `startCapturingEffects` ouvre toujours une portée neuve, même quand le parent est
     // supprimé.
-    name: "modele/modeles-imbriques",
+    name: "model/nested-models",
     matrice: [],
     run(api, log) {
       const source = api.signal(0)
@@ -2571,7 +2571,7 @@ export const scenarios: Scenario[] = [
     //
     // Et un effet d'un modèle qui s'inscrit sur un signal EXTERNE reste possédé : c'est le
     // désabonnement interne qui est disposé, pas la cible.
-    name: "modele/deux-instances",
+    name: "model/two-instances",
     matrice: [],
     run(api, log) {
       const mk = (api: Api, n: number) =>
@@ -2653,7 +2653,7 @@ export const scenarios: Scenario[] = [
     // AUCUNE VALIDATION À L'EXÉCUTION : une fabrique qui renvoie `{ anything: 42 }` est acceptée,
     // et la validation est statique, côté TypeScript. Le paquet publié minifie ses noms de
     // fonctions, donc le nom `actionWrapper` est vérifié côté signalcn seulement.
-    name: "modele/forme-et-enveloppement",
+    name: "model/shape-and-teardown",
     matrice: [],
     run(api, log) {
       const Modele = api.createModel(() => ({ s: api.signal(1) }))
@@ -2745,7 +2745,7 @@ export const scenarios: Scenario[] = [
     // Et une fabrique qui renvoie une PRIMITIVE ne produit pas un modèle : l'affectation de
     // `Symbol.dispose` sur `42` lève en mode strict. Avec `null`, c'est un `TypeError` de lecture.
     // Les deux sont des `TypeError` dont le message vient de V8 — on n'affirme que le type.
-    name: "modele/getter-cyclique-et-primitives",
+    name: "model/cyclic-getter-and-primitives",
     matrice: [],
     run(api, log) {
       let gets = 0
@@ -2808,7 +2808,7 @@ export const scenarios: Scenario[] = [
     // SPEC §16.1 — LA FABRIQUE REÇOIT LES ARGUMENTS, ET `this` N'EST PAS LE MODÈLE. L'appel est un
     // appel simple, donc en ESM `this` y vaut `undefined` — le même comportement que le rappel
     // d'un abonnement, et la même conséquence : une fabrique ne peut pas s'appuyer sur `this`.
-    name: "modele/arguments-et-this",
+    name: "model/arguments-and-this",
     matrice: [],
     run(api, log) {
       let args: unknown[] = []
@@ -2838,7 +2838,7 @@ export const scenarios: Scenario[] = [
     // Et une fabrique qui LÈVE perd ses effets : ils ne sont pas rendus à la portée englobante.
     // Une construction avortée ne possède plus rien. C'est ce qui explique qu'un effet « leaké »
     // survive à tout dispose.
-    name: "modele/capture-des-effets",
+    name: "model/effect-capture",
     matrice: [],
     run(api, log) {
       // 18 : possédés
@@ -2979,7 +2979,7 @@ export const scenarios: Scenario[] = [
     // un autre. Vérifié par contre-test : sans `untracked`, cette forme lève `Cycle detected` ; avec,
     // elle donne le journal ci-dessous. Sans ce contre-test, ce scénario figerait le `batch` et
     // laisserait le `untracked` libre — le même défaut que `action#7`, et pour la même raison.
-    name: "subscribe/rappel-non-suivi",
+    name: "subscribe/untracked-callback",
     matrice: [],
     run(api, log) {
       const source = api.signal(0)
@@ -3025,9 +3025,9 @@ export const scenarios: Scenario[] = [
     //
     // L'erreur au PREMIER appel dispose l'effet interne et remonte : `subscribe` ne rend rien. L'erreur
     // à un appel SUIVANT remonte depuis l'ÉCRITURE, et l'effet SURVIT — l'appel suivant a lieu. C'est
-    // l'asymétrie que `effect/erreurs` fige déjà pour le cas général ; ici elle porte sur un rappel,
+    // l'asymétrie que `effect/errors` fige déjà pour le cas général ; ici elle porte sur un rappel,
     // donc la source de l'erreur est l'écriture et non la création.
-    name: "subscribe/desabonnement-et-erreurs",
+    name: "subscribe/unsubscribe-and-errors",
     matrice: [],
     run(api, log) {
       const forme: string[] = []
@@ -3100,7 +3100,7 @@ export const scenarios: Scenario[] = [
     // `untracked`, donc le computé ne se suit pas lui-même en se notifiant. C'est vérifié ici en
     // passant le seuil d'abonnement à un autre signal que celui de la source, sinon le test
     // passerait pour la mauvaise raison.
-    name: "subscribe/sur-un-compute",
+    name: "subscribe/on-a-computed",
     matrice: [],
     run(api, log) {
       const source = api.signal(1)
@@ -3162,7 +3162,7 @@ export const scenarios: Scenario[] = [
     //
     // L'ordre entre deux abonnés est celui de la CRÉATION, pas celui d'une liste : c'est le même
     // parcours que pour n'importe quelle cible.
-    name: "subscribe/ou-il-est-cree",
+    name: "subscribe/where-it-is-created",
     matrice: [],
     run(api, log) {
       let thisDuRappel = "?"
@@ -3234,7 +3234,7 @@ export const scenarios: Scenario[] = [
     // dans le corps n'abonne personne. Les deux derniers sont les consequences qu'on ne verrait
     // pas si l'implantation était autre chose : les actions imbriquées ne flushent qu'une fois,
     // et une erreur traverse tout en flushant.
-    name: "action/batch-autour-duntracked",
+    name: "action/batch-around-untracked",
     matrice: [],
     run(api, log) {
       const s = api.signal(0)
@@ -3321,7 +3321,7 @@ export const scenarios: Scenario[] = [
     // La fonction rendue est une fonction ordinaire : pas de marque, et le prototype de
     // `Function`. Une action n'est donc ni un signal ni un objet du modèle — ce qui est exactement
     // ce que la détection de sous-objet de `createModel` doit pouvoir constater.
-    name: "action/this-et-arguments",
+    name: "action/this-and-arguments",
     matrice: [],
     run(api, log) {
       const objet = {
@@ -3355,8 +3355,8 @@ export const scenarios: Scenario[] = [
     // d'abord, et `d2` ne voit la valeur qu'APRÈS — jamais pendant le run de `d1`.
     //
     // C'est le seul endroit où l'ordre se voit sans batch explicite, et c'est pourquoi il a son
-    // propre scénario plutôt qu'une ligne de plus dans `action/batch-autour-duntracked`.
-    name: "action/ecriture-depuis-un-effect",
+    // propre scénario plutôt qu'une ligne de plus dans `action/batch-around-untracked`.
+    name: "action/write-from-an-effect",
     matrice: [],
     run(api, log) {
       const declencheur = api.signal(0)
@@ -3383,7 +3383,7 @@ export const scenarios: Scenario[] = [
     // SPEC §10 — une lecture sous `untracked` n'etablit AUCUNE dependance. Et c'est exactement
     // equivalent a `peek`. Les deux effects lisent `x` par des chemins differents, et ni l'un ni
     // l'autre ne se reveille.
-    name: "untracked/aucune-dependance",
+    name: "untracked/no-dependency",
     matrice: ["untracked#1", "untracked#6"],
     run(api, log) {
       const a = api.signal(0)
@@ -3429,7 +3429,7 @@ export const scenarios: Scenario[] = [
   {
     // SPEC §10 — `untracked` n'empeche pas les ecritures, et restaure le contexte meme apres une
     // exception. Sans le `finally`, l'ecriture suivante ne reverait plus l'effet.
-    name: "untracked/ecritures-et-restauration",
+    name: "untracked/writes-and-restore",
     matrice: ["untracked#2", "untracked#3", "untracked#4"],
     run(api, log) {
       const a = api.signal(0)
@@ -3461,7 +3461,7 @@ export const scenarios: Scenario[] = [
     // SPEC §10 — `untracked` NE DESACTIVE PAS le rafraîchissement d'un computé lu : l'effet ne
     // re-tourne pas, mais le computé a été RAFRAICHI. Lire n'est pas invalider. La valeur périmée
     // ne s'observe qu'en lisant le computé HORS de tout effet — c'est ce que fait la derniere ligne.
-    name: "untracked/refresh-de-compute",
+    name: "untracked/computed-refresh",
     matrice: ["untracked#7"],
     run(api, log) {
       const a = api.signal(0)
@@ -3491,7 +3491,7 @@ export const scenarios: Scenario[] = [
   },
   {
     // SPEC §10 — la valeur de retour, y compris une `Promise` renvoyee telle quelle.
-    name: "untracked/valeur-de-retour",
+    name: "untracked/return-value",
     matrice: ["untracked#5"],
     run(api, log) {
       log("nombre", String(api.untracked(() => 42)))
@@ -3523,7 +3523,7 @@ export const scenarios: Scenario[] = [
     // `untracked#12` : un computé lu sous `untracked` réimplante la capture. Sans ça, l'effet
     // créé ensuite ne serait pas possédé — et le journal ne le verrait pas, car un effet non
     // possédé survit au dispose, ce qui produit la MÊME liste qu'un effet possédé et Cleans.
-    name: "untracked/capture-reposee",
+    name: "untracked/suspended-capture",
     matrice: [],
     run(api, log) {
       // untracked#11 — la capture survit a une exception de fabrique
@@ -3576,7 +3576,7 @@ export const scenarios: Scenario[] = [
     // avec le parent : chacun a ete lance une fois, jamais deux. L'interieur lit `b`, qui ne change
     // jamais — donc tout re-run qu'il ferait serait imputable au parent, et c'est ce que le compte
     // verifie.
-    name: "untracked/effet-cree-dedans",
+    name: "untracked/effect-created-inside",
     matrice: ["untracked#8", "untracked#9"],
     run(api, log) {
       const a = api.signal(0)
@@ -3633,95 +3633,95 @@ export const scenarios: Scenario[] = [
 // cellule que personne ne peut verifier.
 export const COUVERTURE: Record<string, string> = {
   // --- groupe `signal` : 23 entrées
-  "signal#1": "signal/instance-et-classe",
-  "signal#2": "signal/sans-argument",
+  "signal#1": "signal/instance-and-class",
+  "signal#2": "signal/no-argument",
   // signal#3 et #4 sont des affirmations de structure : elles ne peuvent PAS passer contre la
   // baseline, qui minifie ses noms de propriétés. Elles sont donc nôtres seules.
   "signal#3": "signalcn-seul/structure-de-classe + source:src/index.ts#L368-377",
   "signal#4": "signalcn-seul/structure-de-classe + source:src/index.ts#L376",
   // La notification demande un observateur : c'est un effet, et le scénario fige son journal.
-  "signal#5": "signal/notification-synchrone",
-  "signal#6": "signal/egalite-stricte-nan",
+  "signal#5": "signal/synchronous-notification",
+  "signal#6": "signal/strict-equality-nan",
   "signal#6b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
-  "signal#7": "signal/zero-et-negative-zero",
+  "signal#7": "signal/zero-and-negative-zero",
   "signal#7b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
-  "signal#8": "signal/zero-et-negative-zero",
+  "signal#8": "signal/zero-and-negative-zero",
   "signal#8b": "signalcn-seul/notifie-sur-stricte-identite + source:src/index.ts#L462",
-  "signal#9": "signal/egalite-stricte-objet",
-  "signal#10": "signal/egalite-stricte-objet",
-  "signal#11": "signal/egalite-stricte-objet",
-  "signal#12": "signal/notification-synchrone",
-  "signal#13": "signal/notification-synchrone",
+  "signal#9": "signal/strict-equality-object",
+  "signal#10": "signal/strict-equality-object",
+  "signal#11": "signal/strict-equality-object",
+  "signal#12": "signal/synchronous-notification",
+  "signal#13": "signal/synchronous-notification",
   // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
-  "signal#14": "signal/notification-synchrone",
+  "signal#14": "signal/synchronous-notification",
   "signal#15": "signal/peek + signalcn-seul/descripteurs-de-prototype",
   "signal#16": "signal/options-name",
-  "signal#17": "signal/brand-et-pas-de-dispose",
-  "signal#18": "signal/instance-et-classe",
-  "signal#19": "signal/instance-et-classe",
-  "signal#20": "signal/instance-et-classe",
+  "signal#17": "signal/brand-and-no-dispose",
+  "signal#18": "signal/instance-and-class",
+  "signal#19": "signal/instance-and-class",
+  "signal#20": "signal/instance-and-class",
   "signal#21": "signalcn-seul/signal-gele",
-  "signal#22": "signal/brand-et-pas-de-dispose",
-  "signal#23": "signal/brand-et-pas-de-dispose",
+  "signal#22": "signal/brand-and-no-dispose",
+  "signal#23": "signal/brand-and-no-dispose",
 
   // --- groupe conversions : 15 entrées
-  "conv#1": "conversions/to-string-et-value-of",
-  "conv#2": "conversions/to-string-throw-sur-symbol",
-  "conv#3": "conversions/pas-de-symbol-to-primitive",
+  "conv#1": "conversions/to-string-and-value-of",
+  "conv#2": "conversions/to-string-throw-on-symbol",
+  "conv#3": "conversions/no-symbol-to-primitive",
   // Les quatre « suit la dependance » demandent un observateur : c'est exactement ce que rejoue
-  // `conversions/suivent-la-dependance`.
-  "conv#4": "conversions/suivent-la-dependance",
-  "conv#5": "conversions/to-string-et-value-of",
-  "conv#6": "conversions/suivent-la-dependance",
-  "conv#7": "conversions/to-json-et-stringify",
-  "conv#8": "conversions/suivent-la-dependance",
+  // `conversions/follow-the-dependency`.
+  "conv#4": "conversions/follow-the-dependency",
+  "conv#5": "conversions/to-string-and-value-of",
+  "conv#6": "conversions/follow-the-dependency",
+  "conv#7": "conversions/to-json-and-stringify",
+  "conv#8": "conversions/follow-the-dependency",
   // La propagation d'erreur par une conversion demande un computed qui jette.
-  "conv#9": "computed/conversions-propagent-l-erreur",
+  "conv#9": "computed/conversions-propagate-the-error",
   // DIVERGENCE ASSUMÉE : la baseline écrit son prototype à la main, donc ses méthodes y sont
   // énumérables. SPEC §20 impose des classes natives ES2020, dont les méthodes de prototype
   // sont non énumérables. Nous divergons, et c'est le nôtre qui est vérifié.
   "conv#10": "signalcn-seul/descripteurs-de-prototype",
-  "conv#11": "signal/brand-et-pas-de-dispose",
+  "conv#11": "signal/brand-and-no-dispose",
   "conv#12": "signalcn-seul/descripteurs-de-prototype",
-  "conv#13": "signal/brand-et-pas-de-dispose",
-  "conv#14": "conversions/to-json-et-stringify",
-  "conv#15": "conversions/suivent-la-dependance",
+  "conv#13": "signal/brand-and-no-dispose",
+  "conv#14": "conversions/to-json-and-stringify",
+  "conv#15": "conversions/follow-the-dependency",
 
   // --- groupe `computed` : 27 entrées
-  "computed#1": "computed/paresseux-et-cache",
-  "computed#2": "computed/paresseux-et-cache",
-  "computed#3": "computed/sans-abonne",
+  "computed#1": "computed/lazy-and-cache",
+  "computed#2": "computed/lazy-and-cache",
+  "computed#3": "computed/no-subscriber",
   // computed#3b : une écriture NON liée ne fait pas réévaluer un computé nu, alors qu'une écriture
   // liée le fait (#3). Les deux ensemble disent ce que vaut « périmé » ; un seul laisserait la
   // moitié de la règle libre.
-  "computed#3b": "computed/evaluation-dune-ecriture-non-liee",
-  "computed#4": "computed/invalidation-et-recalcul",
+  "computed#3b": "computed/unlinked-write-evaluation",
+  "computed#4": "computed/invalidation-and-recompute",
   // computed#5 et #6 : un résultat identique ne notifie pas les dépendants. Elles pointaient sur le
   // ticket #24, clos, et n'étaient couvertes par AUCUN test — un numéro de ticket est accepté comme
   // destination par `registre-complet`, donc le vide Passait pour une couverture. #38 est passé par là.
-  "computed#5": "computed/valeur-identique-relisible",
-  "computed#6": "computed/valeur-identique-relisible",
-  "computed#7": "computed/invalidation-et-recalcul",
-  "computed#8": "computed/dependances-dynamiques",
-  "computed#9": "computed/reactivation-apres-abandon",
+  "computed#5": "computed/identical-value-reread",
+  "computed#6": "computed/identical-value-reread",
+  "computed#7": "computed/invalidation-and-recompute",
+  "computed#8": "computed/dynamic-dependencies",
+  "computed#9": "computed/reactivation-after-abandon",
   // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
   // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
   "computed#10": "signalcn-seul/ordre-des-sources + source:src/index.ts#L508-531",
   // computed#11 : la relecture paresseuse dans un batch ne relance rien, et le compteur
   // d'évaluations le dit. Elle pointait sur #26, clos.
-  "computed#11": "computed/lecture-reentrante-dans-batch",
+  "computed#11": "computed/reentrant-read-in-batch",
   "computed#12": "computed/cycles",
   "computed#13": "computed/cycles",
-  "computed#14": "computed/ecriture-dans-un-compute",
-  "computed#15": "computed/erreur-stockee",
-  "computed#16": "computed/erreur-stockee",
-  "computed#17": "computed/erreur-vers-l-effet",
-  "computed#18": "computed/ordre-bottom-up-chaine",
+  "computed#14": "computed/write-in-a-computed",
+  "computed#15": "computed/cached-error",
+  "computed#16": "computed/cached-error",
+  "computed#17": "computed/error-to-effect",
+  "computed#18": "computed/bottom-up-chain-order",
   // computed#18b, et non #18 : l'entrée #18 note l'ordre bottom-up de deux computés CHAÎNÉS, qui
   // n'a jamais divergé. Le cas ici est deux computés INDÉPENDANTS, dont l'ordre alterne — une autre
   // question. Ré mapper #18 sur ce scénario aurait couvert une entrée sans la rejouer, ce qui est
   // exactement le trou que ce scenario vient de refermer.
-  "computed#18b": "computed/ordre-alterne-compute-et-effet",
+  "computed#18b": "computed/alternating-computed-and-effect-order",
   // computed#19, #20, #21, #22 : le prototype partagé de la baseline est un écart ASSUMÉ, voir
   // SPEC §21 et ADR-0004. Notre prototype ne porte pas d'état, nos noms sont lisibles, et
   // `constructor` vaut `Computed` et non `Signal` — le correctif que SPEC §21 enregistre. Ces
@@ -3731,59 +3731,59 @@ export const COUVERTURE: Record<string, string> = {
   "computed#21": "signalcn-seul/structure-de-classe + source:src/index.ts#L644",
   "computed#22": "signalcn-seul/structure-de-classe",
   "computed#22b": "source:src/index.ts#L653-655",
-  "computed#23": "computed/lecture-seule",
-  "computed#24": "computed/lecture-seule",
-  "computed#25": "computed/options-et-marque",
-  "computed#26": "subscribe/sur-un-compute",
-  "computed#27": "computed/options-et-marque",
+  "computed#23": "computed/read-only",
+  "computed#24": "computed/read-only",
+  "computed#25": "computed/options-and-brand",
+  "computed#26": "subscribe/on-a-computed",
+  "computed#27": "computed/options-and-brand",
   // --- groupe `effect` : 41 entrées
-  "effect#1": "effect/premier-run-et-arguments",
-  "effect#2": "effect/rerun-et-cleanup",
-  "effect#3": "effect/sans-dependance",
-  "effect#4": "effect/forme-du-dispositeur",
-  "effect#5": "effect/retour-non-fonction-ignore",
-  "effect#6": "effect/rerun-et-cleanup",
-  "effect#7": "effect/cleanup-hors-suivi",
-  "effect#8": "effect/rerun-et-cleanup",
-  "effect#9": "effect/this-est-linstance",
-  "effect#10": "effect/this-est-linstance",
-  "effect#11": "dispose/pendant-le-run",
-  "effect#12": "dispose/pendant-le-run",
-  "effect#13": "dispose/idempotent-et-detachement",
-  "effect#14": "dispose/dans-la-file",
+  "effect#1": "effect/first-run-and-arguments",
+  "effect#2": "effect/rerun-and-cleanup",
+  "effect#3": "effect/no-dependency",
+  "effect#4": "effect/shape-of-the-disposer",
+  "effect#5": "effect/non-function-return-ignored",
+  "effect#6": "effect/rerun-and-cleanup",
+  "effect#7": "effect/cleanup-untracked",
+  "effect#8": "effect/rerun-and-cleanup",
+  "effect#9": "effect/this-is-the-instance",
+  "effect#10": "effect/this-is-the-instance",
+  "effect#11": "dispose/during-the-run",
+  "effect#12": "dispose/during-the-run",
+  "effect#13": "dispose/idempotent-and-detachment",
+  "effect#14": "dispose/in-the-queue",
   // effect#15 et #17 : l'ordre INVERSÉ est normatif à l'intérieur d'un batch, et c'est
-  // `effect/ordre-dans-batch` qui le rejoue. Hors batch chaque écriture draine seule, donc l'ordre
-  // ne s'observe pas — c'est `effect/ordre-hors-batch`. Les deux formes, donc les deux scénarios :
+  // `effect/order-in-batch` qui le rejoue. Hors batch chaque écriture draine seule, donc l'ordre
+  // ne s'observe pas — c'est `effect/order-outside-batch`. Les deux formes, donc les deux scénarios :
   // une seule ne prouverait que la moitié de la règle.
-  "effect#15": "effect/ordre-hors-batch + effect/ordre-dans-batch",
-  "effect#16": "effect/auto-ecriture",
-  "effect#17": "effect/ordre-hors-batch + effect/ordre-dans-batch",
-  "effect#18": "effect/erreurs",
-  "effect#19": "effect/cycle-borne",
-  "effect#20": "effect/erreurs",
+  "effect#15": "effect/order-outside-batch + effect/order-in-batch",
+  "effect#16": "effect/auto-write",
+  "effect#17": "effect/order-outside-batch + effect/order-in-batch",
+  "effect#18": "effect/errors",
+  "effect#19": "effect/bounded-cycle",
+  "effect#20": "effect/errors",
   "effect#21": "effect/watchers",
-  "effect#22": "effect/erreurs",
+  "effect#22": "effect/errors",
   // effect#23, #25, #26, #27 : la propagation d'erreur passe par le batch ou par un setter, donc
-  // par un scénario qui rejoue les DEUX — `effect/erreurs-de-drainage`.
-  "effect#23": "effect/erreurs-de-drainage",
-  "effect#24": "effect/erreurs",
-  "effect#25": "effect/erreurs-de-drainage",
-  "effect#26": "effect/erreurs-de-drainage",
-  "effect#27": "effect/erreurs-de-drainage",
-  "effect#28": "dispose/cleanup-qui-leve",
-  "effect#29": "dispose/cleanup-qui-leve-au-dispose",
-  "effect#30": "dispose/cleanup-qui-leve + dispose/cleanup-qui-leve-au-dispose",
-  "effect#31": "dispose/cleanup-qui-leve + dispose/dans-la-file",
-  "effect#32": "effect/chaine-et-drain",
-  "effect#33": "effect/nesting-et-independance",
+  // par un scénario qui rejoue les DEUX — `effect/draining-errors`.
+  "effect#23": "effect/draining-errors",
+  "effect#24": "effect/errors",
+  "effect#25": "effect/draining-errors",
+  "effect#26": "effect/draining-errors",
+  "effect#27": "effect/draining-errors",
+  "effect#28": "dispose/cleanup-that-throws",
+  "effect#29": "dispose/cleanup-that-throws-at-dispose",
+  "effect#30": "dispose/cleanup-that-throws + dispose/cleanup-that-throws-at-dispose",
+  "effect#31": "dispose/cleanup-that-throws + dispose/in-the-queue",
+  "effect#32": "effect/chain-and-drain",
+  "effect#33": "effect/nesting-and-independence",
   // effect#34 : un effet créé dans un COMPUTÉ fuit à chaque évaluation. C'est un quirk figé, et le
   // mesurer demande un observateur — donc un effet dans un effet.
   "effect#34": "signalcn-seul/effet-dans-un-calcule",
-  "effect#35": "effect/forme-du-dispositeur",
+  "effect#35": "effect/shape-of-the-disposer",
   "effect#36": "signalcn-seul/options-de-linstance",
   "effect#36b": "signalcn-seul/structure-de-classe + source:src/index.ts#L770",
   "effect#37": "signalcn-seul/drapeaux-initiaux + source:src/index.ts#L776",
-  "effect#38": "effect/premier-run-et-arguments",
+  "effect#38": "effect/first-run-and-arguments",
   // effect#39 : la baseline écrit son prototype à la main, donc ses méthodes y sont énumérables.
   // ADR-0004 refuse cette énumérabilité. DIVERGENCE ASSUMÉE.
   "effect#39": "signalcn-seul/descripteurs-de-prototype + source:src/index.ts#L907",
@@ -3821,160 +3821,160 @@ export const COUVERTURE: Record<string, string> = {
   // écriture restaurative ULTÉRIEURE et un nœud qui n'a pas relu entre-temps — soit deux fois la
   // machinerie de `batch#17`. La garde est en place et se lit ; son falsificateur arrive avec le
   // registre dérivé de la matrice, en #33.
-  "batch#1": "batch/valeur-et-imbrication",
-  "batch#2": "batch/ecriture-identique",
-  "batch#3": "batch/valeur-et-imbrication",
-  "batch#4": "batch/erreur-du-corps-et-profondeur",
-  "batch#5": "batch/valeur-et-imbrication",
-  "batch#6": "batch/valeur-et-imbrication",
-  "batch#7": "batch/trois-niveaux-et-ordre",
-  "batch#8": "batch/erreur-interieure-rateepee",
-  "batch#9": "batch/erreur-interieure-rateepee",
-  "batch#10": "batch/erreur-du-corps-et-profondeur",
-  "batch#11": "batch/ecriture-identique",
-  "batch#12": "batch/ecriture-identique",
-  "batch#13": "batch/cycle-borne-et-non-borne",
-  "batch#14": "batch/trois-niveaux-et-ordre",
-  "batch#15": "batch/ecriture-identique",
+  "batch#1": "batch/value-and-nesting",
+  "batch#2": "batch/identical-write",
+  "batch#3": "batch/value-and-nesting",
+  "batch#4": "batch/body-error-and-depth",
+  "batch#5": "batch/value-and-nesting",
+  "batch#6": "batch/value-and-nesting",
+  "batch#7": "batch/three-levels-and-order",
+  "batch#8": "batch/caught-inner-error",
+  "batch#9": "batch/caught-inner-error",
+  "batch#10": "batch/body-error-and-depth",
+  "batch#11": "batch/identical-write",
+  "batch#12": "batch/identical-write",
+  "batch#13": "batch/bounded-and-unbounded-cycle",
+  "batch#14": "batch/three-levels-and-order",
+  "batch#15": "batch/identical-write",
   // batch#16 et batch#20 sont lus par DEUX scénarios chacun. Le second n'est pas un doublon : il
   // est le SEUL test de la suite qui distingue `===` de `Object.is` dans la réconciliation du
   // batch. Mesuré : en remplaçant le `===` de `reconcileBatchSnapshots` par `Object.is`, tous les
   // autres tests restent verts et celui-ci tombe. Sans lui, le scénario était orphelin — présent
   // dans la table, cité par aucune entrée, donc invisible pour le registre.
-  "batch#16": "batch/revert-a-b-a + batch/identite-stricte-du-snapshot",
-  "batch#17": "batch/revert-avec-lecture-paresseuse",
-  "batch#18": "batch/revert-avec-lecture-paresseuse",
+  "batch#16": "batch/revert-a-b-a + batch/strict-snapshot-identity",
+  "batch#17": "batch/revert-with-lazy-read",
+  "batch#18": "batch/revert-with-lazy-read",
   "batch#19": "batch/revert-a-b-a",
-  "batch#20": "batch/revert-avec-lecture-paresseuse + batch/identite-stricte-du-snapshot",
+  "batch#20": "batch/revert-with-lazy-read + batch/strict-snapshot-identity",
   "batch#21": "batch/revert-a-b-a",
-  "batch#22": "batch/cycle-borne-et-non-borne",
-  "batch#23": "batch/cycle-borne-et-non-borne",
-  "batch#24": "batch/cycle-borne-et-non-borne",
-  "batch#25": "batch/cycle-borne-et-non-borne",
-  "batch#26": "batch/cycle-borne-et-non-borne",
+  "batch#22": "batch/bounded-and-unbounded-cycle",
+  "batch#23": "batch/bounded-and-unbounded-cycle",
+  "batch#24": "batch/bounded-and-unbounded-cycle",
+  "batch#25": "batch/bounded-and-unbounded-cycle",
+  "batch#26": "batch/bounded-and-unbounded-cycle",
   // batch#27 : relire un computé invalidé PENDANT le batch ne doit pas consommer la file de
   // drainage, sinon l'effet ne tourne jamais à la sortie. Trouvé en #38.
-  "batch#27": "batch/relecture-reveille-malgre-la-lecture",
+  "batch#27": "batch/reread-wakes-despite-read",
   // --- groupe `createModel` : 34 entrees
   // Le NOM des fonctions enveloppees est le seul point non differentiel de tout le groupe : le
   // paquet publie minifie ses noms, donc `name` y vaut la chaine vide. Les cinq entrees dont le nom
   // EST le sujet (`#2`, `#4`, `#5`, `#11`, `#15`) sont donc verifiees sur les deux cotes — la
   // SUBSTITUTION de la fonction est differentielle, le nom ne l'est pas.
-  "modele#1": "modele/forme-et-enveloppement",
-  "modele#2": "modele/forme-et-enveloppement",
+  "modele#1": "model/shape-and-teardown",
+  "modele#2": "model/shape-and-teardown",
   "modele#2b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
-  "modele#3": "modele/forme-et-enveloppement",
-  "modele#4": "modele/forme-et-enveloppement",
+  "modele#3": "model/shape-and-teardown",
+  "modele#4": "model/shape-and-teardown",
   "modele#4b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
-  "modele#5": "modele/forme-et-enveloppement",
+  "modele#5": "model/shape-and-teardown",
   "modele#5b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
-  "modele#6": "modele/forme-et-enveloppement",
-  "modele#7": "modele/forme-et-enveloppement",
-  "modele#8": "modele/forme-et-enveloppement",
-  "modele#9": "modele/forme-et-enveloppement",
-  "modele#10": "modele/forme-et-enveloppement",
-  "modele#11": "modele/getter-cyclique-et-primitives",
+  "modele#6": "model/shape-and-teardown",
+  "modele#7": "model/shape-and-teardown",
+  "modele#8": "model/shape-and-teardown",
+  "modele#9": "model/shape-and-teardown",
+  "modele#10": "model/shape-and-teardown",
+  "modele#11": "model/cyclic-getter-and-primitives",
   "modele#11b": "signalcn-seul/nom-des-fonctions-enveloppees + divergence:SPEC.md#17.2",
-  "modele#12": "modele/getter-cyclique-et-primitives",
-  "modele#13": "modele/capture-des-effets",
-  "modele#14": "modele/arguments-et-this",
-  "modele#15": "modele/forme-et-enveloppement",
-  "modele#16": "modele/capture-des-effets",
-  "modele#17": "modele/capture-des-effets",
-  "modele#18": "modele/capture-des-effets",
-  "modele#19": "modele/modeles-imbriques",
-  "modele#20": "modele/modeles-imbriques",
-  "modele#21": "modele/capture-des-effets",
-  "modele#22": "modele/capture-des-effets",
-  "modele#23": "modele/capture-des-effets",
-  "modele#24": "modele/dispose",
-  "modele#25": "modele/dispose",
-  "modele#26": "modele/dispose",
-  "modele#27": "modele/dispose",
-  "modele#28": "modele/dispose",
-  "modele#29": "modele/dispose",
-  "modele#30": "modele/dispose",
-  "modele#31": "modele/deux-instances",
-  "modele#32": "modele/deux-instances",
-  "modele#33": "modele/deux-instances",
-  "modele#34": "modele/getter-cyclique-et-primitives",
+  "modele#12": "model/cyclic-getter-and-primitives",
+  "modele#13": "model/effect-capture",
+  "modele#14": "model/arguments-and-this",
+  "modele#15": "model/shape-and-teardown",
+  "modele#16": "model/effect-capture",
+  "modele#17": "model/effect-capture",
+  "modele#18": "model/effect-capture",
+  "modele#19": "model/nested-models",
+  "modele#20": "model/nested-models",
+  "modele#21": "model/effect-capture",
+  "modele#22": "model/effect-capture",
+  "modele#23": "model/effect-capture",
+  "modele#24": "model/dispose",
+  "modele#25": "model/dispose",
+  "modele#26": "model/dispose",
+  "modele#27": "model/dispose",
+  "modele#28": "model/dispose",
+  "modele#29": "model/dispose",
+  "modele#30": "model/dispose",
+  "modele#31": "model/two-instances",
+  "modele#32": "model/two-instances",
+  "modele#33": "model/two-instances",
+  "modele#34": "model/cyclic-getter-and-primitives",
 
   // --- groupe `subscribe` : 15 entrees
   // `subscribe#12` est le SEUL cas que la table ne peut pas dire : l'effet interne se nomme "sub",
   // et le paquet publie minifie ses noms de fonctions, donc `name` y vaut la chaine vide.
-  "subscribe#1": "subscribe/rappel-non-suivi",
-  "subscribe#2": "subscribe/desabonnement-et-erreurs",
-  "subscribe#3": "subscribe/desabonnement-et-erreurs",
-  "subscribe#4": "subscribe/desabonnement-et-erreurs",
-  "subscribe#5": "subscribe/desabonnement-et-erreurs",
-  "subscribe#6": "subscribe/rappel-non-suivi",
-  "subscribe#7": "subscribe/desabonnement-et-erreurs",
-  "subscribe#8": "subscribe/desabonnement-et-erreurs",
-  "subscribe#9": "subscribe/ou-il-est-cree",
-  "subscribe#10": "subscribe/rappel-non-suivi",
-  "subscribe#11": "subscribe/ou-il-est-cree",
+  "subscribe#1": "subscribe/untracked-callback",
+  "subscribe#2": "subscribe/unsubscribe-and-errors",
+  "subscribe#3": "subscribe/unsubscribe-and-errors",
+  "subscribe#4": "subscribe/unsubscribe-and-errors",
+  "subscribe#5": "subscribe/unsubscribe-and-errors",
+  "subscribe#6": "subscribe/untracked-callback",
+  "subscribe#7": "subscribe/unsubscribe-and-errors",
+  "subscribe#8": "subscribe/unsubscribe-and-errors",
+  "subscribe#9": "subscribe/where-it-is-created",
+  "subscribe#10": "subscribe/untracked-callback",
+  "subscribe#11": "subscribe/where-it-is-created",
   "subscribe#12": "signalcn-seul/nom-de-leffet-interne + source:src/index.ts#L427",
-  "subscribe#13": "subscribe/ou-il-est-cree",
-  "subscribe#14": "subscribe/ou-il-est-cree",
-  "subscribe#15": "subscribe/desabonnement-et-erreurs",
+  "subscribe#13": "subscribe/where-it-is-created",
+  "subscribe#14": "subscribe/where-it-is-created",
+  "subscribe#15": "subscribe/unsubscribe-and-errors",
   // subscribe#16 : la forme interne differee et le nom "sub" sont nôtres seuls.
   "subscribe#16": "signalcn-seul/nom-de-leffet-interne",
   // subscribe#17 (ordre avec plusieurs abonnes) et #18 (utilisable avec `using`) : le premier est
-  // deja couvert par la fin de `subscribe/ou-il-est-cree`, le second par la forme du retour dans
-  // `subscribe/desabonnement-et-erreurs`.
-  "subscribe#17": "subscribe/ou-il-est-cree",
-  "subscribe#18": "subscribe/desabonnement-et-erreurs",
+  // deja couvert par la fin de `subscribe/where-it-is-created`, le second par la forme du retour dans
+  // `subscribe/unsubscribe-and-errors`.
+  "subscribe#17": "subscribe/where-it-is-created",
+  "subscribe#18": "subscribe/unsubscribe-and-errors",
 
   // --- groupe `action` : 11 entrees
   // `action#6`, le nom du wrapper, est le SEUL cas que la table ne peut pas dire : le paquet publie
   // minifie ses noms de fonctions, donc `f.name` y vaut la chaine vide. Le notre survit parce que
   // le pipeline passe `--keep-names`, et c'est ce que verifie `signalcn-seul/wrapper-nomme`.
-  "action#1": "action/batch-autour-duntracked",
-  "action#2": "action/batch-autour-duntracked",
-  "action#3": "action/this-et-arguments",
-  "action#4": "action/this-et-arguments",
-  "action#5": "action/this-et-arguments",
+  "action#1": "action/batch-around-untracked",
+  "action#2": "action/batch-around-untracked",
+  "action#3": "action/this-and-arguments",
+  "action#4": "action/this-and-arguments",
+  "action#5": "action/this-and-arguments",
   "action#6": "signalcn-seul/wrapper-nomme + divergence:SPEC.md#17.2",
-  "action#7": "action/batch-autour-duntracked",
-  "action#8": "action/batch-autour-duntracked",
-  "action#9": "action/batch-autour-duntracked",
-  "action#10": "action/ecriture-depuis-un-effect",
-  "action#11": "action/this-et-arguments",
+  "action#7": "action/batch-around-untracked",
+  "action#8": "action/batch-around-untracked",
+  "action#9": "action/batch-around-untracked",
+  "action#10": "action/write-from-an-effect",
+  "action#11": "action/this-and-arguments",
 
   // `untracked#10` a `#11` et `#12` portent sur la portee de capture d'effets d'un modele : ils
   // ne sont atteignables qu'avec `createModel`, qui est #28. `untracked#13` est un usage INTERNE —
-  // `peek` est deja couvert par `untracked/aucune-dependance`, `watched`/`unwatched` arrivent avec
+  // `peek` est deja couvert par `untracked/no-dependency`, `watched`/`unwatched` arrivent avec
   // `subscribe` en #25.
-  "untracked#1": "untracked/aucune-dependance",
-  "untracked#2": "untracked/ecritures-et-restauration",
-  "untracked#3": "untracked/ecritures-et-restauration",
-  "untracked#4": "untracked/ecritures-et-restauration",
-  "untracked#5": "untracked/valeur-de-retour",
-  "untracked#6": "untracked/aucune-dependance",
-  "untracked#7": "untracked/refresh-de-compute",
-  "untracked#8": "untracked/effet-cree-dedans",
-  "untracked#9": "untracked/effet-cree-dedans",
-  "untracked#10": "modele/modeles-imbriques",
-  "untracked#11": "untracked/capture-reposee",
-  "untracked#12": "untracked/capture-reposee",
-  "untracked#13": "untracked/aucune-dependance",
+  "untracked#1": "untracked/no-dependency",
+  "untracked#2": "untracked/writes-and-restore",
+  "untracked#3": "untracked/writes-and-restore",
+  "untracked#4": "untracked/writes-and-restore",
+  "untracked#5": "untracked/return-value",
+  "untracked#6": "untracked/no-dependency",
+  "untracked#7": "untracked/computed-refresh",
+  "untracked#8": "untracked/effect-created-inside",
+  "untracked#9": "untracked/effect-created-inside",
+  "untracked#10": "model/nested-models",
+  "untracked#11": "untracked/suspended-capture",
+  "untracked#12": "untracked/suspended-capture",
+  "untracked#13": "untracked/no-dependency",
 
   // --- groupe `dispose` : 10 entrées
-  "dispose#1": "effect/forme-du-dispositeur",
+  "dispose#1": "effect/shape-of-the-disposer",
   // dispose#2 : la baseline fait pointer `Symbol.dispose` sur le dispositeur, qui est une fonction
   // LIÉE, et V8 refuse alors cette méthode. On garde l'identité en passant par une fermeture :
   // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
   "dispose#2": "signalcn-seul/symbol-dispose-et-using",
   "dispose#3": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.2",
   // dispose#4 : `subscribe` renvoie aussi un disposeur, et il porte `Symbol.dispose`.
-  "dispose#4": "subscribe/sur-un-compute",
+  "dispose#4": "subscribe/on-a-computed",
   // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
   // atteignable que sur le bundle réel dans un tel realm ; l'affirmer demanderait de l'éteindre.
   "dispose#5": "signalcn-seul/symbol-dispose-absent",
-  "dispose#6": "dispose/idempotent-et-detachement + dispose/cleanup-qui-leve-au-dispose",
-  "dispose#7": "dispose/pendant-le-run",
-  "dispose#8": "dispose/dans-la-file",
-  "dispose#9": "dispose/idempotent-et-detachement",
+  "dispose#6": "dispose/idempotent-and-detachment + dispose/cleanup-that-throws-at-dispose",
+  "dispose#7": "dispose/during-the-run",
+  "dispose#8": "dispose/in-the-queue",
+  "dispose#9": "dispose/idempotent-and-detachment",
   "dispose#10": "signalcn-seul/descripteurs-de-prototype + source:src/index.ts#L907",
 }
 
@@ -4680,7 +4680,7 @@ if (process.env.NODE_TEST_CONTEXT) {
     //
     // Les DEUX genres passent par là, dans le même esprit et avec le même message : un test
     // `signalcn-seul` ET un scénario. Le contrôle n'en visait qu'un, et l'autre est resté nu —
-    // `batch/identite-stricte-du-snapshot` rejouait la baseline depuis plusieurs tranches sans
+    // `batch/strict-snapshot-identity` rejouait la baseline depuis plusieurs tranches sans
     // qu'aucune entrée le cite, donc sa `matrice` était vide et rien ne le disait. Un orphelin ne
     // perd rien : le harnais rejoue TOUS les scénarios, table ou non. Il perd ce qui seul compte,
     // la traçabilité — et une matrice qui ne sait pas ce qu'un scénario rejoue ne peut pas dire
