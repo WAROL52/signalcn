@@ -139,6 +139,10 @@ Les deux coûts sont ceux du §1 — 5,42 s et 0,32 s — et ils sont dominés p
 propreté ne lit qu'un `git status`. À comparer aux 107 s de l'installation, qui est le seul coût qui
 mérite qu'on discute de sa fréquence.
 
+Sur le runner, une fois observé : le job entier a pris **17 s** — `npm ci` 8 s, build 3 s, porte 1 s,
+le reste en installation et en teardown. C'est un relevé unique et pas une médiane ; le tableau du
+§1 reste la source des coûts, mesurés en local par la convention qui y est écrite.
+
 **Ce que le build attrape, et ce qu'il n'attrape pas.** Mesuré sur VitePress 1.6.4 : un lien mort
 écrit dans une page fait échouer le build, et une entrée de navigation qui pointe vers une page
 inexistante le laisse **vert**. La navigation est donc le seul endroit où une page morte passerait
