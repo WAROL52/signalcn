@@ -4,7 +4,7 @@ Quatre jobs, sur chaque pull request comme sur chaque push sur `master` — le t
 change rien. **Les quatre bloquent** : ce sont les quatre checks requis du ruleset, et le troisième
 — un canari sur la dernière CLI publiée — ne bloquait pas tant qu'il ne l'était pas, un job
 `continue-on-error` ne pouvant pas être un check requis. Le quatrième construit le site, et son
-échec met la pull request en rouge. Voir [`ci.yml`](../../.github/workflows/ci.yml).
+échec met la pull request en rouge. Voir [`ci.yml`](https://github.com/WAROL52/signalcn/blob/master/.github/workflows/ci.yml).
 
 Les commandes vivent dans `package.json`, pas dans le YAML. Le YAML appelle, il ne décide pas —
 c'est la même règle que pour les drapeaux de couverture, et pour la même raison : une option
@@ -17,6 +17,7 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 
 | Contrôle | Coût |
 |---|---|
+| Liens publiés : chaque lien interne existe dans la sortie du site | 0,09 s |
 | Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
@@ -33,12 +34,12 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles, hors installation, réunis coûtent **25,8 s**. L'installation en coûte **4,1 fois
+Tous les contrôles, hors installation, réunis coûtent **25,9 s**. L'installation en coûte **4,1 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Quatre jobs
-représentent quatre démarrages pour quatorze contrôles qui coûtent ensemble 25,8 secondes.
+représentent quatre démarrages pour quinze contrôles qui coûtent ensemble 25,9 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -143,10 +144,13 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 |---|---|
 | **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible |
 | **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit dans `registry/` ou à la racine |
+| **Liens publiés** — `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier |
 
-Les deux coûts sont ceux du §1 — 5,42 s et 0,32 s — et ils sont dominés par le build : la porte de
-propreté ne lit qu'un `git status`. À comparer aux 107 s de l'installation, qui est le seul coût qui
-mérite qu'on discute de sa fréquence.
+Les trois coûts sont ceux du §1 — 5,42 s, 0,32 s et 0,09 s — et ils sont dominés par le build : la
+porte de propreté ne lit qu'un `git status`, et la porte des liens publiés trente-huit fichiers
+HTML.
+À comparer aux 107 s de l'installation, qui est le seul coût qui mérite qu'on discute de sa
+fréquence.
 
 Sur le runner, une fois observé : le job entier a pris **17 s** — `npm ci` 8 s, build 3 s, porte 1 s,
 le reste en installation et en teardown. C'est un relevé unique et pas une médiane ; le tableau du
@@ -156,6 +160,26 @@ le reste en installation et en teardown. C'est un relevé unique et pas une méd
 écrit dans une page fait échouer le build, et une entrée de navigation qui pointe vers une page
 inexistante le laisse **vert**. La navigation est donc le seul endroit où une page morte passerait
 inaperçue — d'où les trois entrées du squelette, qui ne listent que des pages qui existent.
+
+**La porte des liens publiés prend le relais du build, sur un terrain où il ne peut pas venir.**
+Depuis #65 les liens sont **relatifs et sans extension** — `site/x` — parce que c'est la seule
+forme qui marche à la fois dans le dépôt GitHub et dans le site : une absolue `/x.md` y est rendue
+`blob/master/x.md`, donc 404, et GitHub n'a pas de `.html`. Or le build cherche `site/x.md` dans
+les sources, donc il ne valide pas cette forme : il la laisse passer, et elle est la seule qu'il
+puisse laisser passer. VitePress **valide dans l'espace source et publie dans l'autre**, et c'est un
+écart de trente liens mesuré, dont vingt-quatre avaient déjà survécu à un crawl.
+
+La porte lit donc la **sortie publiée** — `site/.vitepress/dist/`, jamais les sources — extrait
+chaque `href` de chaque page, et vérifie que la cible existe **sur le disque**. Aucun appel réseau :
+une existence de fichier, rien d'autre, parce qu'une porte qui dépend d'un tiers est une porte
+qu'on désactive au premier incident réseau. Elle couvre tous les liens internes, pas seulement les
+trente convertis, et elle a attrapé dès sa première exécution trois liens que le build ne pouvait
+pas voir : trois liens vers `.github/`, que le site ne publie pas.
+
+Ce qu'elle ne vérifie pas, elle le dit dans sa sortie, avec le préfixe `--` : les **ancres**, que le
+build ne valide pas non plus — Mermaid, les plugins et la numérotation rendent l'extraction des `id`
+trop fragile pour qu'une porte reste stable —, et les **URL externes**, qui n'ont pas de cible sur
+le disque. Un lien interne est un fait du dépôt ; une ancre et une adresse extérieure n'en sont pas.
 
 **La propreté est une porte, pas une précaution.** Elle existe parce que `verifier-derive` ne voit
 pas ce que le build du site pourrait écrire : son `git diff` ne parle que de fichiers **suivis** et
@@ -169,7 +193,7 @@ fichier reste la seule source, et aucune liste n'est écrite deux fois.
 **Le déploiement sur GitHub Pages n'est pas dans ce job.** Un check requis juge la pull request ;
 un déploiement agit sur l'extérieur, et un déploiement réussi ne doit surtout pas pouvoir masquer
 un build cassé : c'est le contraire de ce qu'est un contrôle. Il est dans
-[`deploy.yml`](../../.github/workflows/deploy.yml), déclenché par le **tag** — voir le §5.
+[`deploy.yml`](https://github.com/WAROL52/signalcn/blob/master/.github/workflows/deploy.yml), déclenché par le **tag** — voir le §5.
 
 **Le `base` du site vaut `/signalcn/`, et il est gardé.** Une page de projet est servie sous le
 chemin du dépôt, donc sans ce préfixe chaque URL sort en 404 — et le build **passe au vert**, pour
@@ -241,7 +265,7 @@ contrôle change, il change à un seul endroit.
 
 GitHub n'a pas de « rulesets as code ». Un ruleset réglé à la main dans l'interface est donc un fait
 que rien ne vérifie — donc un fait qui peut mentir. La source est
-[`.github/rulesets/master.json`](../../.github/rulesets/master.json), dans le dépôt, et elle
+[`.github/rulesets/master.json`](https://github.com/WAROL52/signalcn/blob/master/.github/rulesets/master.json), dans le dépôt, et elle
 s'applique par l'API :
 
 ```bash

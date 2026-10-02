@@ -9,8 +9,8 @@ on:
 
 # Quatre jobs — rapide, distribution, canari, documentation-statique — et non un par contrôle. Le
 # coût dominant n'est pas la commande : c'est le démarrage de runner. Les contrôles hors
-# installation coûtent 25,8 secondes ensemble, et les séparer en paierait quatorze démarrages pour
-# lire quatorze messages différents. Voir site/contributeurs/ci.md §1.
+# installation coûtent 25,9 secondes ensemble, et les séparer en paierait quinze démarrages pour
+# lire quinze messages différents. Voir site/contributeurs/ci.md §1.
 #
 # Le job « distribution » est séparé parce qu'il coûte 4,1 fois plus que tous les autres
 # réunis, et qu'il a un propriétaire différent : il vérifie l'installation, pas le moteur.
@@ -150,3 +150,9 @@ jobs:
       # ne voit ni un fichier NEUF, ni un chemin hors de registry/default/. Voir site/contributeurs/ci.md §4.
       - name: proprete — le build du site n'ecrit pas dans les chemins des artefacts
         run: npm run verifier-proprete
+      # Apres la propreté, parce qu'elle n'a rien à dire du contenu des pages : elle lit `git status`.
+      # Cette porte lit la SORTIE du build — pas les sources — et vérifie que chaque lien interne y
+      # pointe vers un fichier qui existe. Elle prend le relais du build sur la forme `site/x`, la
+      # seule qui marche dans le dépôt ET dans le site, et que VitePress ne valide pas (#65).
+      - name: liens publies — chaque lien interne existe dans la sortie du build
+        run: npm run verifier-liens-publies
