@@ -41,12 +41,55 @@ pas à ce job, et sa ligne le dit.
 | `npm run typecheck` | Le code ne compile pas. |
 | `npm test` | La suite, source. |
 | `npm run build` + `verifier-build` | Un artefact non reproductible, `--keep-names` inopérant, une taille. |
+| `npm run zero-dependance` | Le cœur distribué qui lit autre chose que lui-même — 18 motifs interdits, sur l'artefact minifié. |
 | `npm run parite` | La table sur les quatre cibles — baseline, source, build, minifié. |
 | `verifier-derive` | Un artefact committé périmé. |
 | `npm run documentation` | Un `README` qui ment sur la surface, ou une divergence non consignée. |
 | `npm run verifier-installation` | Un item du registry qui ne s'installe plus, ou ne s'exécute plus chez l'utilisateur. **Hors `porte`** : c'est le job `distribution`, en parallèle. |
 
 [`docs/ci.md`](./docs/ci.md) donne le détail et le coût de chacune.
+
+## Tout passe par une pull request
+
+`master` n'accepte plus de commit direct : chaque changement part d'une branche et arrive par une
+PR dont les contrôles sont verts. Les six règles ci-dessous ont été arrêtées une par une ; leurs
+raisons sont dans [la carte](https://github.com/WAROL52/signalcn/issues/41).
+
+**La branche s'appelle `NNN-kebab-du-ticket`** — le numéro relie à la carte, le kebab la rend
+lisible dans `git branch`. Un ticket, une branche ; si le ticket demande plusieurs PR, on suffixe
+`-2`, `-3`. Une branche dont le numéro ne correspond à aucun ticket est une branche orpheline, et
+elle se voit.
+
+**Le titre reprend la manière des commits** : une phrase qui dit ce qui a été trouvé, puis un tiret
+cadratin et le numéro du ticket. *`La table ne comptait pas les branches — #45`*. Un nom de ticket
+tel quel serait une description de tâche ; ce dépôt écrit des constats dans ses sujets.
+
+**Le corps déclare trois choses, et se tait sur tout le reste** : le lien du ticket, le **pourquoi**
+cette approche plutôt que l'alternative écartée, et **ce qui n'a pas été vérifié**. Ni le diff —
+GitHub l'affiche — ni la CI — elle tourne — ni le ticket — il est lié.
+
+Ce dernier point n'est pas une politesse. Ce dépôt tient en une phrase : *toute affirmation se
+prouve par exécution*. Une PR qui se tait sur ce qu'elle n'a pas exécuté affirme par omission ce
+qu'elle n'a pas présent.
+
+**Une PR est une unité relisible, pas un ticket.** Un ticket peut produire plusieurs PR. Plusieurs
+tickets dans une PR sont interdits : sinon la carte ne sait plus rien.
+
+**La fusion se fait en rebase**, jamais en squash ni en commit de fusion — les commits de la
+branche survivent, dans l'ordre.
+
+**Ce qui n'est pas vérifié en local, et qu'il faut savoir**
+
+`npm run porte` et le job `rapide` exécutent les mêmes scripts, mais la CI ajoute trois choses que
+le poste de développement n'a pas. Une seule compte vraiment :
+
+`actions/checkout@v4` est configuré avec `fetch-depth: 0`. Sans cette référence complète,
+`scripts/porte-couverture.mjs` cherche `origin/master`, puis `master`, puis `main`, ne trouve rien,
+et **affiche « pas de merge-base » — la non-régression de couverture se désactive sans jamais avoir
+échoué.** Un `porte` vert en local ne dit donc pas que la non-régression a été évaluée.
+
+Les deux autres sont `setup-node` épinglé à Node 24 et `npm ci` sur une arborescence propre. Sans
+effet aujourd'hui, mais c'est la raison pour laquelle la CI reste le juge.
 
 ## Les quatre pièges
 
