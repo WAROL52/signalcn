@@ -10,7 +10,7 @@
 
 | Champ | Valeur |
 |---|---|
-| Phase actuelle | **`v1.0.0` taggée.** P0 a P8 livrées ; restent quatre cases de couverture |
+| Phase actuelle | **la dernière tag posée.** P0 a P8 livrées ; restent quatre cases de couverture |
 | Version de référence | `@preact/signals-core@1.14.4` |
 | Dépendances runtime | `0` |
 | Sources de vérité | `signals.ts`, `signals.test.ts` |
@@ -20,7 +20,7 @@
 | Couverture mesurée | `99,61 / 98,50 / 100,00` — lignes, branches, fonctions |
 | Seuil de release | La valeur mesurée, **pas 100 %** — [ADR-0011](/docs/adr/0011-reliquat-de-couverture-non-atteignable.md) : les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus |
 | Prochaine version | **aucune** — les deux tags sont posés, et la ligne du dessous dit laquelle |
-| Version courante | `v1.0.0`, tags `v0.1.0` et `v1.0.0` |
+| Version courante | **celle de la dernière tag posée** — le détail est au [§14](#14-journal-des-releases) |
 | Mainteneur | `WAROL52` |
 | Dépôt | `github.com/WAROL52/signalcn`, public |
 | Licence | MIT, en place depuis le premier commit |
@@ -274,3 +274,28 @@ Le référent de la matrice y change : il devient **le paquet installé**. Vingt
 un marqueur et leur divergence est consignée au §21.
 
 **Écart connu** : la couverture n'est pas à 100 %, par décision documentée.
+
+### `v1.0.1` — la gouvernance vérifiable
+
+Posé sur `a5272bf`, après la gouvernance. Aucune API ne change entre `v1.0.0` et `v1.0.1` : le
+patch est justifié sémantiquement.
+
+**Ce que la version change.** Elle ne livre pas de moteur. Elle livre un dépôt où `master` est
+protégé, où la convention d'identifiants est gardée par une porte, où les tableaux de faits ne
+dérivent plus, et où **le site est publié**.
+
+Observé sur le tag :
+
+- **CI verte, quatre jobs** — `rapide`, `distribution / installation`, `canari / derniere CLI publiee`,
+  `documentation-statique`. 22:08:00 → 22:08:37, soit **37 s** sur le runner.
+- **Déploiement vert** — `deployer / site`, sur le même tag. 1 101 154 octets publiés.
+- **Le site répond** — `https://warol52.github.io/signalcn/`.
+
+**Écart connu, et il est instructif.** Le premier déploiement **par tag** a échoué en deux
+secondes : l'environnement `github-pages` n'autorisait que la branche `master`, et un tag n'est
+pas une branche. La répétition avait réussi — mais elle partait de `master`, donc elle
+n'exerçait pas le chemin du tag. Une répétition se lance **sur la référence qui va déployer**.
+
+**Ce que le ruleset n'est pas.** Il est une configuration du dépôt : il n'est pas dans le tag, il
+en est la preuve. Son application est postérieure, et c'est aussi le seul geste de cette carte
+qui ne se refait pas par une pull request.
