@@ -278,12 +278,12 @@ signalcn
 ## Documentation
 
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — **pour contribuer** : les portes, et les quatre pièges qui mordent sans prévenir.
-- [`PRD.md`](site/contributeurs/PRD.md) — vision, objectifs, périmètre et contraintes produit.
+- [`PRD.md`](/contributeurs/PRD.md) — vision, objectifs, périmètre et contraintes produit.
 - [`SPEC.md`](./SPEC.md) — contrat comportemental et technique.
-- [`ROADMAP.md`](site/contributeurs/ROADMAP.md) — suivi interne de l'implémentation et des releases.
+- [`ROADMAP.md`](/contributeurs/ROADMAP.md) — suivi interne de l'implémentation et des releases.
 
 ## Statut
 
 Le moteur est implémenté et la suite de conformité est complète : les dix exports sont couverts
 par une table de scénarios rejouée contre la baseline réelle, et les portes de couverture, de
-parité et d'installation sont en place. Ce qui reste ouvert est dans [`ROADMAP.md`](site/contributeurs/ROADMAP.md).
+parité et d'installation sont en place. Ce qui reste ouvert est dans [`ROADMAP.md`](/contributeurs/ROADMAP.md).
