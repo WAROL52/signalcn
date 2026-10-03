@@ -1,5 +1,7 @@
 import { defineConfig } from "vitepress"
 
+import { journalHarnais } from "./journal-harnais.mjs"
+
 // Trois publics, trois sections, et les documents du dépôt rendus sans qu'aucun bouge.
 //
 // Deux options ci-dessous sont les choix par défaut de VitePress, écrits parce qu'un lecteur doit
@@ -50,6 +52,18 @@ export default defineConfig({
   // ne pas les publier — `ignoreDeadLinks` resterait la seule façon de les tolérer, et ce serait
   // affaiblir le contrôle des liens.
   srcExclude: [".github/**", "prototype/**"],
+
+  // Le journal du harnais différentiel entre dans `scenarios.md` au moment du rendu, par un plugin
+  // markdown-it qui remplace un marqueur — et **aucun fichier n'est écrit**, donc l'arbre de travail
+  // reste propre et la porte de propreté reste verte. Si un scénario diverge, le build ÉCHOUE : une
+  // page qui afficherait un harnais rouge mentirait, et `SPEC.md` §19 exige que les trois cibles
+  // soient indiscernables. Le bloc montre le résumé puis le groupe `batch/*`, qui montre l'ordre
+  // d'exécution — le même fait que les deux règles de drainage de `SPEC.md` §13.4, que la figure
+  // d'`architecture.md` doit dessiner. Voir #50, et `npm run documentation` qui garde la présence
+  // du marqueur sur la page.
+  markdown: {
+    config: journalHarnais,
+  },
 
   themeConfig: {
     // Le TITRE de la barre vise la page d'accueil du site, qui s'appelle `site/index.md` et se
