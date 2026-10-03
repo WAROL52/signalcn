@@ -4,10 +4,10 @@ Un moteur de signaux réactifs agnostique des frameworks, distribué comme code 
 
 Trois publics, trois sections :
 
-- [**Utilisateurs**](/utilisateurs/) — installer la bibliothèque, migrer depuis Preact, connaître
+- [**Utilisateurs**](utilisateurs/index) — installer la bibliothèque, migrer depuis Preact, connaître
   les divergences assumées.
-- [**Contributeurs**](/contributeurs/) — travailler ici : les portes, les commits, la revue.
-- [**Technique**](/technique/) — le contrat de comportement, l'architecture, les décisions.
+- [**Contributeurs**](contributeurs/index) — travailler ici : les portes, les commits, la revue.
+- [**Technique**](technique/index) — le contrat de comportement, l'architecture, les décisions.
 
 Les documents des trois sections sont des fichiers de `site/`. Les autres sont rendus ici sans
 avoir bougé : `SPEC.md`, `README.md`, `CONTEXT.md`, `CONTRIBUTING.md`, `AGENTS.md` et `docs/adr/`

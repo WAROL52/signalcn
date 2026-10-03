@@ -20,19 +20,24 @@
  */
 
 import { spawnSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { readdirSync } from "node:fs"
 import { join } from "node:path"
 
 import { cheminsGit, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 
-const SORTIE = "site/.vitepress/dist/index.html"
+// La preuve que le build a produit sa sortie est UN NOMBRE DE PAGES, pas un nom de fichier. Un nom
+// était écrit dans l'espace de publication, donc il changeait avec lui : `dist/index.html` a
+// disparu en même temps que la réécriture de #65, et la porte serait tombée au premier build sans
+// qu'aucun site soit cassé. Un compte ne bouge pas quand l'espace de publication bouge.
+const SORTIE = join(RACINE, "site", ".vitepress", "dist")
+const pages = readdirSync(SORTIE, { recursive: true }).filter((nom) => nom.endsWith(".html"))
 
 porte(
   "le build du site a produit sa sortie",
-  existsSync(join(RACINE, SORTIE)),
-  `${SORTIE} est absent — la porte se place APRES le build, jamais seule`,
+  pages.length > 0,
+  `${SORTIE} ne porte aucune page — la porte se place APRES le build, jamais seule`,
 )
 
 // Le lecteur est celui de `porte.mjs`, qui dit ce que `-z` garantit et ce qu'il ne garantit pas.
