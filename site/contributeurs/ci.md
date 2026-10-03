@@ -13,7 +13,10 @@ qui vit à un seul endroit ne peut pas être oubliée ailleurs.
 ## 1. Ce que chaque contrôle coûte
 
 Mesuré sur ce dépôt, par la commande que la CI exécute (`npm run …`), médiane de cinq
-exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 106,9 s.
+exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 106,9 s. Une ligne
+s'écarte de cette méthode et le dit au §4 : le build du site, dont le coût est le RAPPORT de deux
+versions mesurées entrelacées, appliqué à la mesure de la machine de référence — un rapport se
+transporte d'une machine à l'autre, un chronomètre non.
 
 | Contrôle | Coût |
 |---|---|
@@ -30,16 +33,16 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Parité, quatre cibles | 2,53 s |
 | Build + minify + réécriture | 3,17 s |
 | Dérive : le build ne touche aucun artefact committé | 3,17 s |
-| Documentation statique : build du site | 5,42 s |
+| Documentation statique : build du site, journal du harnais rendu | 5,65 s |
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles, hors installation, réunis coûtent **25,9 s**. L'installation en coûte **4,1 fois
+Tous les contrôles, hors installation, réunis coûtent **26,1 s**. L'installation en coûte **4,1 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Quatre jobs
-représentent quatre démarrages pour quinze contrôles qui coûtent ensemble 25,9 secondes.
+représentent quatre démarrages pour quinze contrôles qui coûtent ensemble 26,1 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -142,22 +145,35 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 
 | Contrôle | Ce qu'il attrape |
 |---|---|
-| **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible |
+| **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible, un harnais en échec |
 | **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit hors de `site/` |
 | **Liens publiés** — `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier |
 
-Les trois coûts sont ceux du §1 — 5,42 s, 0,32 s et 0,09 s — et ils sont dominés par le build : la
+Les trois coûts sont ceux du §1 — 5,65 s, 0,32 s et 0,09 s — et ils sont dominés par le build : la
 porte de propreté relit un `git status` de plus — celui que le build a pris avant de tourner —, et
 la porte des liens publiés trente-huit fichiers HTML.
 À comparer aux 107 s de l'installation, qui est le seul coût qui mérite qu'on discute de sa
 fréquence.
+
+**Le build rend le journal du harnais, donc il le lance.** `porte` exécute déjà le harnais, et le
+build rejoue le même script pour injecter sa sortie dans la page des scénarios : la commande passe
+donc **deux fois** par `porte`, et **une fois par construction** — le résultat est mémorisé, donc
+pas une fois par page. Un harnais en échec fait échouer le build, donc la page ne peut pas afficher
+un échec : c'est le seul contrôle du job dont l'échec est un échec du job.
 
 **Le fichier de plus ne déplace pas la ligne du §1, et c'est mesuré.** Les deux versions de la porte
 ont été lancées dos à dos sur la même machine, cinq fois chacune : l'écart passe sous le bruit de
 `npm run` lui-même, qui domine un door de 0,32 s, donc la ligne reste à sa valeur. Seule la
 **différence** est reportée ici, jamais les chiffres absolus de cette mesure — ils sont ceux d'une
 autre machine que celle du tableau, et les y écrire fausserait une somme que la porte vérifie. Le
-`git status` pris avant le build ne se voit pas davantage dans les 5,42 s.
+`git status` pris avant le build ne se voit pas davantage dans les 5,65 s.
+
+**L'ajout du harnais, lui, se voit, et il est mesuré de la même façon.** Les deux versions du build
+ont été entrelacées sur la même machine, cinq fois chacune : 6,24 s contre 6,50 s en médiane, donc
+**4,2 %**. C'est ce **rapport** qui est appliqué à la ligne du §1 — 5,42 s et 5,65 s — et non un
+chiffre absolu, pour la même raison : la machine de la mesure n'est pas celle du tableau, et seul le
+rapport des deux commandes, pris sur une machine, est portable. Les deux versions entrelacées, c'est
+la charge de la machine qui s'annule ; deux campagnes séparées, elle ne s'annule pas.
 
 Sur le runner, une fois observé : le job entier a pris **17 s** — `npm ci` 8 s, build 3 s, porte 1 s,
 le reste en installation et en teardown. C'est un relevé unique et pas une médiane ; le tableau du

@@ -1,6 +1,6 @@
 # Scénarios de conformité
 
-Comment les **231 comportements** de
+Comment les comportements de
 [`research/baseline-1.14.4.md`](/research/baseline-1.14.4.md) deviennent la table de
 scénarios de `signals.test.ts`. Ce document est l'entrée de la plus grosse pièce de travail du
 projet : le corpus de tests.
@@ -13,10 +13,9 @@ Ce qui n'est observable qu'en combinaison se greffe sur un scénario existant, e
 ajoute alors une ligne de traçabilité de plus. La règle est énonçable, donc vérifiable — ce qui
 était la condition posée.
 
-Le corpus compte **82 scénarios** pour 231 comportements. Un scénario n'appartient pas à une
-primitive : il en couvre souvent plusieurs, et c'est le champ `matrice:` qui le dit. La colonne de
-droite compte donc les scénarios qui citent au moins une entrée de la primitive — elle totalise
-89, pas 82.
+Un scénario n'appartient pas à une primitive : il en couvre souvent plusieurs, et c'est le champ
+`matrice:` qui le dit. La colonne de droite compte donc les scénarios qui citent au moins une
+entrée de la primitive — elle totalise 89, et le nombre de scénarios se lit au §7.
 
 Les **60 zones transverse** ne s'ajoutent pas : ce sont les comportements 1 à 60 déjà comptés
 dans les tables par primitive, présentés comme un hors-sujet. Elles se répartissent sur les dix
@@ -118,3 +117,15 @@ Le besoin d'isolation n'a pas été résolu : il a disparu.
 - **Que la couverture du code est complète.** Elle est mesurée séparément, par le relevé de
   `SPEC.md` §18. Un scénario peut couvrir un comportement et laisser une branche non couverte,
   et réciproquement.
+
+## 7. Le journal du harnais
+
+Ce qui suit n'est pas écrit : c'est la sortie de `npm run harnais`, rendue au moment du build du
+site. Si un scénario diverge, **le build échoue** — une page qui afficherait un harnais rouge
+mentirait, et le contrat exige que les trois cibles soient indiscernables.
+
+Le résumé compte les **références** portées par les scénarios, pas les entrées de la matrice : un
+scénario qui cite cinq entrées en porte cinq. La matrice en compte une fois chacune, et son total
+est dans [`research/baseline-1.14.4.md`](/research/baseline-1.14.4.md).
+
+<!-- harnais -->

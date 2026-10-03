@@ -55,6 +55,11 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
+// Le marqueur du bloc est défini par le plugin qui le remplace, et il est importé sous un nom qui ne
+// dit pas « marqueur » tout court : `COUVERTURE` a déjà un `MARQUEUR`, qui désigne autre chose. Deux
+// sens pour un mot dans le même dépôt, c'est la faute que le lexique des descripteurs existe pour
+// éviter.
+import { MARQUEUR_INJECTION } from "../site/.vitepress/journal-harnais.mjs"
 import { cheminsGit, ecritsParBuild, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
@@ -205,17 +210,22 @@ porte(
 // rester : `v0.1.0` dit 80 scénarios, et c'est vrai de `v0.1.0`. Une ancre ne le peut pas.
 //
 // Le registre fait foi. Les chiffres de la prose doivent le suivre, jamais l'inverse.
+//
+// Il ne reste que TROIS ancres, et chacune est un document qui POSSÈDE le chiffre : le contrat
+// normatif comme un numéro de version, la note de recherche comme un instantané daté. Les quatre
+// autres — deux sur `scenarios.md`, deux sur le ROADMAP — ont disparu avec #50 : la page ne les
+// écrit plus (le harnais les rend) et le ROADMAP pointe. Une ancre sur une redite ne vérifiait
+// rien : elle demandait à une page de recopier un nombre déjà écrit ailleurs, donc elle périmait
+// avec sa source au lieu de la suivre.
 
 const { ENTREES_ATTENDUES, scenarios, testsSignalcnSeul } = COUVERTURE_MODULE
-const attendus = { entrees: ENTREES_ATTENDUES.length, scenarios: scenarios.length }
+const attendus = { entrees: ENTREES_ATTENDUES.length }
 
 // Chaque ancre est [fichier, motif, une valeur attendue par groupe capturé, libellé].
 //
-// Deux chiffres dans la même phrase sont DEUX contrôles, pas un : le motif du ROADMAP capture le
-// nombre de scénarios ET celui des comportements, et comparer le premier seulement laissait le
-// second libre de mentir — « 999 comportements » passait. Le libellé est écrit, jamais déduit du
-// fichier et de l'unité : deux ancres du même document en portaient sinon le même, et un échec ne
-// disait pas laquelle des deux était tombée.
+// Un seul chiffre par ancre, donc un seul contrôle : les deux ancres du ROADMAP qui en portaient
+// deux — le nombre de scénarios ET celui des comportements — sont parties avec lui. Le libellé est
+// écrit, jamais déduit du fichier et de l'unité.
 const ancrees = [
   [
     "SPEC.md",
@@ -235,30 +245,6 @@ const ancrees = [
     [attendus.entrees],
     "le tableau recapitulatif de la baseline annonce le bon total",
   ],
-  [
-    "site/contributeurs/scenarios.md",
-    /Comment les \*\*(\d+) comportements\*\*/,
-    [attendus.entrees],
-    "site/contributeurs/scenarios.md annonce le bon nombre de comportements",
-  ],
-  [
-    "site/contributeurs/scenarios.md",
-    /pour (\d+) comportements\./,
-    [attendus.entrees],
-    "site/contributeurs/scenarios.md annonce le bon nombre de comportements, dans la repartition",
-  ],
-  [
-    "site/contributeurs/ROADMAP.md",
-    /comportements upstream — (\d+) entrées,/,
-    [attendus.entrees],
-    "ROADMAP.md annonce le bon nombre de entrées",
-  ],
-  [
-    "site/contributeurs/ROADMAP.md",
-    /scenarios\.md\) : (\d+) sc[ée]narios pour\n(\d+) comportements/,
-    [attendus.scenarios, attendus.entrees],
-    "ROADMAP.md annonce le bon nombre de scenarios ET de comportements",
-  ],
 ]
 
 for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
@@ -273,6 +259,24 @@ for (const [fichier, motif, attendusAncre, libelle] of ancrees) {
       : `${cites.join(" / ")} annonces, ${attendusAncre.join(" / ")} reels`,
   )
 }
+
+// La page ne porte plus ses deux comptes, donc elle n'affiche ses comptes que si le BLOC EST
+// RENDU — et rien ne le garde, sinon supprimer le marqueur ferait perdre le journal à la page sans
+// faire tomber le build. C'est le même trou que `verifier-derive` et son `git diff` qui ne voit pas
+// un fichier neuf : ici ce qui manque est un marqueur, pas un fichier.
+//
+// La recherche est le MARQUEUR DU BLOC LUI-MÊME, importé du plugin et non recopié : un motif écrit
+// deux fois dérive. Elle est ANCRÉE en début de ligne, parce que c'est là que le plugin l'exige — un
+// commentaire indenté de quatre espaces est un bloc indenté pour markdown-it, pas un `html_block` : le
+// plugin ne le verrait pas, donc une assertion plus laxiste que le mécanisme accepterait une page qui
+// a perdu son journal en silence. C'est ce qui distingue ce contrôle d'une simple recherche de
+// sous-chaîne.
+const scenariosPage = await readFile(join(RACINE, "site", "contributeurs", "scenarios.md"), "utf8")
+porte(
+  "site/contributeurs/scenarios.md porte le marqueur du bloc d'injection",
+  new RegExp(`^${MARQUEUR_INJECTION}$`, "m").test(scenariosPage),
+  "le marqueur a disparu, ou n'est plus en début de ligne — la page perd ses comptes",
+)
 
 // ---- 6. Le pipeline décrit par `site/contributeurs/ci.md`, et celui qui tourne ----------------------------
 //
