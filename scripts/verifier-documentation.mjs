@@ -44,9 +44,10 @@
  *      la seule chose qui s'en aperçoive avant le premier visiteur. Le §8 dit d'où vient le nom.
  *
  *   9. LA LECTURE D'UN `git status` EST EXERCÉE. Le lecteur vit dans `porte.mjs` avec `RACINE` et
- *      `reporter()`, donc cette porte peut lui passer une sortie et exiger le résultat. Deux
- *      assertions : un renommage, seul cas où `-z` produit deux enregistrements, et un changement
- *      de type, seule lettre d'état qu'un lecteur oublie. Le §9 dit pourquoi ces deux-là.
+ *      `reporter()`, donc cette porte peut lui passer une sortie et exiger le résultat. Trois
+ *      assertions : un renommage, seul cas où `-z` produit deux enregistrements, un changement de
+ *      type, seule lettre d'état qu'un lecteur oublie, et la différence des deux lectures que la
+ *      porte de propreté compare. Le §9 et le §10 disent pourquoi ces cas-là.
  *
  *   node scripts/verifier-documentation.mjs
  */
@@ -54,7 +55,7 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { cheminsGit, RACINE, reporter } from "./porte.mjs"
+import { cheminsGit, ecritsParBuild, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 
@@ -502,6 +503,28 @@ porte(
   "la lecture d'un git status garde un changement de type",
   typeChange.length === 1 && typeChange[0] === "fichier",
   `${typeChange.length} chemins : ${typeChange.join(", ")}`,
+)
+
+// ---- 10. Ce que le build a écrit, et lui seul ------------------------------------------------
+//
+// La porte de propreté ne lit plus UN `git status` : elle en lit deux — l'instantané que
+// `documentation-statique` écrit avant de construire, et l'état courant. Ce qui compte est donc la
+// différence, et son SENS n'est pas symétrique : `apres \ avant` accuse le build, `avant \ apres`
+// ne l'accuserait jamais et la porte resterait verte sur n'importe quoi.
+//
+// Les trois cas tiennent dans une assertion parce qu'ils tiennent dans une différence : ce qui est
+// devenu sale, ce qui l'était déjà — le plafond que la porte annonce par sa ligne `--` —, et ce qui
+// est sous `site/`, qui est le droit du build. Aucun n'est atteignable en CI, qui travaille sur un
+// arbre propre : c'est ce qui les rend nécessaires ici plutôt que dans une porte qui les rejouerait
+// sur un dépôt jetable à chaque exécution.
+const ecrits = ecritsParBuild(
+  ["README.md", "docs/avant.md"],
+  ["README.md", "docs/avant.md", "docs/neuf.md", "site/.vitepress/dist/index.html"],
+)
+porte(
+  "le build n'ecrit que ce qui est devenu sale, et rien sous site/",
+  ecrits.length === 1 && ecrits[0] === "docs/neuf.md",
+  `${ecrits.length} chemins : ${ecrits.join(", ")}`,
 )
 
 // ---- La porte dit ce qu'elle ne vérifie pas -----------------------------------------------

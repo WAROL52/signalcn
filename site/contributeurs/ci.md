@@ -21,7 +21,7 @@ exécutions. L'installation est un cas à part : deux exécutions, 107,6 s et 10
 | Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
-| Propreté : le build du site n'écrit pas dans les chemins d'artefacts | 0,32 s |
+| Propreté : le build du site n'écrit pas hors de `site/` | 0,32 s |
 | Ruleset : les checks requis contre les jobs réels | 0,32 s |
 | Biome : forme et ruleset `recommended` | 0,70 s |
 | Suite source | 0,77 s |
@@ -143,14 +143,21 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 | Contrôle | Ce qu'il attrape |
 |---|---|
 | **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible |
-| **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit dans `registry/` ou à la racine |
+| **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit hors de `site/` |
 | **Liens publiés** — `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier |
 
 Les trois coûts sont ceux du §1 — 5,42 s, 0,32 s et 0,09 s — et ils sont dominés par le build : la
-porte de propreté ne lit qu'un `git status`, et la porte des liens publiés trente-huit fichiers
-HTML.
+porte de propreté relit un `git status` de plus — celui que le build a pris avant de tourner —, et
+la porte des liens publiés trente-huit fichiers HTML.
 À comparer aux 107 s de l'installation, qui est le seul coût qui mérite qu'on discute de sa
 fréquence.
+
+**Le fichier de plus ne déplace pas la ligne du §1, et c'est mesuré.** Les deux versions de la porte
+ont été lancées dos à dos sur la même machine, cinq fois chacune : l'écart passe sous le bruit de
+`npm run` lui-même, qui domine un door de 0,32 s, donc la ligne reste à sa valeur. Seule la
+**différence** est reportée ici, jamais les chiffres absolus de cette mesure — ils sont ceux d'une
+autre machine que celle du tableau, et les y écrire fausserait une somme que la porte vérifie. Le
+`git status` pris avant le build ne se voit pas davantage dans les 5,42 s.
 
 Sur le runner, une fois observé : le job entier a pris **17 s** — `npm ci` 8 s, build 3 s, porte 1 s,
 le reste en installation et en teardown. C'est un relevé unique et pas une médiane ; le tableau du
@@ -197,12 +204,39 @@ le disque. Un lien interne est un fait du dépôt ; une ancre et une adresse ext
 
 **La propreté est une porte, pas une précaution.** Elle existe parce que `verifier-derive` ne voit
 pas ce que le build du site pourrait écrire : son `git diff` ne parle que de fichiers **suivis** et
-que de `registry/default/`, donc un fichier neuf déposé dans ce répertoire passe, et n'importe quoi
-écrit à la racine passe aussi. Elle vérifie l'état **après** le build et ne le relance pas — l'ordre
-est fait par l'appelant, `porte` comme la CI — et son périmètre est `registry/` plus la racine, soit
-tout ce qu'un build a le droit d'écrire hors de `site/`. Elle vérifie enfin que la sortie du site
-est un fichier ignoré, en posant la question à `git check-ignore` et non en lisant `.gitignore` : le
-fichier reste la seule source, et aucune liste n'est écrite deux fois.
+que de `registry/default/`, donc un fichier neuf déposé dans ce répertoire passe, et un fichier
+écrit dans `docs/` passe aussi.
+
+Elle ne relance pas le build — l'ordre est fait par l'appelant, `porte` comme la CI — mais elle lit
+**deux** états de git au lieu d'un. `documentation-statique` écrit `git status` dans le répertoire
+que `git rev-parse --git-dir` nomme — `.git/avant-build` dans un clone — **avant** de construire,
+et elle relit cet instantané à côté de l'état courant : n'est accusé que ce qui est **devenu sale
+entre les deux**. Un arbre de travail sale n'est donc pas un échec, il est l'ensemble « avant ». C'est
+la réponse à [#68](https://github.com/WAROL52/signalcn/issues/68), où une ligne modifiée de
+`README.md` suffisait à faire tomber la porte, avec un message qui attribuait au build du site un
+fichier qu'il n'avait pas écrit — et où l'option « la propreté suppose un arbre propre, donc on juge
+après `git add` » s'est révélée fausse telle qu'écrite : `git add` laisse la ligne dans `git status`.
+
+Le périmètre en découle, et il est plus large que ce qu'il était : tout le dépôt **sauf `site/`**,
+qui est le droit du build. `docs/`, `scripts/` et `.github/` sont donc couverts, et la liste devinée
+« `registry/` plus la racine » disparaît avec sa justification. Elle vérifie enfin que la sortie du
+site est un fichier ignoré, en posant la question à `git check-ignore` et non en lisant
+`.gitignore` : le fichier reste la seule source, et aucune liste n'est écrite deux fois.
+
+**Un instantané périmé ne conclut rien, et le dit.** Il est validé par la **date de la sortie** — la
+page la plus récemment écrite, donc une date et non un nom de fichier, pour la raison que porte la
+première assertion. Absent, ou postérieur à cette date, c'est un ÉCHEC qui nomme la cause et le
+moyen de la lever ; et la comparaison ne se fait pas, plutôt que d'accuser le build d'un arbre de
+travail qu'il n'a pas salé. Ce n'est pas une mesure de durée, donc rien ne la rend flaky ; sur un
+système de fichiers à la seconde, deux écritures de la même seconde sont prises pour un build tourné,
+ce qui est le cas le plus probable des deux. `deploy.yml` exécute le même `documentation-statique` et
+écrase donc le même instantané : sans conséquence, son artefact est la sortie du site.
+
+Ce que la porte ne vérifie pas, elle l'affiche avec le préfixe `--` : la comparaison porte sur les
+**chemins**, pas sur le contenu. Un chemin déjà sale avant le build **et** modifié par lui passe,
+parce qu'il est dans les deux ensembles — il faudrait que le build vise précisément un fichier que le
+contributeur édite, ce que VitePress ne fait pas. Deux instants peuvent attribuer un chemin à
+quelqu'un ; ils ne peuvent pas dire ce qu'il contient.
 
 **Le déploiement sur GitHub Pages n'est pas dans ce job.** Un check requis juge la pull request ;
 un déploiement agit sur l'extérieur, et un déploiement réussi ne doit surtout pas pouvoir masquer

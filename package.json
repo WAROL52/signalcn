@@ -18,7 +18,7 @@
     "parite": "node scripts/verifier-parite.mjs",
     "documentation": "node scripts/verifier-documentation.mjs",
     "verifier-derive": "node scripts/verifier-derive.mjs",
-    "documentation-statique": "vitepress build site",
+    "documentation-statique": "git status --porcelain -z --untracked-files=all > \"$(git rev-parse --git-dir)/avant-build\" && vitepress build site",
     "verifier-proprete": "node scripts/verifier-proprete.mjs",
     "verifier-liens-publies": "node scripts/verifier-liens-publies.mjs",
     "verifier-installation": "node scripts/verifier-installation.mjs",

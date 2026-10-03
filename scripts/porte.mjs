@@ -42,6 +42,27 @@ export const cheminsGit = (sortie) =>
     .map((ligne) => ligne.slice(3))
 
 /**
+ * Les chemins que le build du site a écrits, d'après deux lectures d'un `git status -z`.
+ *
+ * L'instantané d'avant est pris par `documentation-statique` avant de construire, l'état courant
+ * est relu après : un arbre de travail sale n'est donc plus un échec, il est l'ensemble « avant ».
+ * Ce que la porte accuse est ce qui est devenu sale ENTRE LES DEUX, ce qui est la seule chose que
+ * deux instants peuvent attribuer à quelqu'un.
+ *
+ * La différence n'est pas symétrique et c'est le sens qui compte : `apres \ avant` accuse, l'autre
+ * n'accuserait jamais. `site/` est retiré parce qu'il est le droit du build — et sa sortie étant
+ * ignorée par git, elle n'apparaît dans aucune des deux lectures.
+ *
+ * ponytail: la comparaison porte sur les CHEMINS, pas sur le contenu. Un chemin déjà sale avant le
+ * build et modifié par lui passe, puisqu'il est dans les deux ensembles. Il faudrait que le build
+ * vise précisément un fichier que le contributeur édite — ce que VitePress ne fait pas. Si un jour
+ * `site/` cessait d'être le seul exclu, la comparaison devrait porter sur le contenu de l'instantané
+ * aussi.
+ */
+export const ecritsParBuild = (avant, apres) =>
+  apres.filter((chemin) => !chemin.startsWith("site/") && !avant.includes(chemin))
+
+/**
  * Une assertion de porte. `condition` fausse fait tomber le code de sortie, et le détail dit
  * pourquoi — un « ECHEC » nu oblige à rejouer le test à la main.
  */
