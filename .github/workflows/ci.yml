@@ -145,10 +145,12 @@ jobs:
       - run: npm ci
       - name: build du site — VitePress, ici comme en local
         run: npm run documentation-statique
-      # La porte suit le build et ne le relance pas : elle vérifie que le build du site n'a rien
-      # écrit dans registry/ ni à la racine. `verifier-derive` ne le verrait pas — son `git diff`
-      # ne voit ni un fichier NEUF, ni un chemin hors de registry/default/. Voir site/contributeurs/ci.md §4.
-      - name: proprete — le build du site n'ecrit pas dans les chemins des artefacts
+      # La porte suit le build et ne le relance pas : elle relit l'instantané que le build a pris
+      # AVANT de tourner, et n'accuse que ce qui est devenu sale entre les deux — donc un arbre de
+      # travail sale n'est pas un échec, et le périmètre est tout le dépôt hors `site/`.
+      # `verifier-derive` ne le verrait pas : son `git diff` ne voit ni un fichier NEUF, ni un chemin
+      # hors de registry/default/. Voir site/contributeurs/ci.md §4.
+      - name: proprete — le build du site n'ecrit rien hors de site/
         run: npm run verifier-proprete
       # Apres la propreté, parce qu'elle n'a rien à dire du contenu des pages : elle lit `git status`.
       # Cette porte lit la SORTIE du build — pas les sources — et vérifie que chaque lien interne y
