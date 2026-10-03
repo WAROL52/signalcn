@@ -43,13 +43,18 @@
  *      un `base` faux met chaque page en 404 sans faire tomber le build, donc cette assertion est
  *      la seule chose qui s'en aperçoive avant le premier visiteur. Le §8 dit d'où vient le nom.
  *
+ *   9. LA LECTURE D'UN `git status` EST EXERCÉE. Le lecteur vit dans `porte.mjs` avec `RACINE` et
+ *      `reporter()`, donc cette porte peut lui passer une sortie et exiger le résultat. Deux
+ *      assertions : un renommage, seul cas où `-z` produit deux enregistrements, et un changement
+ *      de type, seule lettre d'état qu'un lecteur oublie. Le §9 dit pourquoi ces deux-là.
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { RACINE, reporter } from "./porte.mjs"
+import { cheminsGit, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 
@@ -465,6 +470,38 @@ porte(
   "le base du site est le chemin du depot sur Pages",
   base === `/${depot}/`,
   `base ${base ?? "(absent)"}, dépôt ${depot} donc /${depot}/`,
+)
+
+// ---- 9. La lecture d'un `git status`, qu'aucune porte n'exerce ------------------------------
+//
+// Le lecteur est dans `porte.mjs` avec `RACINE` et `reporter()` : c'est de l'outillage partagé, et
+// c'est ce qui le rend testable. Le test tient dans une seule assertion, et une seule : un
+// renommage est le SEUL cas où `-z` produit deux enregistrements, donc le seul qui ait jamais
+// cassé la lecture — `git status -z` nomme le nouveau chemin puis l'ancien, sur deux
+// enregistrements NUL, et l'ancien n'a pas de préfixe d'état.
+//
+// C'est le filet qui manquait, et il manque pour une raison mesurable : la porte de propreté
+// tourne dans `porte` comme dans la CI, mais la CI travaille sur un arbre propre, où elle ne lit
+// aucun nom de fichier, et le seul cas à deux enregistrements suppose un renommage — qu'aucun
+// script du dépôt ne fait. Une régression de ce lecteur n'avait donc aucune exécution pour la
+// montrer. Voir [#79](https://github.com/WAROL52/signalcn/issues/79).
+const renomme = cheminsGit("R  docs/nouveau.md\0ancien.md\0")
+porte(
+  "la lecture d'un git status ignore l'ancien chemin d'un renommage",
+  renomme.length === 1 && renomme[0] === "docs/nouveau.md",
+  `${renomme.length} chemins : ${renomme.join(", ")}`,
+)
+
+// La seconde assertion ne porte pas sur un deuxième cas à deux enregistrements — il n'y en a
+// qu'un — mais sur la LISTE des lettres d'état, qui est une liste donc peut être incomplète. La
+// première version en oubliait une : `T`, le changement de type. Un ` T fichier` — un fichier
+// régulier remplacé par un lien — passait alors **sans bruit**, ce qui est pire que l'amputation
+// d'un chemin, qui criait.
+const typeChange = cheminsGit(" T fichier\0")
+porte(
+  "la lecture d'un git status garde un changement de type",
+  typeChange.length === 1 && typeChange[0] === "fichier",
+  `${typeChange.length} chemins : ${typeChange.join(", ")}`,
 )
 
 // ---- La porte dit ce qu'elle ne vérifie pas -----------------------------------------------
