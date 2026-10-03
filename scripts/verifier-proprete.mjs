@@ -23,7 +23,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
-import { RACINE, reporter } from "./porte.mjs"
+import { cheminsGit, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
 
@@ -35,29 +35,16 @@ porte(
   `${SORTIE} est absent — la porte se place APRES le build, jamais seule`,
 )
 
-// `-z` évite d'avoir à décoder les chemins que git quote, et `--untracked-files=all` déplie les
-// répertoires : sans lui un fichier neuf dans un répertoire neuf n'apparaît que comme `?? site/`,
-// et le test « la racine est-elle propre ? » verrait un nom de répertoire.
+// Le lecteur est celui de `porte.mjs`, qui dit ce que `-z` garantit et ce qu'il ne garantit pas.
+// `--untracked-files=all` déplie les répertoires : sans lui un fichier neuf dans un répertoire
+// neuf n'apparaît que comme `?? site/`, et le test « la racine est-elle propre ? » verrait un nom
+// de répertoire.
 const etat = spawnSync("git", ["status", "--porcelain", "-z", "--untracked-files=all"], {
   cwd: RACINE,
   encoding: "utf8",
 })
 
-// Le chemin d'une ligne `git status` commence après les deux caractères d'état et l'espace. Un
-// renommage nomme DEUX chemins, `ancien -> nouveau` : c'est le nouveau qui occupe la place, donc
-// c'est lui qui compte.
-const chemin = (ligne) =>
-  ligne
-    .slice(3)
-    .split(" -> ")
-    .pop()
-    .replace(/^"(.*)"$/, "$1")
-
-const sales = etat.stdout
-  .split("\0")
-  .filter(Boolean)
-  .map(chemin)
-  .filter((p) => p.startsWith("registry/") || !p.includes("/"))
+const sales = cheminsGit(etat.stdout).filter((p) => p.startsWith("registry/") || !p.includes("/"))
 
 porte(
   "le build du site n'ecrit dans ni registry/ ni la racine",

@@ -13,6 +13,35 @@ import { fileURLToPath } from "node:url"
 export const RACINE = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 /**
+ * Les chemins d'une sortie `git status --porcelain -z`.
+ *
+ * `-z` sort un renommage sur DEUX enregistrements NUL — `R  <nouveau>\0<ancien>\0` — parce
+ * qu'un renommage nomme deux chemins. Le second ne porte pas de préfixe d'état : c'est l'ancien
+ * chemin, et le compter comme un chemin le ferait passer pour un fichier que le build aurait
+ * écrit. Un enregistrement commence donc toujours par deux caractères d'état et une espace, et le
+ * chemin commence à la troisième place.
+ *
+ * La liste des caractères d'état est celle de `git status --porcelain`, et elle est complète :
+ * espace, `M` `A` `D` `R` `C` `U` `T`, `?` et `!`. `T` — le changement de type — en fait partie,
+ * mesuré : un fichier régulier remplacé par un lien donne ` T fichier`, et un lecteur qui l'ignore
+ * perd ce chemin **en silence**. Ce qui manque à la liste est donc absent du statut, jamais
+ * l'inverse.
+ *
+ * Sous `-z`, git n'écrit aucun guillemet autour d'un nom : il n'y a donc rien à déchiffrer, et un
+ * déchiffrement corromprait un fichier dont le nom commence et finit par un guillemet.
+ *
+ * ponytail: un fichier nommé `R  notes.md`, s'il était l'ancien côté d'un renommage, serait compté
+ * comme un troisième chemin — il porte les trois caractères attendus en tête. Aucun dépôt n'a de
+ * fichier ainsi nommé, et le build de VitePress n'écrit aucun nom de fichier.
+ */
+export const cheminsGit = (sortie) =>
+  sortie
+    .split("\0")
+    .filter(Boolean)
+    .filter((ligne) => /^[ MADRUCT?!]{2} /.test(ligne))
+    .map((ligne) => ligne.slice(3))
+
+/**
  * Une assertion de porte. `condition` fausse fait tomber le code de sortie, et le détail dit
  * pourquoi — un « ECHEC » nu oblige à rejouer le test à la main.
  */
