@@ -70,27 +70,33 @@ opinion.
 
 ## 4. L'exhaustivité se vérifie
 
-C'est le trou que la carte signalait comme non tranché. Le champ `matrice:` le ferme.
+C'est le trou que la carte signalait comme non tranché. Le registre `COUVERTURE` le ferme.
 
-Une porte extrait tous les couples `(section, n)` référencés par les scénarios et les compare
-à l'ensemble des couples de la matrice. **Un comportement de la matrice non référencé est un
-échec.**
+**Une entrée de la matrice a une DESTINATION, pas nécessairement une référence.** Une destination
+est l'une de trois choses : le nom d'un scénario, le nom d'un test `signalcn-seul`, ou un
+**marqueur** — `source:<ref>` quand l'observation n'existe que sur les sources de la référence,
+`divergence:<ref>` quand `signalcn` fait délibérément autre chose. Un numéro de ticket n'en est pas
+une : un ticket est une promesse, et une promesse se périme sans bruit.
 
-```text
-signal#1..23      conv#1..15
-computed#1..27    dispose#1..10
-effect#1..41      subscribe#1..18
-batch#1..27       action#1..11
-untracked#1..13   modele#1..34
-```
+Mesuré sur le registre : **231 entrées**, dont **198** couvertes par au moins un scénario, **22**
+par un marqueur, **11** par un `signalcn-seul` seul. Les trois ensembles sont disjoints, donc
+**33 entrées ne sont couvertes par aucun scénario** — et il n'en reste rien à faire, puisque ce qui
+est demandé est une destination, pas un rejeu par la table.
 
-Cinq des dix sections sont des tables préfixées par un nom de primitive ; la sixth,
-« Conversions », et la septième, « dispose et `Symbol.dispose` », ont des noms à part. Les zones
-transverse ne sont pas une onzième : ce sont les comportements 1 à 60 déjà comptés dans les tables
-par primitive, et elles n'ont pas d'entrée propre — elles ne se comptent pas deux fois.
+Deux contrôles, qui ne vivent pas au même endroit. `registre-complet`, dans `signals.test.ts` —
+donc dans la **suite distribuée** — vérifie les trois directions : toute entrée a une destination,
+aucune destination ne cite une entrée inexistante, toute destination nommée existe. Il ne peut pas
+vivre dans une porte : une suite qui lit un fichier du dépôt lèverait chez l'utilisateur, et
+`SPEC.md` n'est pas distribué. `npm run documentation` ne porte que sur les **marqueurs**, qui doivent
+se répondre avec `SPEC.md` §21 dans les deux sens — la raison d'être d'un marqueur est au §21,
+jamais dans le registre.
 
-La porte est un script de quelques lignes, comme celle de
-[`site/contributeurs/documentation.md`](./documentation.md) §2. Elle tourne dans le job rapide.
+Les comptes par primitive du tableau du §1 ne sont adossés à **aucune** porte. Ils sont justes, ils
+ont été mesurés contre le registre, et ils peuvent se périmer sans bruit : c'est arrivé, et les
+plages qu'affichait le §4 avant cette réécriture totalisaient 219 au lieu de 231 sans que rien ne le
+dise. Les garder demanderait un mapping entre les orthographes que portent les dix primitives —
+`createModel` au §1, `model` dans les noms de scénario, `modele` dans la matrice — donc c'est une
+décision qui n'a pas été prise.
 
 ## 5. Les trois sondes destructives ne le sont plus
 
