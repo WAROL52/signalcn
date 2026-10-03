@@ -46,11 +46,11 @@ export default defineConfig({
   base: "/signalcn/",
 
   // Deux exclusions, deux raisons distinctes. `.github/` contient le gabarit de pull request, que
-  // GitHub rend et que personne ne lit comme une page ; `prototype/` est un dossier de travail
-  // d'une session passée, cité par le registre et dont le sort n'est pas tranché (#40). Ni
-  // l'un ni l'autre n'est un document de la narration, et un `srcExclude` est ici le seul moyen de
-  // ne pas les publier — `ignoreDeadLinks` resterait la seule façon de les tolérer, et ce serait
-  // affaiblir le contrôle des liens.
+  // GitHub rend et que personne ne lit comme une page ; `prototype/` est le REGISTRE des prototypes,
+  // dont le code vit sur une branche et jamais ici — donc il n'a rien d'une page, même réduit à son
+  // README. Ni l'un ni l'autre n'est un document de la narration, et un `srcExclude` est ici le seul
+  // moyen de ne pas les publier — `ignoreDeadLinks` resterait la seule façon de les tolérer, et ce
+  // serait affaiblir le contrôle des liens.
   srcExclude: [".github/**", "prototype/**"],
 
   // Le journal du harnais différentiel entre dans `scenarios.md` au moment du rendu, par un plugin

@@ -31,7 +31,7 @@ veut utiliser la bibliothèque n'a pas à lire une CI pour savoir comment l'inst
 | [`site/technique/zero-dependency.md`](../technique/zero-dependency.md) | le contrôle de zéro-dépendance |
 | `CONTEXT.md` | le glossaire du domaine |
 | `docs/agents/` | la configuration des skills |
-| `research/`, `prototype/` | notes de travail et code jetable, explicitement marqués comme tels |
+| `research/`, `prototype/README.md` | notes de travail, et le registre des prototypes dont le code vit sur une branche |
 
 ## 2. La surface publique : le README déclare, une porte vérifie
 
