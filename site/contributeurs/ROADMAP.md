@@ -20,7 +20,7 @@
 | Couverture mesurée | `99,61 / 98,50 / 100,00` — lignes, branches, fonctions |
 | Seuil de release | La valeur mesurée, **pas 100 %** — [ADR-0011](/docs/adr/0011-reliquat-de-couverture-non-atteignable.md) : les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus |
 | Prochaine version | **aucune** — les deux tags sont posés, et la ligne du dessous dit laquelle |
-| Version courante | **celle de la dernière tag posée** — le détail est au [§14](#14-journal-des-releases) |
+| Version courante | **celle de la dernière tag posée** — le détail est au [§14](#_14-journal-des-releases) |
 | Mainteneur | `WAROL52` |
 | Dépôt | `github.com/WAROL52/signalcn`, public |
 | Licence | MIT, en place depuis le premier commit |

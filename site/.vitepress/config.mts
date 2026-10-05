@@ -32,11 +32,35 @@ export default defineConfig({
   // deux espaces. Le build en résout la cible dans l'espace SOURCE, donc il la vérifie — un
   // `site/x` vers un fichier absent le fait tomber, mesuré par injection. Il ne vérifie en
   // revanche pas un lien dont la cible porte une extension d'asset (`.yml`, `.mjs` : mesuré), ni
-  // une ancre, ni une entrée de `themeConfig.nav`, ni `logoLink` — les trois derniers ne sont pas
-  // des liens Markdown. Et il valide un espace qui n'est pas celui de la publication. C'est ce
-  // reste-là que `npm run verifier-liens-publies` prend : il résout chaque lien interne dans la
-  // SORTIE publiée, sur disque, sans appel réseau. Voir #65.
+  // une entrée de `themeConfig.nav`, ni `logoLink` — les deux derniers ne sont pas des liens
+  // Markdown. Et il valide un espace qui n'est pas celui de la publication. C'est ce reste-là que
+  // `npm run verifier-liens-publies` prend : il résout chaque lien interne dans la SORTIE publiée,
+  // sur disque, sans appel réseau. Voir #65.
   srcDir: "..",
+
+  // UNE ANCRE, et l'interdiction qui va avec — #86. Les deux slugifiers divergent
+  // systématiquement, mesuré sur le même fichier des deux côtés (GitHub rend le Markdown, VitePress
+  // rend le HTML) :
+  //
+  //   ## 2. Le nœud et ses champs   GitHub `2-le-nœud-et-ses-champs`   site `_2-le-nœud-et-ses-champs`
+  //   ## 3. Les deux listes chaînées GitHub `3-les-deux-listes-chaînées` site `_3-les-deux-listes-chainees`
+  //
+  // Trois écarts, tous systématiques : VitePress préfixe d'un `_` un slug qui commence par un chiffre,
+  // GitHub non ; VitePress décompose les diacritiques latins (`é` → `e`) et GitHub les garde ; le
+  // tiret cadratin disparaît chez GitHub et reste chez VitePress. Le `œ` n'est PAS un diacritique,
+  // donc les deux le gardent — « VitePress mange les accents » serait faux, et c'est mesuré.
+  //
+  // Une ancre ne peut donc être ni VALIDÉE — il faudrait réimplémenter les deux slugifiers, et ils
+  // sont une dépendance versionnée de l'un et de l'autre — ni REFUSÉE : mesuré, 421 des 422 ancres de
+  // ce site sont la barre latérale et la table des matières que VitePress émet lui-même, et rien dans
+  // le HTML publié ne les distingue d'une ancre écrite à la main.
+  //
+  // Ce qui reste se vérifie sans slugifier, et c'est ce que la porte fait : une ancre est une
+  // promesse faite PAR LA PAGE, donc un `href="#x"` doit avoir un `id="x"` sur la même page. La page
+  // garantit alors qu'elle mène quelque part — pas que c'était la section voulue. Une ancre de cette
+  // forme ne marche que dans UN espace, et le site est l'espace publié : c'est le même arbitrage que
+  // ci-dessus, et pour la même raison.
+  //
 
   // Le site est publié sur `warol52.github.io/signalcn`, donc TOUTES ses URL commencent par
   // `/signalcn/`. Sans ce préfixe, chaque page sortirait en 404 — et le build resterait VERT :
