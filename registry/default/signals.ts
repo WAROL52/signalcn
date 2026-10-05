@@ -11,7 +11,7 @@
  * sous-objet d'un modèle.
  *
  * Elle vit sur le prototype, jamais sur une instance : coût nul par signal, et `in` la traverse
- * sans la voir dans l'énumération des clés propres. Voir `docs/architecture.md` §2.
+ * sans la voir dans l'énumération des clés propres. Voir `site/technique/architecture.md` §2.
  */
 const BRAND_SYMBOL = Symbol.for("preact-signals")
 
@@ -39,8 +39,8 @@ export class Signal<T = undefined> {
     this._value = value as T
     this._version = 0
     // `undefined` et non omis, pour que la forme de la classe ne reste pas stable quand le
-    // grapage arrive — `docs/architecture.md` §2 : la forme de la classe est un contrat, pas un
-    // accident de la phase de développement.
+    // grapage arrive — `site/technique/architecture.md` §2 : la forme de la classe est un contrat,
+    // pas un accident de la phase de développement.
     this._node = undefined
     this._targets = undefined
     // 0, comme la baseline. Ce champ note à quel instant de batch le signal a été photographié,
@@ -226,7 +226,7 @@ export class Signal<T = undefined> {
  *   - `implements` ne convient pas non plus, TypeScript exige que la classe déclare le membre.
  *
  * Le TYPE vient d'ici ; la VALEUR vient du `defineProperty` ci-dessous. Voir
- * `docs/distribution.md` §5.
+ * `site/utilisateurs/distribution.md` §5.
  */
 export interface Signal<T = undefined> {
   brand: typeof BRAND_SYMBOL
@@ -273,7 +273,7 @@ export function signal<T>(value?: T, options?: SignalOptions<T>): Signal<T | und
 // dans la liste des abonnés de la source et dans la liste des dépendances de la cible n'est pas
 // deux objets, c'est le même.
 
-/** La version d'un nœud `-1` est une sentinelle, pas une version. Voir `docs/architecture.md` §3. */
+/** La version d'un nœud `-1` est une sentinelle, pas une version. Voir `site/technique/architecture.md` §3. */
 const ABANDONNE = -1
 
 type Node = {
@@ -291,8 +291,8 @@ type Node = {
    * recroche ensuite la tête sur la QUEUE — donc `_sources` est la source lue EN PREMIER, et `_next`
    * est le sens qui remonte toute la liste vers les plus récentes. `_prev` part de la tête, où il vaut
    * `undefined`, donc il ne rend qu'UN nœud. C'est le piège, et il est silencieux.
-   * `docs/adr/0009-geometrie-de-la-liste-des-dependances.md` est la règle ; `docs/architecture.md` §3
-   * la cite.
+   * `docs/adr/0009-geometrie-de-la-liste-des-dependances.md` est la règle ;
+   * `site/technique/architecture.md` §3 la cite.
    */
   _next: Node | undefined
   _prev: Node | undefined
@@ -325,7 +325,8 @@ let globalVersion = 0
 let batchDepth = 0
 
 /**
- * Le compteur de drainages — le troisième état de module de `docs/architecture.md` §5.
+ * Le compteur de drainages — le troisième état de module de
+ * `site/technique/architecture.md` §5.
  *
  * Il compte de MODULE, pas dans `endBatch`, et c'est délibéré : un compteur local serait remis à
  * zéro par une entrée réentrante, donc la borne posée dessus ne tomberait jamais. C'est lui qui
@@ -690,9 +691,9 @@ function endBatch(): void {
  *
  * Le parcours part de `_sources`, c'est-à-dire de la source lue EN PREMIER, et suit `_next` vers les
  * plus RÉCENTES — le seul sens qui remonte toute la liste. La règle est dans
- * `docs/adr/0009-geometrie-de-la-liste-des-dependances.md`, `docs/architecture.md` §3 la cite. C'est
- * ce qui autorise la sortie anticipée, et surtout ce qui fait qu'une cible à plusieurs sources en
- * VOIT toutes.
+ * `docs/adr/0009-geometrie-de-la-liste-des-dependances.md`, `site/technique/architecture.md` §3 la
+ * cite. C'est ce qui autorise la sortie anticipée, et surtout ce qui fait qu'une cible à plusieurs
+ * sources en VOIT toutes.
  *
  * `_prev` est le piège, et il est silencieux : il part de la tête, où il vaut `undefined`, donc il ne
  * rend qu'UN nœud. Partir par là visitait un nœud au lieu de la liste, sans lever — c'est ce qui
@@ -891,9 +892,9 @@ export class Effect<FnReturn = void | (() => void)> {
 
 // La marque sur le prototype de l'effet, et non seulement sur celui du signal : `Effect` ne
 // descend pas de `Signal`, donc il ne l'hérite pas. C'est la même extension de
-// `docs/architecture.md` §2, et elle est nécessaire : sans elle, la détection de sous-objet d'un
-// modèle (`createModel`, #28) descendedrait dans un effet — un objet qui n'a aucune source à
-// liquider — et lui attribuerait des dépendances.
+// `site/technique/architecture.md` §2, et elle est nécessaire : sans elle, la détection de
+// sous-objet d'un modèle (`createModel`, #28) descendedrait dans un effet — un objet qui n'a
+// aucune source à liquider — et lui attribuerait des dépendances.
 Object.defineProperty(Effect.prototype, "brand", {
   value: BRAND_SYMBOL,
   enumerable: false,
@@ -984,7 +985,7 @@ type Snapshot = {
 /**
  * Les six bits de `_flags`. Ils sont un ENSEMBLE, pas une liste : `_refresh` teste
  * `(flags & (OUTDATED | TRACKING)) === TRACKING`, et c'est le masque qui compte. Six puissances
- * de deux, comme `docs/architecture.md` §10.
+ * de deux, comme `site/technique/architecture.md` §10.
  */
 const RUNNING = 1
 const NOTIFIED = 2
@@ -1064,9 +1065,10 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
     // qui a été réellement relu.
     this._flags &= ~OUTDATED
 
-    // Sortie rapide 1, dans l'ordre de `docs/architecture.md` §4 : le compteur global d'abord.
-    // Elle est délibérément trop large — n'importe quelle écriture invalide le cache de tous les
-    // computeds du programme. Le pire cas est un recalcul inutile, jamais une valeur fausse.
+    // Sortie rapide 1, dans l'ordre de `site/technique/architecture.md` §4 : le compteur global
+    // d'abord. Elle est délibérément trop large — n'importe quelle écriture invalide le cache de
+    // tous les computeds du programme. Le pire cas est un recalcul inutile, jamais une valeur
+    // fausse.
     if (this._globalVersion === globalVersion) return true
     this._globalVersion = globalVersion
 
@@ -1126,7 +1128,7 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
     // `OUTDATED` AVEC `NOTIFIED`, et pas seulement `NOTIFIED`. La sortie rapide de `_refresh` teste
     // `(flags & (OUTDATED | TRACKING)) === TRACKING` : un computé suivi et notifié mais pas encore
     // marqué périmé s'en sort par là, et ne se recalcule jamais. C'est ce drapeau qui distingue
-    // « suivi » de « suivi et périmé » — voir `docs/architecture.md` §10.
+    // « suivi » de « suivi et périmé » — voir `site/technique/architecture.md` §10.
     this._flags |= NOTIFIED | OUTDATED
     for (let node = this._targets; node !== undefined; node = node._targetPrev) {
       node._target._notify()

@@ -4041,8 +4041,8 @@ export const testsSignalcnSeul = {
         }
     },
     // `computed#10` — l'ordre des dépendances est l'ordre de lecture, et la liste se parcourt
-    // depuis la source lue EN DERNIER. `docs/architecture.md` §3 le dit de la même façon, et le
-    // sens n'est pas indifférent : partir de la plus récemment utilisée, c'est ce qui autorise à
+    // depuis la source lue EN DERNIER. `site/technique/architecture.md` §3 le dit de la même façon,
+    // et le sens n'est pas indifférent : partir de la plus récemment utilisée, c'est ce qui autorise à
     // sortir dès qu'une version diffère.
     //
     // La baseline range sa liste à l'envers — sa tête est la source lue en PREMIER. C'est mesuré,

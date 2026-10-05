@@ -63,7 +63,7 @@ documentation le vérifie : un contrôle ajouté, retiré ou déplacé dans le Y
 | 8 | **Portes du build** — `npm run verifier-build` | Un build non reproductible, un `--keep-names` inopérant, un minifié plus gros que l'original |
 | 9 | **Parité** — `npm run parite` | Le build ne reproduit pas la source ; la suite perd des tests en route |
 | 10 | **Dérive** — `npm run verifier-derive` | Un artefact committé que le build ne produit plus |
-| 11 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, ou qui demande un alias |
+| 11 | **Documentation** — `npm run documentation` | Un README qui ment sur la surface, une citation en commentaire qui pointe un document déplacé |
 | 12 | **Ruleset** — `npm run verifier-ruleset` | Un job que la CI exécute sans l'exiger, ou un check exigé qu'elle n'exécute plus |
 
 Les contrôles 8, 9 et 10 dépendent du 6 : le test minifié vise le runtime minifié, et le diff se
