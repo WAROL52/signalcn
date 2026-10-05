@@ -49,10 +49,25 @@
  *      type, seule lettre d'état qu'un lecteur oublie, et la différence des deux lectures que la
  *      porte de propreté compare. Le §9 et le §10 disent pourquoi ces cas-là.
  *
+ *   11. LES CITATIONS EN COMMENTAIRE POINTENT UN DOCUMENT QUI EXISTE. Une citation n'est pas un
+ *      lien Markdown : rien ne la résout, donc rien ne la voit mourir. Le 2 octobre, un `git mv`
+ *      a déplacé huit documents vers `site/`, et vingt citations sont restées sur
+ *      `docs/architecture.md` — onze dans les sources, neuf dans l'artefact construit — plus une
+ *      que le décompte d'origine n'avait pas vue, sur `docs/distribution.md`. Aucun de ces chemins
+ *      n'existait depuis ce commit, et aucune porte ne le disait. Voir [#87].
+ *
+ *   11. LES CITATIONS EN COMMENTAIRE POINTENT UN DOCUMENT QUI EXISTE. Une citation n'est pas un
+ *      lien Markdown : rien ne la résout, donc rien ne la voit mourir. Le 2 octobre, un `git mv`
+ *      a déplacé huit documents vers `site/`, et vingt citations sont restées sur
+ *      `docs/architecture.md` — onze dans les sources, neuf dans l'artefact construit — plus une
+ *      que le décompte d'origine n'avait pas vue, sur `docs/distribution.md`. Aucun de ces chemins
+ *      n'existait depuis ce commit, et aucune porte ne le disait. Voir [#87].
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
-import { readFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
+import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 
 // Le marqueur du bloc est défini par le plugin qui le remplace, et il est importé sous un nom qui ne
@@ -531,6 +546,122 @@ porte(
   `${ecrits.length} chemins : ${ecrits.join(", ")}`,
 )
 
+// ---- 11. Les citations en commentaire, et le document qu'elles visent -----------------------
+//
+// Une citation en commentaire n'est pas un lien Markdown : rien ne la résout, donc rien ne la voit
+// mourir. Le 2 octobre, un `git mv` a déplacé huit documents vers `site/` — et les citations du
+// cœur sont restées sur `docs/architecture.md`, un chemin qui n'existait plus depuis ce commit. Le
+// build PROPAGEAIT la faute : dix-neuf des vingt vivaient aussi dans `signals.js`, et
+// `verifier-derive` exigeait que l'artefact suive la source, donc le compteur mentait en double.
+//
+// Le contrôle est donc une EXISTENCE de fichier, et non une résolution de lien. La forme citée
+// reste une mention en clair, `` `chemin.md` `` : c'est déjà la forme du dépôt — dix-neuf fois — et
+// un lien Markdown dans le JSDoc d'un fichier DISTRIBUÉ serait un lien dont le chemin relatif ne
+// marche que chez le contributeur, jamais chez l'utilisateur qui installe l'item.
+//
+// Le numéro de section est vérifié avec le chemin, et ce n'est pas un supplément de confort : un
+// `§3` qui ne désigne plus rien meurt exactement de la même façon qu'un chemin périmé, pour la même
+// raison — un document numéroté renuméroté. Ce que le contrôle NE peut PAS faire, et ce que la
+// ligne du bas dit, est vérifier qu'un numéro survivant désigne encore la bonne idée.
+//
+// Le périmètre est `registry/default/*.ts`, les deux fichiers SOURCE. Les artefacts `.js` en sont
+// exclus : ils sont bâtis, `verifier-derive` exige qu'ils suivent, et les relire doublerait chaque
+// erreur sans en ajouter une. `scripts/` en est exclu aussi, et pour une raison mesurable : ses
+// commentaires citent `docs/nouveau.md` et `docs/avant.md`, qui sont des JEUX D'ESSAI de ce §9 et
+// du §10, et celui-ci cite `docs/architecture.md` dans le sien — un contrôle des scripts
+// échouerait donc sur des chemins faits pour ne pas exister.
+
+/** Les chemins cités par un texte, dans l'ordre, sans doublon. */
+const cheminsCites = (texte) => [
+  ...new Set([...texte.matchAll(/`([\w./-]+\.md)`/g)].map((m) => m[1])),
+]
+
+/**
+ * Les couples « chemin, section » — une section n'est retenue que si le chemin la porte.
+ *
+ * Le numéro s'arrête au dernier chiffre : `[\d.]+` prenait le point final de la phrase — `` §22. `` —
+ * et cherchait ensuite un titre `## 22..`, qui n'existe pas par construction. Le motif est donc
+ * `\\d+(\\.\\d+)*`, qui prend `5.1` et `22` et refuse le point de la phrase.
+ */
+const sectionsCitees = (texte) =>
+  [...texte.matchAll(/`([\w./-]+\.md)` §(\d+(?:\.\d+)*)/g)].map((m) => [m[1], m[2]])
+
+/**
+ * Un titre porte son numéro suivi d'un point (`## 22.`) ou d'une espace (`### 8.2`), donc le
+ * motif tolère le point et exige l'espace derrière. Exiger le point — le premier écrit — repoussait
+ * `### 8.2` sans raison : les sous-sections de SPEC.md sont numérotées à deux termes.
+ */
+const estTitre = (texte, numero) =>
+  new RegExp(`^#{2,} ${numero.replaceAll(".", "\\.")}\\.?\\s`, "m").test(texte)
+
+const lisible = (sections) => sections.map(([chemin, numero]) => `${chemin} §${numero}`).join(" ")
+
+// Les deux lecteurs sont EXERCISÉS sur un texte qui ment, sinon ils n'ont aucune exécution pour
+// montrer qu'ils lisent encore : c'est le même filet que le §9, et pour la même raison — ici
+// aussi, un dépôt propre est vert sur un lecteur cassé. Le chemin y est cité DEUX fois, parce que
+// c'est le seul cas où le « sans doublon » est vérifié ; la section à deux termes y est parce que
+// c'est elle qui a fait échouer la première version de `estTitre`.
+const citation =
+  "// `docs/architecture.md` §2, `SPEC.md` §5.1, `docs/architecture.md` §10, `docs/adr/0009.md`"
+porte(
+  "le lecteur de citations trouve chaque chemin cite, une seule fois",
+  cheminsCites(citation).join(" ") === "docs/architecture.md SPEC.md docs/adr/0009.md",
+  cheminsCites(citation).join(" "),
+)
+porte(
+  "le lecteur de sections n'attribue une section qu'au chemin qui la porte",
+  lisible(sectionsCitees(citation)) ===
+    "docs/architecture.md §2 SPEC.md §5.1 docs/architecture.md §10",
+  lisible(sectionsCitees(citation)),
+)
+porte(
+  "un titre se reconnait a un numero a un et a deux termes, et pas a un numero plus long",
+  estTitre("### 8.2 Forme\n", "8.2") &&
+    estTitre("## 22. Le harnais\n", "22") &&
+    !estTitre("## 8.21 Autre\n", "8.2"),
+  "un des trois cas a change : §8.2 sur `### 8.2`, §22 sur `## 22.`, §8.2 refuse sur `## 8.21`",
+)
+
+const items = join(RACINE, "registry", "default")
+const sources = (await readdir(items)).filter((fichier) => fichier.endsWith(".ts"))
+// Un chemin mort est compté UNE fois par fichier, pas une fois par citation : dix citations mortes
+// sur le même `docs/architecture.md` sont un fait, pas dix, et le détail doit le dire une fois.
+const perimees = new Map()
+const renumerotees = new Map()
+
+const accuser = (table, cle, fichier) =>
+  table.set(cle, table.has(cle) ? [...table.get(cle), fichier] : [fichier])
+
+for (const fichier of sources) {
+  const texte = await readFile(join(items, fichier), "utf8")
+
+  for (const chemin of cheminsCites(texte)) {
+    if (!existsSync(join(RACINE, chemin))) accuser(perimees, chemin, fichier)
+  }
+
+  for (const [chemin, numero] of sectionsCitees(texte)) {
+    // Un chemin déjà accusé est un chemin mort : le document n'a pas de titres à lire, et le
+    // reprocher deux fois la même faute n'apprend rien au lecteur de l'échec.
+    if (!existsSync(join(RACINE, chemin))) continue
+    const cible = await readFile(join(RACINE, chemin), "utf8")
+    if (!estTitre(cible, numero)) accuser(renumerotees, `${chemin} §${numero}`, fichier)
+  }
+}
+
+const decrire = (table) =>
+  [...table].map(([cle, fichiers]) => `${cle} — ${[...new Set(fichiers)].join(", ")}`).join(" ; ")
+
+porte(
+  `chaque chemin cite dans les ${sources.length} sources du coeur existe`,
+  perimees.size === 0,
+  decrire(perimees),
+)
+porte(
+  "chaque section citee est un titre du document cite",
+  renumerotees.size === 0,
+  decrire(renumerotees),
+)
+
 // ---- La porte dit ce qu'elle ne vérifie pas -----------------------------------------------
 //
 // Une porte verte sur un tiers de son périmètre ment par omission, et c'est le défaut que
@@ -545,5 +676,15 @@ porte(
 // seconde liste à maintenir pour un chiffre faux. La zone, elle, ne périme pas : elle reste vraie
 // tant que la porte compte cinq identifiants, quoi qu'il advienne du cœur.
 console.log("  --   les identifiants du cœur autres que les cinq de #46 ne sont pas vérifiés")
+
+// Une section citée en clair — `SPEC §5.1`, sans son chemin — n'est PAS vérifiée : le §11 ne lit
+// que la forme `` `chemin.md` §N ``, qui nomme son document. Il en reste environ cent cinquante
+// dans les deux sources, et les rattacher à leur document demanderait un analyseur de phrase : une
+// citation de la forme « `SPEC §9.2` — le batch … §13.4 » n'a pas de frontière simple. La zone ne
+// périme pas : SPEC.md est le contrat normatif, et un renumérotage y est un acte visible dans une
+// pull request, pas un glissement.
+console.log(
+  "  --   les sections citees en clair, sans leur chemin — `SPEC §5.1` — ne sont pas verifiees",
+)
 
 cloture()
