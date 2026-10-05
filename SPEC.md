@@ -592,8 +592,8 @@ Le runner est le module `node:test` de Node, sans dépendance. Le fichier de tes
 ### 18.1 Trois métriques
 
 ```text
-Lines      = 99 %   (99,61 mesure)
-Branches   = 98 %   (98,50 mesure)
+Lines      = 99 %   (99,62 mesure)
+Branches   = 98 %   (98,51 mesure)
 Functions  = 100 %  (100,00 mesure)
 ```
 

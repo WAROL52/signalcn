@@ -17,7 +17,7 @@
 | Référent de la matrice | **le paquet installé**, pas ses sources — marqueur dans `COUVERTURE`, raison au [§21](/SPEC.md) |
 | Artefacts générés | `4` |
 | Registry items | `6`, exigeant `"tsx": true` chez le consommateur |
-| Couverture mesurée | `99,61 / 98,50 / 100,00` — lignes, branches, fonctions |
+| Couverture mesurée | `99,62 / 98,51 / 100,00` — lignes, branches, fonctions |
 | Seuil de release | La valeur mesurée, **pas 100 %** — [ADR-0011](/docs/adr/0011-reliquat-de-couverture-non-atteignable.md) : les trois reliquats sont des gardes que la référence ne sait pas atteindre non plus |
 | Prochaine version | **aucune** — les deux tags sont posés, et la ligne du dessous dit laquelle |
 | Version courante | **celle de la dernière tag posée** — le détail est au [§14](#_14-journal-des-releases) |
@@ -144,7 +144,7 @@ l'implémentation.
 
 > **Preuve** — `npm run harnais` : ses trois comptes sont rendus par le harnais lui-même, au §7 de
 > [`/scenarios.md`](./scenarios.md).
-> **La case « 100 % » reste ouverte** : la couverture mesurée est `99,61 / 98,50 / 100,00`.
+> **La case « 100 % » reste ouverte** : la couverture mesurée est `99,62 / 98,51 / 100,00`.
 > Le reliquat est decide par [ADR-0011](/docs/adr/0011-reliquat-de-couverture-non-atteignable.md),
 > pas par renoncement.
 
