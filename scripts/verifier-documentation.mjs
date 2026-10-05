@@ -51,17 +51,11 @@
  *
  *   11. LES CITATIONS EN COMMENTAIRE POINTENT UN DOCUMENT QUI EXISTE. Une citation n'est pas un
  *      lien Markdown : rien ne la résout, donc rien ne la voit mourir. Le 2 octobre, un `git mv`
- *      a déplacé huit documents vers `site/`, et vingt citations sont restées sur
- *      `docs/architecture.md` — onze dans les sources, neuf dans l'artefact construit — plus une
- *      que le décompte d'origine n'avait pas vue, sur `docs/distribution.md`. Aucun de ces chemins
- *      n'existait depuis ce commit, et aucune porte ne le disait. Voir [#87].
- *
- *   11. LES CITATIONS EN COMMENTAIRE POINTENT UN DOCUMENT QUI EXISTE. Une citation n'est pas un
- *      lien Markdown : rien ne la résout, donc rien ne la voit mourir. Le 2 octobre, un `git mv`
- *      a déplacé huit documents vers `site/`, et vingt citations sont restées sur
- *      `docs/architecture.md` — onze dans les sources, neuf dans l'artefact construit — plus une
- *      que le décompte d'origine n'avait pas vue, sur `docs/distribution.md`. Aucun de ces chemins
- *      n'existait depuis ce commit, et aucune porte ne le disait. Voir [#87].
+ *      a déplacé huit documents vers `site/`, et **vingt-deux** citations sont restées sur des
+ *      chemins morts : vingt et une sur `docs/architecture.md` — onze dans les sources, dix dans
+ *      les artefacts construits — et une que le décompte d'origine n'avait pas vue, sur
+ *      `docs/distribution.md`. Aucune porte ne le disait. Le §11 dit ce qu'elle vérifie et ce
+ *      qu'elle ne peut pas. Voir [#87].
  *
  *   node scripts/verifier-documentation.mjs
  */
@@ -548,27 +542,32 @@ porte(
 
 // ---- 11. Les citations en commentaire, et le document qu'elles visent -----------------------
 //
-// Une citation en commentaire n'est pas un lien Markdown : rien ne la résout, donc rien ne la voit
-// mourir. Le 2 octobre, un `git mv` a déplacé huit documents vers `site/` — et les citations du
-// cœur sont restées sur `docs/architecture.md`, un chemin qui n'existait plus depuis ce commit. Le
-// build PROPAGEAIT la faute : dix-neuf des vingt vivaient aussi dans `signals.js`, et
-// `verifier-derive` exigeait que l'artefact suive la source, donc le compteur mentait en double.
-//
-// Le contrôle est donc une EXISTENCE de fichier, et non une résolution de lien. La forme citée
-// reste une mention en clair, `` `chemin.md` `` : c'est déjà la forme du dépôt — dix-neuf fois — et
-// un lien Markdown dans le JSDoc d'un fichier DISTRIBUÉ serait un lien dont le chemin relatif ne
-// marche que chez le contributeur, jamais chez l'utilisateur qui installe l'item.
+// Le contrôle est une EXISTENCE de fichier, et non une résolution de lien : une citation n'est pas
+// un lien Markdown, donc la porte de documentation n'avait rien à voir. La forme citée reste une
+// mention en clair, `` `chemin.md` `` : c'est déjà la forme du dépôt, et un lien Markdown dans le
+// JSDoc d'un fichier DISTRIBUÉ serait un lien dont le chemin relatif ne marche que chez le
+// contributeur, jamais chez l'utilisateur qui installe l'item.
 //
 // Le numéro de section est vérifié avec le chemin, et ce n'est pas un supplément de confort : un
 // `§3` qui ne désigne plus rien meurt exactement de la même façon qu'un chemin périmé, pour la même
-// raison — un document numéroté renuméroté. Ce que le contrôle NE peut PAS faire, et ce que la
-// ligne du bas dit, est vérifier qu'un numéro survivant désigne encore la bonne idée.
+// raison — un document numéroté renuméroté. Ici le numéro n'a pas bougé : le déplacement a été un
+// `git mv`, et `diff` de l'ancien `docs/architecture.md` contre `site/technique/architecture.md` ne
+// montre que des liens réécrits, aucun titre déplacé. Les huit documents sont restés au même
+// numéro de ligne. Seul le chemin était mort, et c'était le seul à réécrire.
 //
-// Le périmètre est `registry/default/*.ts`, les deux fichiers SOURCE. Les artefacts `.js` en sont
-// exclus : ils sont bâtis, `verifier-derive` exige qu'ils suivent, et les relire doublerait chaque
-// erreur sans en ajouter une. `scripts/` en est exclu aussi, et pour une raison mesurable : ses
-// commentaires citent `docs/nouveau.md` et `docs/avant.md`, qui sont des JEUX D'ESSAI de ce §9 et
-// du §10, et celui-ci cite `docs/architecture.md` dans le sien — un contrôle des scripts
+// L'écart entre la source et l'artefact — dix citations dans `signals.ts`, neuf dans `signals.js` —
+// n'est pas un compte qui se périme : il est STRUCTUREL. `tsc` efface une déclaration de type, et
+// un commentaire qui la suit part avec elle. Les deux citations disparues sont précisément celles
+// qui logeaient dans un type — `type Node` pour la liste chaînée, `export interface Signal` pour la
+// fusion de déclarations — donc elles n'atteignent JAMAIS l'artefact, et un compte de neuf y est le
+// seul compte vrai. C'est aussi pourquoi le périmètre s'arrête aux `.ts` : un `.js` n'a plus de
+// citation à perdre.
+//
+// Le périmètre est donc `registry/default/*.ts`, les deux fichiers SOURCE. Les artefacts `.js` en
+// sont exclus : ils sont bâtis, `verifier-derive` exige qu'ils suivent, et les relire doublerait
+// chaque erreur sans en ajouter une. `scripts/` en est exclu aussi, et pour une raison mesurable :
+// ses commentaires citent `docs/nouveau.md` et `docs/avant.md`, qui sont des JEUX D'ESSAI de ce §9
+// et du §10, et celui-ci cite `docs/architecture.md` dans le sien — un contrôle des scripts
 // échouerait donc sur des chemins faits pour ne pas exister.
 
 /** Les chemins cités par un texte, dans l'ordre, sans doublon. */
@@ -594,7 +593,7 @@ const sectionsCitees = (texte) =>
 const estTitre = (texte, numero) =>
   new RegExp(`^#{2,} ${numero.replaceAll(".", "\\.")}\\.?\\s`, "m").test(texte)
 
-const lisible = (sections) => sections.map(([chemin, numero]) => `${chemin} §${numero}`).join(" ")
+const enLisible = (sections) => sections.map(([chemin, numero]) => `${chemin} §${numero}`).join(" ")
 
 // Les deux lecteurs sont EXERCISÉS sur un texte qui ment, sinon ils n'ont aucune exécution pour
 // montrer qu'ils lisent encore : c'est le même filet que le §9, et pour la même raison — ici
@@ -610,9 +609,9 @@ porte(
 )
 porte(
   "le lecteur de sections n'attribue une section qu'au chemin qui la porte",
-  lisible(sectionsCitees(citation)) ===
+  enLisible(sectionsCitees(citation)) ===
     "docs/architecture.md §2 SPEC.md §5.1 docs/architecture.md §10",
-  lisible(sectionsCitees(citation)),
+  enLisible(sectionsCitees(citation)),
 )
 porte(
   "un titre se reconnait a un numero a un et a deux termes, et pas a un numero plus long",
@@ -678,13 +677,18 @@ porte(
 console.log("  --   les identifiants du cœur autres que les cinq de #46 ne sont pas vérifiés")
 
 // Une section citée en clair — `SPEC §5.1`, sans son chemin — n'est PAS vérifiée : le §11 ne lit
-// que la forme `` `chemin.md` §N ``, qui nomme son document. Il en reste environ cent cinquante
-// dans les deux sources, et les rattacher à leur document demanderait un analyseur de phrase : une
-// citation de la forme « `SPEC §9.2` — le batch … §13.4 » n'a pas de frontière simple. La zone ne
-// périme pas : SPEC.md est le contrat normatif, et un renumérotage y est un acte visible dans une
-// pull request, pas un glissement.
+// que la forme `` `chemin.md` §N ``, qui nomme son document. Les rattacher à leur document
+// demanderait un analyseur de phrase : une citation de la forme « `SPEC §9.2` — le batch … §13.4 »
+// n'a pas de frontière simple. Aucun compte n'est écrit ici : il serait périmé au prochain
+// scénario ajouté, et rien ne le garderait — le même défaut que les comptes que ce §11 remplace.
 console.log(
   "  --   les sections citees en clair, sans leur chemin — `SPEC §5.1` — ne sont pas verifiees",
+)
+
+// Et le §11 vérifie qu'un `§N` EXISTE, pas qu'il désigne la BONNE idée : `SPEC §5.1` peut demain
+// désigner autre chose sans que la porte bronche, et une recherche de chaîne ne peut pas le voir.
+console.log(
+  "  --   une section verifiee existe, sans garantie qu'elle designe encore la bonne idee",
 )
 
 cloture()
