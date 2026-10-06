@@ -81,7 +81,7 @@ export class Signal<T = undefined> {
       // SPEC §15.1 — le compteur d'itérations de drainage est armé DEPUIS LE SETTER. Le compteur,
       // lui, n'avance que dans le drainage : écrire dans le corps d'un batch ne l'avance pas, et
       // c'est ce qui compte les itérations de drainage et non les écritures.
-      if (batchIteration > SEUIL_CYCLE) throw new Error("Cycle detected")
+      if (batchIteration > CYCLE_LIMIT) throw new Error("Cycle detected")
       recordBatchSnapshot(this)
       this._value = next
       this._version++
@@ -126,21 +126,21 @@ export class Signal<T = undefined> {
    * source de plus.
    */
   _addNode(node: Node): void {
-    const tete = this._targets
+    const head = this._targets
     // Le nœud est-il DÉJÀ abonné ? `tete === node` couvre la tête, et `_targetPrev !== undefined`
     // couvre le reste de la chaîne. Sans ce second test, réattacher un nœud déjà présent le
     // rattachait à la tête alors qu'il était plus loin dans la liste : la liste devenait
     // CYCLED, et le parcours des abonnés ne finissait jamais. `_removeNode` remet les deux maillons
     // à `undefined`, donc c'est aussi ce qui rend le ré-abonnement possible après un retrait.
-    if (tete === node || node._targetPrev !== undefined) return
+    if (head === node || node._targetPrev !== undefined) return
     // Le nouveau devient la tête. `_targetPrev` pointe donc vers l'ANCIEN, et l'ancien pointe vers
     // le nouveau par `_targetNext` — les deux maillons en sens opposé, comme dans la liste des
     // dépendances. Le parcours part de `_targetPrev`.
-    node._targetPrev = tete
+    node._targetPrev = head
     node._targetNext = undefined
-    if (tete !== undefined) tete._targetNext = node
+    if (head !== undefined) head._targetNext = node
     this._targets = node
-    if (tete === undefined) untracked(() => this._watched?.call(this))
+    if (head === undefined) untracked(() => this._watched?.call(this))
   }
 
   /**
@@ -198,7 +198,7 @@ export class Signal<T = undefined> {
    * qui n'a pas de nom ici — donc une seule lecture, avant, et le `untracked` ne couvre que le
    * rappel.
    */
-  subscribe(fn: (value: T) => void): Dispositeur {
+  subscribe(fn: (value: T) => void): Disposer {
     const source = this
     return effect(
       function (this: unknown) {
@@ -208,7 +208,7 @@ export class Signal<T = undefined> {
         })
       },
       { name: "sub" },
-    ) as Dispositeur
+    ) as Disposer
   }
 }
 
@@ -274,7 +274,7 @@ export function signal<T>(value?: T, options?: SignalOptions<T>): Signal<T | und
 // deux objets, c'est le même.
 
 /** La version d'un nœud `-1` est une sentinelle, pas une version. Voir `site/technique/architecture.md` §3. */
-const ABANDONNE = -1
+const ABANDONED = -1
 
 type Node = {
   /** Version de la source telle que la cible l'a vue. `ABANDONNE` = potentielle sentinelle. */
@@ -306,7 +306,7 @@ type Node = {
    * réinsérer, et la dépendance disparaîtrait de la liste tout en restant lisible. Un booléen
    * coûte moins cher qu'un pointeur arrière, et il rend l'invariant explicite.
    */
-  _dansListe: boolean
+  _inList: boolean
   /** Le nœud que celui-ci occupait chez la même source avant d'être balayé. */
   _recycled: Node | undefined
 }
@@ -386,7 +386,7 @@ let currentBatchSnapshotVersion = 0
  * 102, et SPEC §15.2 refuse explicitement de figer le nôtre. Un cycle borné doit pouvoir faire
  * cinquante tours sans lever — `effect#19` le vérifie.
  */
-const SEUIL_CYCLE = 100
+const CYCLE_LIMIT = 100
 
 /**
  * Exécute `fn` sans qu'aucune lecture n'inscrive de dépendance.
@@ -422,20 +422,20 @@ export function untracked<T>(fn: () => T): T {
  * UN SEUL point d'accrochage pour l'allocation et le recyclage. C'est la seule façon de garantir
  * que les deux font la même chose, et la différence s'était déjà payée une fois.
  */
-function attacher(
-  noeud: Node,
-  cible: Computed<any> | Effect<any>,
+function attach(
+  node: Node,
+  target: Computed<any> | Effect<any>,
   source: Signal<any> | Computed<any>,
 ): void {
-  noeud._prev = cible._sources
-  noeud._next = undefined
-  if (cible._sources !== undefined) cible._sources._next = noeud
-  cible._sources = noeud
-  noeud._dansListe = true
+  node._prev = target._sources
+  node._next = undefined
+  if (target._sources !== undefined) target._sources._next = node
+  target._sources = node
+  node._inList = true
   // Une source ne s'abonne que si quelqu'un REGARDE l'cible. Sans abonné, personne n'a
   // besoin d'être prévenu, et le crochet `watched` ne doit pas se déclencher pour un calcul que
   // personne n'observe.
-  if ((cible._flags & TRACKING) !== 0) source._addNode(noeud)
+  if ((target._flags & TRACKING) !== 0) source._addNode(node)
 }
 
 function createNode(
@@ -450,11 +450,11 @@ function createNode(
     _next: undefined,
     _prev: undefined,
     _target: target,
-    _dansListe: false,
+    _inList: false,
     _recycled: undefined,
   }
   source._node = node
-  attacher(node, target, source)
+  attach(node, target, source)
   return node
 }
 
@@ -470,7 +470,7 @@ function newNode(source: Signal<any> | Computed<any>): Node | undefined {
   const node = source._node
 
   // Pas de nœud, ou un nœud VIVANT d'un autre cible : allocation neuve.
-  if (node === undefined || (node._target !== currentObserver && node._version !== ABANDONNE)) {
+  if (node === undefined || (node._target !== currentObserver && node._version !== ABANDONED)) {
     return createNode(source, currentObserver)
   }
 
@@ -486,7 +486,7 @@ function newNode(source: Signal<any> | Computed<any>): Node | undefined {
     node._targetNext = undefined
   }
   node._target = currentObserver
-  if (!node._dansListe) attacher(node, currentObserver, source)
+  if (!node._inList) attach(node, currentObserver, source)
   return node
 }
 
@@ -508,7 +508,7 @@ function cleanupSources(node: { _sources: Node | undefined }): void {
     const source = current._source
     if (source._node !== undefined) current._recycled = source._node
     source._node = current
-    current._version = ABANDONNE
+    current._version = ABANDONED
     if (current._next === undefined) {
       node._sources = current
       break
@@ -527,18 +527,18 @@ function cleanupDependency(node: { _sources: Node | undefined }): void {
   // `cleanupSources` a pointé `_sources` sur la QUEUE, donc on redescend vers la tête par `_prev`.
   // Le dernier survivant croisé est le plus ancien — c'est lui la nouvelle tête, et l'ordre de
   // lecture est donc l'ordre de la liste. ADR-0009.
-  let tete: Node | undefined = undefined
+  let head: Node | undefined = undefined
   for (let current = node._sources; current !== undefined; ) {
     const previousNode = current._prev
-    if (current._version === ABANDONNE) {
+    if (current._version === ABANDONED) {
       current._source._removeNode(current)
-      current._dansListe = false
+      current._inList = false
       // Le nœud quitté se détache de la liste des dépendances, sinon il resterait atteignable par un
       // parcours et continuerait d'y figurer. Les deux maillons sont recousus autour de lui.
       if (previousNode !== undefined) previousNode._next = current._next
       if (current._next !== undefined) current._next._prev = previousNode
     } else {
-      tete = current
+      head = current
     }
     // Restaurer le pointeur du nœud d'origine SEULEMENT s'il y en avait un. Un nœud alloué
     // PENDANT ce calcul n'a pas d'origine à restaurer : `createNode` vient de poser
@@ -548,7 +548,7 @@ function cleanupDependency(node: { _sources: Node | undefined }): void {
     current._recycled = undefined
     current = previousNode
   }
-  if (tete !== undefined) node._sources = tete
+  if (head !== undefined) node._sources = head
 }
 
 /**
@@ -635,8 +635,8 @@ function endBatch(): void {
     return
   }
 
-  let premiereErreur: unknown
-  let aErreur = false
+  let firstError: unknown
+  let hasError = false
 
   try {
     // La réconciliation passe AVANT la boucle, jamais dedans : elle avance la version des nœuds
@@ -660,10 +660,10 @@ function endBatch(): void {
           if ((generation._flags & DISPOSED) === 0 && sourcesAreStale(generation)) {
             generation._callback()
           }
-        } catch (erreur) {
-          if (!aErreur) {
-            aErreur = true
-            premiereErreur = erreur
+        } catch (error) {
+          if (!hasError) {
+            hasError = true
+            firstError = error
           }
         }
         generation = nextEffect
@@ -681,7 +681,7 @@ function endBatch(): void {
     currentBatchSnapshotVersion = 0
   }
 
-  if (aErreur) throw premiereErreur
+  if (hasError) throw firstError
 }
 
 /**
@@ -727,37 +727,37 @@ function sourcesAreStale(node: { _sources: Node | undefined }): boolean {
  * être créé : le vidage n'empêche rien et fait perdre la dépendance. `newNode` réactive les nœuds
  * existants, donc une liste vidée ne se reconstruit jamais.
  */
-function runCleanupUntracked(effet: Effect<any>): void {
-  const cleanup = effet._cleanup
+function runCleanupUntracked(instance: Effect<any>): void {
+  const cleanup = instance._cleanup
   if (typeof cleanup !== "function") return
-  effet._cleanup = undefined
+  instance._cleanup = undefined
   const previousObserver = currentObserver
   currentObserver = undefined
   try {
     cleanup()
-  } catch (erreur) {
+  } catch (error) {
     // Un cleanup qui lève DISPOSE l'effet. Il a lecteurs au milieu d'un drainage, et le laisser
     // en vie l'obligerait à tourner avec des nœuds incohérents.
-    effet._flags |= DISPOSED
-    disposeSelf(effet)
-    throw erreur
+    instance._flags |= DISPOSED
+    disposeSelf(instance)
+    throw error
   } finally {
     currentObserver = previousObserver
   }
 }
 
 /** Détache l'effet de toutes ses sources. Sans l'effet, il ne peut plus être réveillé. */
-function disposeSelf(effet: Effect<any>): void {
+function disposeSelf(instance: Effect<any>): void {
   // Un seul parcours, dans l'ordre de LECTURE : la tête est la source la plus ancienne, donc `_next`
   // descend vers les plus récentes — ADR-0009. C'est aussi l'ordre des crochets `unwatched`, et il est
   // observable. La version précédente devait descendre jusqu'au maillon `_prev` puis remonter par
   // `_next`, en deux passages, précisément parce que la tête était du bon côté.
-  for (let noeud = effet._sources; noeud !== undefined; noeud = noeud._next) {
-    noeud._source._removeNode(noeud)
+  for (let node = instance._sources; node !== undefined; node = node._next) {
+    node._source._removeNode(node)
   }
-  effet._fn = undefined
-  effet._sources = undefined
-  runCleanupUntracked(effet)
+  instance._fn = undefined
+  instance._sources = undefined
+  runCleanupUntracked(instance)
 }
 
 // ---- La classe Effect ------------------------------------------------------------------------
@@ -802,15 +802,15 @@ export class Effect<FnReturn = void | (() => void)> {
 
   /** Le corps de l'effet, collecte des dépendances comprise. C'est ce qu'une écriture déclenche. */
   _callback(): void {
-    const finir = this._start()
+    const done = this._start()
     try {
       if ((this._flags & DISPOSED) !== 0) return
       if (this._fn === undefined) return
-      const rendu = this._fn()
+      const result = this._fn()
       // Une valeur de retour qui n'est pas une fonction est IGNORÉE, sans erreur — SPEC §8.1.
-      if (typeof rendu === "function") this._cleanup = rendu as () => void
+      if (typeof result === "function") this._cleanup = result as () => void
     } finally {
-      finir()
+      done()
     }
   }
 
@@ -910,20 +910,17 @@ export interface Effect<FnReturn = void | (() => void)> {
  * Le dispositeur. Il porte `Symbol.dispose`, sans quoi `using` ne le verrait pas comme libérable et
  * le TypeScript refuserait la déclaration `using`.
  */
-export type Dispositeur = (() => void) & { [Symbol.dispose]?: () => void }
+export type Disposer = (() => void) & { [Symbol.dispose]?: () => void }
 
-export function effect<FnReturn = void>(fn: () => FnReturn): Dispositeur
-export function effect<FnReturn = void>(fn: () => FnReturn, options: { name?: string }): Dispositeur
-export function effect<FnReturn = void>(
-  fn: () => FnReturn,
-  options?: { name?: string },
-): Dispositeur {
-  const effet = new Effect<FnReturn>(fn, options)
+export function effect<FnReturn = void>(fn: () => FnReturn): Disposer
+export function effect<FnReturn = void>(fn: () => FnReturn, options: { name?: string }): Disposer
+export function effect<FnReturn = void>(fn: () => FnReturn, options?: { name?: string }): Disposer {
+  const instance = new Effect<FnReturn>(fn, options)
   try {
-    effet._callback()
-  } catch (erreur) {
-    effet._dispose()
-    throw erreur
+    instance._callback()
+  } catch (error) {
+    instance._dispose()
+    throw error
   }
   // `SPEC.md` §8.2 exige `name === "bound "`, `length === 0`, `Object.keys()` vide,
   // `[Symbol.dispose] === d`, utilisable avec `using`, ni une arrow ni l'instance.
@@ -934,14 +931,14 @@ export function effect<FnReturn = void>(
   // `§8.3` ne le demande qu'au CALLBACK. D'où la fermeture : elle rend les six-tenables.
   // C'est mesuré, pas supposé : `signalcn-seul/symbol-dispose-et-using` rejoue les deux.
   // biome-ignore lint/complexity/useArrowFunction: SPEC §8.2 exige que le dispositeur ne soit NI une arrow ni l'instance — le correctif de la règle produit exactement ce que la spec interdit, et aucune porte ne le verrait.
-  const dispositeur = function () {
-    effet._dispose()
-  } as Dispositeur
+  const disposer = function () {
+    instance._dispose()
+  } as Disposer
   // Un nom de méthode ne peut pas être vide — il serait `dispositeur` — donc la valeur est
   // écrite explicitement, comme l'exige §8.2.
-  Object.defineProperty(dispositeur, "name", { value: "bound ", configurable: true })
-  dispositeur[Symbol.dispose] = dispositeur
-  return dispositeur
+  Object.defineProperty(disposer, "name", { value: "bound ", configurable: true })
+  disposer[Symbol.dispose] = disposer
+  return disposer
 }
 
 /**
@@ -1093,20 +1090,20 @@ export class Computed<T = undefined> extends Signal<T | undefined> {
     try {
       cleanupSources(this)
       currentObserver = this
-      const valeur = this._fn()
+      const computed = this._fn()
       // On n'écrit que si quelque chose a bougé : sinon chaque lecture incrémenterait la version
       // et invaliderait les abonnés, alors que rien n'a changé.
-      if ((this._flags & HAS_ERROR) !== 0 || this._value !== valeur || this._version === 0) {
-        this._value = valeur
+      if ((this._flags & HAS_ERROR) !== 0 || this._value !== computed || this._version === 0) {
+        this._value = computed
         this._flags &= ~HAS_ERROR
         this._version++
       }
-    } catch (erreur) {
+    } catch (error) {
       // L'erreur est STOCKÉE dans `_value`, et `RUNNING` est relâché plus bas comme partout : le
       // compteur global ayant été mis à jour avant le calcul, la voie rapide 2 court-circuite
       // ensuite, donc une deuxième lecture RELANCE l'erreur stockée sans réévaluer une seule fois.
       // Six lectures d'une dérivation qui jette coûtent une évaluation, pas six.
-      this._value = erreur as never
+      this._value = error as never
       this._flags |= HAS_ERROR
       this._version++
     } finally {
@@ -1298,28 +1295,28 @@ export function createModel<TModel, TFactoryArgs extends any[] = []>(
     const stopCapturingEffects = startCapturingEffects()
     try {
       model = modelFactory(...args) as TModel
-    } catch (erreur) {
+    } catch (error) {
       // Les effets déjà capturés sont PERDUS, pas restitués à la portée englobante : une
       // construction avortée ne possède plus rien. Le dire explicitement, parce que le `finally`
       // refermerait la portée et les rendrait au parent — ce que la baseline ne fait pas.
       capturedEffects = undefined
-      throw erreur
+      throw error
     } finally {
       modelEffects = stopCapturingEffects()
     }
 
     wrapInAction(model as unknown as Record<string, unknown>)
 
-    const modele = model as unknown as Record<symbol, unknown>
-    modele[Symbol.dispose] = action(function disposeModel() {
+    const disposable = model as unknown as Record<symbol, unknown>
+    disposable[Symbol.dispose] = action(function disposeModel() {
       if (modelEffects) {
         // Une boucle SANS `try` : un cleanup qui leve interrompt les disposes suivants. C'est un
         // défaut figé par la matrice — `createModel#26` — et le corriger changerait le contrat.
-        const effets: Effect<any>[] = modelEffects
+        const effects: Effect<any>[] = modelEffects
         // `for…of` et non une boucle d'index : l'ordre de création est l'ordre de dispose, donc les
         // deux se confondent, et l'index n'apporte rien.
-        for (const effet of effets) {
-          effet._dispose()
+        for (const instance of effects) {
+          instance._dispose()
         }
       }
       modelEffects = undefined

@@ -3661,7 +3661,7 @@ export const COUVERTURE = {
     // mesurer demande un observateur — donc un effet dans un effet.
     "effect#34": "signalcn-seul/computed-leaks-its-effects",
     "effect#35": "effect/shape-of-the-disposer",
-    "effect#36": "signalcn-seul/options-de-linstance",
+    "effect#36": "signalcn-seul/instance-options",
     "effect#36b": "signalcn-seul/class-shape + source:src/index.ts#L770",
     "effect#37": "signalcn-seul/an-effect-is-observed-a-computed-is-not + source:src/index.ts#L776",
     "effect#38": "effect/first-run-and-arguments",
@@ -3678,7 +3678,7 @@ export const COUVERTURE = {
     // ATTEINTE, qui suppose `_start`, donc un interne que l'artefact n'a pas sous ce nom.
     "effect#40": "signalcn-seul/nested-effects-run-in-creation-order",
     "effect#40b": "signalcn-seul/guards-on-an-inconsistent-node + source:src/index.ts#L842",
-    "effect#41": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.2",
+    "effect#41": "signalcn-seul/symbol-dispose-and-using + divergence:SPEC.md#8.2",
     // ---- `batch` et `untracked` -----------------------------------------------------------------
     //
     // Vingt-quatre des vingt-six entrées `batch` et neuf des treize `untracked` sont couvertes par
@@ -3841,8 +3841,8 @@ export const COUVERTURE = {
     // dispose#2 : la baseline fait pointer `Symbol.dispose` sur le dispositeur, qui est une fonction
     // LIÉE, et V8 refuse alors cette méthode. On garde l'identité en passant par une fermeture :
     // le `bind` de la baseline était le seul obstacle, et il était évitable. CONFORME.
-    "dispose#2": "signalcn-seul/symbol-dispose-et-using",
-    "dispose#3": "signalcn-seul/symbol-dispose-et-using + divergence:SPEC.md#8.2",
+    "dispose#2": "signalcn-seul/symbol-dispose-and-using",
+    "dispose#3": "signalcn-seul/symbol-dispose-and-using + divergence:SPEC.md#8.2",
     // dispose#4 : `subscribe` renvoie aussi un disposeur, et il porte `Symbol.dispose`.
     "dispose#4": "subscribe/on-a-computed",
     // dispose#5 : un realm où `Symbol.dispose` est ABSENT. La matrice note que ce cas n'est
@@ -4212,7 +4212,7 @@ export const testsSignalcnSeul = {
     // `effect#36` — `options.name` est visible sur l'INSTANCE, et pas via la valeur de retour :
     // le retour est une fonction liée, dont le nom est `bound `. C'est ce qui rend l'instance
     // exportée indispensable.
-    "options-de-linstance": async ({ Effect: ClasseEffet }) => {
+    "instance-options": async ({ Effect: ClasseEffet }) => {
         const e = new ClasseEffet(() => 1, { name: "n" });
         assert.equal(e.name, "n");
         e.name = "z";
@@ -4308,7 +4308,7 @@ export const testsSignalcnSeul = {
     // Elles ne s'excluent pas : V8 refuse une fonction *liée* dont `Symbol.dispose` pointe sur
     // elle-même, et accepte une fonction simple. Le `bind` de la baseline était le seul
     // obstacle — un effet, et non une divergence.
-    "symbol-dispose-et-using": async ({ effect: effet }) => {
+    "symbol-dispose-and-using": async ({ effect: effet }) => {
         const journal = [];
         const d = effet(() => {
             journal.push("run");
