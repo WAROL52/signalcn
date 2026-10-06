@@ -183,7 +183,7 @@ construction : le fichier sort du rapport et le chiffre passe.
 | Que doit faire le cœur, exactement ? | [`SPEC.md`](./SPEC.md) |
 | Comment est construit le graphe ? | [`site/technique/architecture.md`](site/technique/architecture) |
 | Comment s'écrit un scénario ? | [`site/contributeurs/scenarios.md`](site/contributeurs/scenarios) |
-| Comment se prouve la conformité ? | [`site/utilisateurs/parity.md`](site/utilisateurs/parity) |
+| Comment se prouve la conformité ? | [`site/contributeurs/parity.md`](site/contributeurs/parity) |
 | Comment sont produits les artefacts ? | [`site/contributeurs/build.md`](site/contributeurs/build) |
 | Comment s'installent les artefacts ? | [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution) |
 | Que fait la CI, et dans quel ordre ? | [`site/contributeurs/ci.md`](site/contributeurs/ci) |

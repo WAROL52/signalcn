@@ -581,7 +581,7 @@ Le chemin d'installation est spécifié dans [`site/utilisateurs/distribution.md
 
 La distribution repose sur les adresses `owner/repo/item`, qui **n'existent pas avant `shadcn@4.10.0`**. C'est la version minimale supportée, et elle doit être déclarée à l'utilisateur.
 
-Le plancher ne vient pas du schéma d'item, qui fonctionne jusqu'à `4.8.0` : il vient uniquement de cet adressage. La CI teste donc une **matrice de deux versions**, le plancher déclaré et la dernière connue, plus un canari non bloquant sur `latest`. La politique est spécifiée dans [`site/utilisateurs/distribution.md`](site/utilisateurs/distribution) §8.
+Le plancher ne vient pas du schéma d'item, qui fonctionne jusqu'à `4.8.0` : il vient uniquement de cet adressage. La CI teste donc une **matrice de deux versions**, le plancher déclaré et la dernière connue, plus un canari non bloquant sur `latest`. La politique est spécifiée dans [`site/contributeurs/ci.md`](site/contributeurs/ci) §3.
 
 ## 18. Tests et couverture
 
@@ -682,7 +682,7 @@ Une seule table de scénarios est exécutée quatre fois : contre la baseline, c
 
 **Tolérance zéro** entre les cibles. Aucune liste de divergences acceptables : une divergence est un bug de build, pas une tolérance à consigner.
 
-La stratégie complète est spécifiée dans [`site/utilisateurs/parity.md`](site/utilisateurs/parity).
+La stratégie complète est spécifiée dans [`site/contributeurs/parity.md`](site/contributeurs/parity).
 
 ## 20. Contraintes d'architecture
 

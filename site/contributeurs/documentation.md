@@ -18,7 +18,6 @@ veut utiliser la bibliothèque n'a pas à lire une CI pour savoir comment l'inst
 | `SPEC.md` | le contrat normatif de comportement |
 | `site/contributeurs/PRD.md` | ce que le produit est et pourquoi il existe |
 | [`site/utilisateurs/distribution.md`](../utilisateurs/distribution.md) | où atterrit un artefact, quel chemin d'import |
-| [`site/utilisateurs/parity.md`](../utilisateurs/parity.md) | comment la garantie de conformité s'applique |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
 
 ### Interne — pour le mainteneur
@@ -28,6 +27,7 @@ veut utiliser la bibliothèque n'a pas à lire une CI pour savoir comment l'inst
 | [`site/technique/architecture.md`](../technique/architecture.md) | comment le graphe est construit |
 | [`site/contributeurs/build.md`](./build.md) | la chaîne de build et de minification |
 | [`site/contributeurs/ci.md`](./ci.md) | les jobs et leur ordre |
+| [`site/contributeurs/parity.md`](./parity.md) | comment la garantie de conformité s'applique |
 | [`site/technique/zero-dependency.md`](../technique/zero-dependency.md) | le contrôle de zéro-dépendance |
 | `CONTEXT.md` | le glossaire du domaine |
 | `docs/agents/` | la configuration des skills |
