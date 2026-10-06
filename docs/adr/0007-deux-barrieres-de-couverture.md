@@ -15,3 +15,9 @@ La couverture est une barrière bloquante à 100 % sur les trois métriques **au
 - **Le code mort est invisible par construction, donc gardé séparément.** Le runner ne mesure que ce qui est chargé : un fichier jamais importé n'apparaît nulle part, ni à zéro pour cent ni en avertissement. La garde compare les fichiers source sur disque aux scripts vus par `NODE_V8_COVERAGE`. Elle ne peut pas être fondue dans le seuil, car le seuil ne voit pas ce qui n'existe pas dans son rapport.
 - **Les exclusions sont interdites par une recherche de drapeau.** `--test-coverage-exclude` est invisible par construction : le fichier sort du rapport et le seuil passe. Il n'y a pas de code tiers ici à exclure — la couverture porte sur une base entièrement écrite par ce projet — donc l'interdiction ne coûte rien.
 - **Un seul concept à retenir pour le mainteneur** : la couverture ne doit jamais baisser. Le 100 % est l'état final, pas l'état de chaque commit.
+
+## Suite
+
+Ce qu'est concrètement une non-régression a été tranché plus tard, et contre la forme que ce document
+laisse croire : elle compare le **reliquat**, pas le ratio, parce qu'un ratio se prête mal à une
+comparaison entre deux commits. Voir [ADR-0012](./0012-la-non-regression-compare-le-reliquat.md).

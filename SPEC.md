@@ -624,14 +624,16 @@ Un motif borné exclut par construction `signals.js`, `signals.min.js`, `signals
 
 | Contexte | Barrière |
 |---|---|
-| **Pull request** | **Pas de régression** : chaque métrique est au moins égale à celle du merge-base. |
+| **Pull request** | **Pas de régression** : le **reliquat** — lignes, branches et fonctions non couvertes — ne peut pas augmenter depuis le merge-base. |
 | **Release** | La valeur **mesurée**, sur les trois métriques. |
 
 Le 100 % absolu est inapplicable en PR : une tranche TDD qui n'implémente que `signal()` laisserait tout le reste à zéro, ce qui décourage les petits pas — l'inverse de ce qu'un projet TDD veut. La non-régression est atteignable tranche par tranche, et c'est donc la barrière qui protège la couverture en cours de route.
 
 **Le seuil de release n'est pas 100 %, et la raison est une limite de la référence, pas du relevé.** Trois branches restent hors d'atteinte, et ce sont des gardes que `@preact/signals-core@1.14.4` ne sait pas atteindre par sa propre API non plus — dont une morte par construction dans son code. Les atteindre supposerait de changer le comportement, donc de violer §1. Elles sont nommées ligne par ligne dans [ADR-0011](docs/adr/0011-reliquat-de-couverture-non-atteignable.md).
 
-**La base est recalculée, jamais stockée.** Le runner natif n'a aucune notion de base, et V8 ne produit que des ranges bruts. Les trois pourcentages sont donc extraits de la ligne `all files` du rapport, dans un second `git worktree` du merge-base. Une base stockée dans un fichier committé se forge dans la même pull request qui la viole.
+**La base est recalculée, jamais stockée.** Le runner natif n'a aucune notion de base, et V8 ne produit que des ranges bruts. Les trois métriques sont donc extraites de la ligne `all files` du rapport, dans un second `git worktree` du merge-base. Une base stockée dans un fichier committé se forge dans la même pull request qui la viole.
+
+**Ce qui est comparé, c'est le reliquat, pas le ratio.** Un ratio se prête mal à une comparaison entre deux commits : son dénominateur est un fait de mise en forme. Mesuré, un renommage d'un seul caractère a fait repasser une signature de `effect()` sous la colonne du formateur, qui l'a recolée sur une ligne ; le ratio a perdu 0,0009 point alors que le reliquat restait à 5 et que la ligne disparue n'exécute rien. Une non-régression se mesure donc sur le **nombre** de lignes, branches et fonctions non couvertes, qui ne dépend d'aucun format. Le ratio reste affiché, et reste le seuil de release. [ADR-0012](docs/adr/0012-la-non-regression-compare-le-reliquat.md) refuse les trois autres voies et donne la preuve que la barrière mord encore.
 
 La non-régression vaut aussi au moment de la release : rien ne se relâche entre une pull request et un tag. Le seuil mesuré s'applique aux deux.
 

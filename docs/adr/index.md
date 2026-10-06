@@ -15,3 +15,4 @@ dossier sans page, sans quoi ils ne mènent nulle part une fois le dépôt publi
 - [ADR-0009 — La liste des dépendances reprend la géométrie de la baseline](./0009-geometrie-de-la-liste-des-dependances.md)
 - [ADR-0010 — Un computé ne s'empile pas dans la file de drainage, et la voie rapide 2 n'exige pas de cible](./0010-une-structure-sans-justification-nest-pas-contrat.md)
 - [ADR-0011 — Le reliquat de couverture : trois gardes que la référence ne peut pas atteindre non plus](./0011-reliquat-de-couverture-non-atteignable.md)
+- [ADR-0012 — La non-régression compare le reliquat, pas le ratio](./0012-la-non-regression-compare-le-reliquat.md)
