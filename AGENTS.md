@@ -1,5 +1,16 @@
 # signalcn — instructions pour les agents
 
+## Écrire ici
+
+**Une seule réponse, l'essentiel, et c'est tout.** Pas de récit, pas de résumé de ce que tu viens de
+faire, pas de tableau récapitulatif, pas de mise en valeur. L'essentiel, puis tu t'arrêtes.
+
+Si un détail manque, **une ligne** en bas — « tu veux le détail sur X ? » — et tu attends. Ne le
+déplie pas seul : c'est le lecteur qui décide ce qu'il lit.
+
+Une réserve ne devient pas un pavé. Mesure : si on ne peut pas le lire en dix secondes, elle est trop
+longue.
+
 ## Publier
 
 `master` **ne prend aucun commit direct** : une branche, une pull request, quatre checks requis. Les
