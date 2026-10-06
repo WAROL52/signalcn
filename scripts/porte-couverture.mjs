@@ -127,6 +127,17 @@ function lireLcov(fichier) {
     lignes: taux(compte.lignes),
     branches: taux(compte.branches),
     fonctions: taux(compte.fonctions),
+    // Le RELIQUAT : ce qui n'est PAS couvert, en nombre. C'est lui que la non-régression compare,
+    // pas le ratio — voir ADR-0012. Une signature de fonction compte pour une ligne couverte
+    // alors qu'elle n'exécute rien : Biome la recolle sur une ligne dès qu'un identifiant gagne un
+    // caractère de marge, et le ratio baisse de 0,0009 point sans qu'aucune instruction bouge.
+    // Mesuré : #74 a renommé `Dispositeur` en `Disposer`, une signature de quatre lignes est
+    // repassée sur une, et la porte a crié à la régression.
+    reliquat: {
+      lignes: compte.lignes[1] - compte.lignes[0],
+      branches: compte.branches[1] - compte.branches[0],
+      fonctions: compte.fonctions[1] - compte.fonctions[0],
+    },
   }
 }
 
@@ -264,10 +275,10 @@ if (!base) {
   console.log("  --   le merge-base n'est pas un ancetre de HEAD : non-regression non applicable")
 } else {
   for (const metrique of METRIQUES) {
-    if (courant.metriques[metrique] < base.metriques[metrique]) {
+    if (courant.metriques.reliquat[metrique] > base.metriques.reliquat[metrique]) {
       planter(
-        `regression ${metrique} : ${deux(base.metriques[metrique])}% a la base (${base.ref}) ` +
-          `-> ${deux(courant.metriques[metrique])}%`,
+        `regression ${metrique} : ${courant.metriques.reliquat[metrique]} non couvertes a la ` +
+          `tete (${base.ref}), ${base.metriques.reliquat[metrique]} au merge-base`,
       )
     }
   }

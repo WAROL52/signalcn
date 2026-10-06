@@ -1,28 +1,38 @@
-# Le lexique anglais des descripteurs : les mots qu'un descripteur — un nom de scenario, un nom de
-# test `signalcn-seul`, un identifiant du coeur renomme par #46 — peut employer.
+# Le lexique anglais des descripteurs ET des declarations du coeur : les mots qu'un descripteur —
+# un nom de scenario, un nom de test `signalcn-seul` — ou qu'un identifiant declare dans
+# `registry/default/signals.ts` peut employer. Voir le §7 de `scripts/verifier-documentation.mjs`.
 #
 # Ce n'est PAS une liste de mots francais a refuser : une telle liste refuse `parent` et `date` des
 # son premier passage, donc on la desactive. Ici le refus porte sur « ce mot n'existe nulle part en
 # anglais dans ce depot », ce qu'un mot francais ne peut pas eviter et qu'un mot anglais neuf doit
 # declarer : une ligne ici, et rien d'autre.
 #
-# Trois mots sont francais et y sont sur la meme ligne que des mots anglais : `de`, `et` et
-# `linstance` servent le seul descripteur que #46 declare deja anglais sans l'avoir decide,
-# `options-de-linstance`, et qui ne peut donc pas etre touche.
+# Il ne contenait aucun mot francais. Trois y etaient entres par accident, pour les deux
+# descripteurs que #46 declarait anglais sans l'avoir decide : `options-de-linstance` et
+# `symbol-dispose-et-using`, qui portaient `de`, `et` et `linstance`. C'etaient eux, ces mots-la,
+# qui perdaient la porte : son lexique est une liste de mots ACCEPTES, donc c'est lui qui decide de
+# ce qui est anglais, et il acceptait du francais. #74 les a renommes — `instance-options` et
+# `symbol-dispose-and-using` — et les trois mots sont sortis. Le lexique n'a donc plus une seule
+# entree qui ne soit pas anglaise.
+
 a
 abandon
+abandoned
 action
 after
 alternating
 an
 and
+are
 argument
 arguments
 around
 at
+attach
 auto
 b
 batch
+batched
 body
 bottom
 bounded
@@ -32,47 +42,61 @@ cached
 callback
 capture
 captured
+capturing
 caught
 chain
 class
 cleanup
 computed
+configurable
 conversions
 covers
+create
 created
 creation
+current
 cycle
 cycles
 cyclic
-de
 dependencies
 dependency
 depth
 despite
 detachment
+disposable
 dispose
+disposed
 disposer
+done
 drain
 draining
 during
 dynamic
 effect
 effects
+end
+enumerable
 enumeration
 equality
 error
 errors
-et
 evaluation
 every
+factory
 first
+flags
+fn
 follow
 follows
 from
 frozen
 function
+generation
 getter
+global
 guards
+has
+head
 idempotent
 identical
 identity
@@ -88,6 +112,7 @@ internal
 invalidation
 is
 it
+iteration
 its
 json
 key
@@ -95,7 +120,8 @@ lazy
 leaks
 leaves
 levels
-linstance
+limit
+list
 missing
 model
 models
@@ -104,12 +130,14 @@ nan
 negative
 nested
 nesting
+new
 next
 no
 node
 non
 not
 notification
+notified
 object
 observed
 observer
@@ -118,8 +146,10 @@ on
 only
 options
 order
+outdated
 outside
 peek
+prev
 previous
 primitive
 primitives
@@ -128,20 +158,32 @@ prototype
 queue
 reactivation
 read
+readonly
 recompute
+reconcile
+record
+recycled
 reentrant
 refresh
 reread
 rerun
 restore
+result
 return
 revert
 run
+running
+self
 shape
 signal
 skips
 snapshot
+snapshots
+source
 sources
+stale
+start
+stop
 stray
 strict
 string
@@ -153,6 +195,8 @@ suspended
 symbol
 synchronous
 takes
+target
+targets
 teardown
 that
 the
@@ -161,19 +205,26 @@ three
 throw
 throws
 to
+tracking
 two
 unbounded
 unlinked
 unsubscribe
 untracked
+unwatched
 up
 using
+val
 value
+version
 wakes
+watched
 watchers
 where
 with
+wrap
 wrapper
+writable
 write
 writes
 zero

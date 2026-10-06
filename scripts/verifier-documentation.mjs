@@ -367,12 +367,11 @@ porte(
 // dans ce dépôt ». Un mot français ne peut pas l'éviter, et un mot anglais neuf le déclare — une
 // ligne dans le lexique, qui est la seule liste que cette porte possède.
 //
-// Le périmètre est celui du ticket : les 97 descripteurs que la suite enregistre (82 scénarios et
-// 15 tests `signalcn-seul`), et les cinq identifiants que #46 a renommés dans le cœur. Les
-// commentaires ne sont pas lus, et c'est voulu : ils sont en français. Le contrôle ne couvre pas
-// les AUTRES identifiants du cœur — `tete`, `noeud`, `effet` sont encore français — parce que les
-// angliciser n'est pas le travail de ce ticket. La sortie le dit, en bas de ce §7 : une exclusion
-// que rien n'affiche est une exclusion que le lecteur ne peut pas voir.
+// Le périmètre est la règle entière, en deux lectures. Les 97 descripteurs que la suite enregistre
+// (82 scénarios et 15 tests `signalcn-seul`) et les cinq identifiants que #46 a renommés dans le
+// cœur, au §7 ; puis TOUTES les déclarations du cœur, au §7 bis. Les commentaires ne sont pas lus,
+// et c'est voulu : ils sont en français. Ce qui n'est pas lu, c'est le fichier de test — ses
+// variables locales ne sont pas des descripteurs, donc la règle ne les nomme pas.
 
 const contribution = await readFile(join(RACINE, "CONTRIBUTING.md"), "utf8")
 
@@ -456,6 +455,119 @@ porte(
   Object.entries(comptes)
     .map(([nom, compte]) => `${nom} ${compte}`)
     .join(", "),
+)
+
+// ---- 7 bis. Les DÉCLARATIONS DU CŒUR, et pas seulement les cinq de #46 ---------------------
+//
+// Les cinq identifiants ci-dessus sont un contrôle de PRÉSENCE : ils disent que le renommage a eu
+// lieu. Il ne disait rien de tous les AUTRES identifiants du cœur, qui étaient restés français —
+// dix-huit d'entre eux, mesurés. Une porte qui vérifie cinq noms et ignore les autres ne tient pas
+// la règle qu'elle porte : elle la constate sur un échantillon.
+//
+// Celui-ci vérifie la RÈGLE, sur toutes les déclarations du cœur : un nom déclaré, ses mots, le
+// lexique. Il faut donc lire les LOCAUX et les PARAMÈTRES, pas seulement le haut du fichier, et un
+// `tete` est presque toujours un `const` local ou un paramètre — les deux formes ci-dessous.
+//
+// Le prix est dans le lexique, et il est mesuré : quarante mots ordinaires y sont ajoutés. Le
+// lexique n'était calibré que pour des descripteurs courts — `recompute`, `cached-error`,
+// `draining` — et un identifiant de moteur en consomme des mots d'un tout autre registre,
+// `current`, `source`, `version`, `configurable`. C'est le coût de la règle, pas un accident : un
+// lexique qui ne contient que des noms de tests ne peut pas juger un nom de variable.
+//
+// LES COMMENTAIRES ET LES CHAÎNES SONT RETIRÉS AVANT LECTURE, et c'est indispensable : le cœur est
+// écrit en français, donc sans cela chaque locution de commentaire serait un « mot absent du
+// lexique ». Le retrait est écrit ici plutôt que par une expression régulière, parce qu'un `//`
+// dans une chaîne — et il y en a, les messages d'erreur du moteur sont des littéraux — se lirait
+// comme un début de commentaire. Il ne gère pas les littéraux d'expression, dont un `}` pourrait
+// être pris pour une fin de bloc : ce serait une source de faux positifs, donc un motif qui
+// tombe, pas un motif qui passe en silence.
+const sansProse = (source) => {
+  let sortie = ""
+  let i = 0
+  while (i < source.length) {
+    const c = source[i]
+    const suivant = source[i + 1]
+    if (c === "/" && suivant === "*") {
+      const fin = source.indexOf("*/", i + 2)
+      i = fin < 0 ? source.length : fin + 2
+      sortie += " "
+    } else if (c === "/" && suivant === "/") {
+      const fin = source.indexOf("\n", i)
+      i = fin < 0 ? source.length : fin
+      sortie += " "
+    } else if (c === '"' || c === "'" || c === "`") {
+      const guillemet = c
+      let j = i + 1
+      while (j < source.length && source[j] !== guillemet) j += source[j] === "\\" ? 2 : 1
+      i = j + 1
+      sortie += ' "" '
+    } else {
+      sortie += c
+      i++
+    }
+  }
+  return sortie
+}
+
+/** Les mots d'un nom : `_` puis le camelCase, chacun en minuscules. */
+const mots = (nom) =>
+  nom
+    .replaceAll("_", "-")
+    .split("-")
+    .flatMap((brique) =>
+      brique
+        .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+        .toLowerCase()
+        .split("-"),
+    )
+    .filter(Boolean)
+
+/**
+ * Les noms DÉCLARÉS, en trois formes. Le `catch` a sa propre forme parce que la générale ne le voit
+ * pas : `catch (erreur)` place une parenthèse là où elle attend un nom, et sans forme dédiée
+ * `erreur` passait — mesuré, c'est le seul des dix-huit que le contrôle ne voyait pas.
+ */
+const declarations = (code) => {
+  const noms = new Set()
+  for (const motif of [
+    /\b(?:const|let|var|function|class|type|interface)\s+([A-Za-z_$][\w$]*)/g,
+    /\bcatch\s*\(\s*([A-Za-z_$][\w$]*)/g,
+    /^\s*(?:export\s+)?([A-Za-z_$][\w$]*)\s*[?:]/gm,
+  ]) {
+    for (const trouve of code.matchAll(motif)) noms.add(trouve[1])
+  }
+  return noms
+}
+
+// Le lecteur est EXERCISÉ, comme le §9 et le §11 : un dépôt propre est vert sur un lecteur cassé.
+// Les quatre cas sont ceux qui ont cassé en route — le `catch`, le `camelCase`, un mot français
+// refusé, et un mot anglais accepté.
+const echauffement =
+  "const cible = 1\nfor (let noeud of xs) { }\ncatch (erreur) { }\nconst _dansListe = 2"
+porte(
+  "le lecteur de declarations voit un catch, un parametre et un camelCase",
+  [...declarations(sansProse(echauffement))].sort().join(" ") === "_dansListe cible erreur noeud",
+  [...declarations(sansProse(echauffement))].sort().join(" "),
+)
+porte(
+  "un mot absent du lexique est refuse, un mot present est accepte",
+  mots("noeud")
+    .filter((m) => !autorise(m))
+    .join(" ") === "noeud" && mots("effect").filter((m) => !autorise(m)).length === 0,
+  mots("noeud")
+    .filter((m) => !autorise(m))
+    .join(" "),
+)
+
+const nommes = declarations(sansProse(coeur))
+const horsAnglais = [...nommes]
+  .map((nom) => [nom, mots(nom).filter((mot) => !autorise(mot))])
+  .filter(([, absents]) => absents.length > 0)
+  .map(([nom, absents]) => `${nom} : ${absents.join(", ")}`)
+porte(
+  "aucune declaration du coeur ne porte un mot absent du lexique anglais",
+  horsAnglais.length === 0,
+  `${horsAnglais.length} declarations : ${horsAnglais.join(" ; ")}`,
 )
 
 // ---- 8. Le `base` du site, et le nom du dépôt -----------------------------------------------
@@ -667,14 +779,15 @@ porte(
 // [#68] décrit pour une autre porte. Le dépôt a déjà l'état qui dit « ni passé ni échoué » : `--`,
 // dans `porte-couverture`. Cette ligne est donc écrite avec ce préfixe et avec rien d'autre — ni
 // `ok`, ni `ECHEC` — donc elle ne compte ni comme un succès ni comme un échec.
-//
-// ELLE NE PORTE AUCUN NOMBRE, et c'est délibéré. Compter les mots du cœur que le lexique refuse
-// compterait d'abord le vocabulaire de TypeScript : sur vingt et un mots du langage, dix-sept sont
-// absents du lexique, donc `const`, `void`, `any` et les paramètres de type passeraient pour des
-// mots français. Les exclure demanderait une liste — les mots réservés, les abréviations — donc une
-// seconde liste à maintenir pour un chiffre faux. La zone, elle, ne périme pas : elle reste vraie
-// tant que la porte compte cinq identifiants, quoi qu'il advienne du cœur.
-console.log("  --   les identifiants du cœur autres que les cinq de #46 ne sont pas vérifiés")
+// ELLE NE PORTE AUCUN NOMBRE, et c'est délibéré. Compter un périmètre — les identifiants du cœur que
+// le lexique refuserait — compterait d'abord le vocabulaire de TypeScript : sur vingt et un mots du
+// langage, dix-sept sont absents du lexique, donc `const`, `void`, `any` et les paramètres de type
+// passeraient pour des mots français. Les exclure demanderait une liste — les mots réservés, les
+// abréviations — donc une seconde liste à maintenir pour un chiffre faux. La zone, elle, ne périme
+// pas : elle reste vraie tant que la règle s'applique à des descripteurs.
+console.log(
+  "  --   les variables locales du fichier de test ne sont pas lues : la règle ne nomme que des descripteurs",
+)
 
 // Une section citée en clair — `SPEC §5.1`, sans son chemin — n'est PAS vérifiée : le §11 ne lit
 // que la forme `` `chemin.md` §N ``, qui nomme son document. Les rattacher à leur document
