@@ -34,7 +34,7 @@
 | Comment est construit le graphe ? | [`./technique/architecture.md`](../technique/architecture.md) |
 | Comment s'écrit la source de vérité ? | [`./technique/architecture.md`](../technique/architecture.md) §15 |
 | Comment sont produits les artefacts ? | [`/build.md`](./build.md) |
-| Comment se prouve la conformité ? | [`./utilisateurs/parity.md`](../utilisateurs/parity.md), [`/scenarios.md`](./scenarios.md) |
+| Comment se prouve la conformité ? | [`./parity.md`](./parity.md), [`/scenarios.md`](./scenarios.md) |
 | Comment s'installent les artefacts ? | [`./utilisateurs/distribution.md`](../utilisateurs/distribution.md) |
 | Que fait la CI ? | [`/ci.md`](./ci.md) |
 | Qu'est-ce qui est interdit, et comment on le vérifie ? | [`./technique/zero-dependency.md`](../technique/zero-dependency.md) |

@@ -226,7 +226,7 @@ export class Signal<T = undefined> {
  *   - `implements` ne convient pas non plus, TypeScript exige que la classe déclare le membre.
  *
  * Le TYPE vient d'ici ; la VALEUR vient du `defineProperty` ci-dessous. Voir
- * `site/utilisateurs/distribution.md` §5.
+ * `docs/adr/0008-registry-file-partout-et-tsx-true-exige.md`.
  */
 export interface Signal<T = undefined> {
   brand: typeof BRAND_SYMBOL

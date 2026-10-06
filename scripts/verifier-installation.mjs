@@ -226,7 +226,7 @@ for (const { nom, paquet, plancher } of CLI) {
   //
   // Un `tsx: false` impose l'extension : l'item TypeScript arrive en `signals.js` contenant du
   // TypeScript. Ce n'est pas un cas d'erreur de la distribution mais un EXIGENCE documentée
-  // (SPEC §17.3, site/utilisateurs/distribution.md §4) — et une exigence qui se manifeste par un silence
+  // (SPEC §17.3, site/utilisateurs/distribution.md) — et une exigence qui se manifeste par un silence
   // serait pire qu'une exigence non documentée. On vérifie donc qu'il y a du bruit, et que ce
   // bruit vient bien du TypeScript. Mesuré une fois : sur la version plancher seulement, qui est
   // celle que la documentation déclare comme le plancher.
