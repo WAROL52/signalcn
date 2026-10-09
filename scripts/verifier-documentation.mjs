@@ -57,6 +57,15 @@
  *      `docs/distribution.md`. Aucune porte ne le disait. Le §11 dit ce qu'elle vérifie et ce
  *      qu'elle ne peut pas. Voir [#87].
  *
+ *   12. LA DOCUMENTATION DÉCLARÉE EST LA DOCUMENTATION QUI EXISTE. `documentation.md` §1 déclare
+ *      quelle documentation existe, en deux tables. Rien ne le vérifiait, et la déclaration a
+ *      pourri deux fois : deux pages de `site/technique/` mergées avec #69, et une de
+ *      `site/contributeurs/`, n'y figuraient pas. Les quatre fiches du guide y figuraient
+ *      seulement parce qu'un agent de revue les y avait ajoutées — du jugement là où une porte
+ *      suffisait. Un contrôle par liste échoue toujours de la même façon, par liste incomplète :
+ *      l'absence est le seul sens qui mérite une assertion. Le §12 dit ce qu'il exempte et ce
+ *      qu'il ne vérifie pas.
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
@@ -771,6 +780,71 @@ porte(
   "chaque section citee est un titre du document cite",
   renumerotees.size === 0,
   decrire(renumerotees),
+)
+
+// ---- 12. La documentation déclarée, et la documentation qui existe -------------------------
+//
+// `documentation.md` §1 décide « quelle documentation existe », en deux tables : le public, et
+// l'interne. La déclaration avait pourri deux fois sans qu'aucune porte ne parle : deux pages de
+// `site/technique/` mergées avec #69, et une de `site/contributeurs/`, n'y figuraient pas. Les
+// quatre fiches du guide y figuraient seulement parce qu'un agent de revue les y avait ajoutées —
+// du jugement là où une porte suffisait. C'est tout ce que le contrôle doit réparer : ce que la
+// porte ne garde pas est ce qui dépend de qui relit.
+//
+// L'ASSERTION EST LA PRÉSENCE D'UN NOM, et le SENS EST L'UN SEUL. Un contrôle par liste échoue
+// toujours de la même façon — par liste incomplète — donc l'absence est ce qu'il faut voir. La
+// DISPARITION, elle, est déjà couverte ailleurs : une ligne qui cite un fichier absent est un lien
+// Markdown, et le build tombe dessus. Ce contrôle ne ferait que le dire une seconde fois.
+//
+// Le NOM SUFFIT, et non le chemin : les tables écrivent le chemin complet, mais c'est le nom qui
+// identifie une page, et le nom est unique dans `site/` — vérifié, aucun doublon. Exiger le chemin
+// rendrait la porte sensible à la façon dont la table est écrite, ce qui n'est pas le sujet.
+//
+// Les `index.md` sont EXEMPTS, et c'est le seuljugement de la porte : ce sont des pages de
+// navigation, et les lister reviendrait à déclarer que le site a huit sections. `documentation.md`
+// est exempté pour la même raison qu'il est le sujet — il ne se déclare pas lui-même. Les deux
+// listes sont donc des choix, et c'est dit ici pour qu'on puisse les discuter.
+const SANS_DECLARATION = new Set(["index.md", "documentation.md"])
+
+/** Les `.md` de `site/`, en chemins relatifs à `site/`, hors build et cache. */
+const pagesDeSite = async (dossier) => {
+  const pages = []
+  for (const entree of await readdir(dossier, { withFileTypes: true })) {
+    // Le répertoire de build et son cache ne sont pas des pages : le premier est régénéré, et
+    // aucun des deux n'est dans l'arbre de travail. Les nommer les ferait compter comme absents.
+    if (entree.name === "dist" || entree.name === "cache") continue
+    const chemin = join(dossier, entree.name)
+    if (entree.isDirectory()) pages.push(...(await pagesDeSite(chemin)))
+    else if (entree.name.endsWith(".md")) pages.push(chemin)
+  }
+  return pages
+}
+
+const SITE = join(RACINE, "site")
+const politique = await readFile(join(SITE, "contributeurs", "documentation.md"), "utf8")
+// Les DEUX tables, et elles seules : la section s'arrête au titre suivant, parce que le reste du
+// document cite des pages sans les déclarer — `§4` parle de `signals.ts`, `§5` de `ci.md`.
+const declarees = politique.slice(
+  politique.indexOf("### Public"),
+  politique.indexOf("\n## 2. "),
+)
+
+const nonDeclarees = (await pagesDeSite(SITE))
+  .map((chemin) => chemin.slice(SITE.length + 1))
+  .filter((chemin) => !SANS_DECLARATION.has(chemin.split("/").pop()))
+  .filter((chemin) => !declarees.includes(chemin.split("/").pop()))
+
+porte(
+  "chaque page de site/ est declaree dans documentation.md",
+  nonDeclarees.length === 0,
+  nonDeclarees.join(", "),
+)
+
+// La porte dit ce qu'elle ne vérifie pas, comme les sections précédentes : le RÔLE écrit dans la
+// table, et le classement public / interne. Les deux sont de la prose, et aucune porte ne réécrit
+// de la prose — c'est le même arbitrage que le tableau des divergences, qui se garde à la relecture.
+console.log(
+  "  --   le role et le classement de chaque page ne sont pas verifies : seule la presence est mecanique",
 )
 
 // ---- La porte dit ce qu'elle ne vérifie pas -----------------------------------------------
