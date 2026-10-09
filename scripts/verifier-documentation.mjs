@@ -824,10 +824,7 @@ const SITE = join(RACINE, "site")
 const politique = await readFile(join(SITE, "contributeurs", "documentation.md"), "utf8")
 // Les DEUX tables, et elles seules : la section s'arrête au titre suivant, parce que le reste du
 // document cite des pages sans les déclarer — `§4` parle de `signals.ts`, `§5` de `ci.md`.
-const declarees = politique.slice(
-  politique.indexOf("### Public"),
-  politique.indexOf("\n## 2. "),
-)
+const declarees = politique.slice(politique.indexOf("### Public"), politique.indexOf("\n## 2. "))
 
 const nonDeclarees = (await pagesDeSite(SITE))
   .map((chemin) => chemin.slice(SITE.length + 1))
