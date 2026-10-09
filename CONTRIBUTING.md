@@ -81,7 +81,7 @@ n'appartiennent pas à ce job, et leurs lignes le disent.
 | `npm run zero-dependance` | Le cœur distribué qui lit autre chose que lui-même — 18 motifs interdits, sur l'artefact minifié. |
 | `npm run parite` | La table sur les quatre cibles — baseline, source, build, minifié. |
 | `verifier-derive` | Un artefact committé périmé. |
-| `npm run documentation` | Un `README` qui ment sur la surface, une divergence non consignée, un descripteur français, une citation en commentaire qui pointe un document déplacé. |
+| `npm run documentation` | Un `README` qui ment sur la surface, une divergence non consignée, un descripteur français, une citation en commentaire qui pointe un document déplacé, une page de `site/` que la politique de documentation ne déclare pas. |
 | `npm run verifier-ruleset` | Un job que la CI exécute sans l'exiger, ou un check exigé qu'elle n'exécute plus. |
 | `npm run documentation-statique` + `verifier-proprete` | Un site qui ne se construit pas, un build qui écrit hors de `site/`. **Hors `rapide`** : c'est le job `documentation-statique`, en parallèle, et dans cet ordre — la propreté relit l'instantané que le build a pris avant de tourner, donc un arbre de travail sale n'est pas un échec. |
 | `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier. Le build résout les liens dans l'espace SOURCE, et il saute les liens dont la cible porte une extension d'asset — sans rien demander —, la navigation et le lien du titre. **Hors `rapide`** : même job, après la propreté, parce qu'elle lit la sortie du build. |
