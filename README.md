@@ -281,7 +281,7 @@ signalcn
 ## Documentation
 
 - [Guide d'usage](site/utilisateurs/index) — cinq fiches : Installer, Premier effet, Migrer depuis Preact, Vérifier l'artefact installé, Le batch et ses surprises. Ce guide pointe vers ce README et ne le recopie pas.
-- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — **pour contribuer** : les portes, et les quatre pièges qui mordent sans prévenir.
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — **pour contribuer** : les portes, et les huit pièges qui mordent sans prévenir.
 - [`PRD.md`](site/contributeurs/PRD) — vision, objectifs, périmètre et contraintes produit.
 - [`SPEC.md`](./SPEC.md) — contrat comportemental et technique.
 - [`ROADMAP.md`](site/contributeurs/ROADMAP) — suivi interne de l'implémentation et des releases.

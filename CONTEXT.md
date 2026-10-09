@@ -47,8 +47,12 @@ Propriété selon laquelle un test échoue dès qu'un comportement change. Une g
 _Avoid_ : couverture
 
 **Couverture** :
-Proportion de lignes, de branches et de fonctions atteignues par les tests. C'est une barrière de qualité, jamais une preuve que le comportement est juste.
+Proportion de lignes, de branches et de fonctions atteues par les tests. C'est une barrière de qualité, jamais une preuve que le comportement est juste.
 _Avoid_ : garantie, preuve, validation
+
+**Piège** :
+Règle de jugement qu'aucune porte ne peut attraper — les deux côtés d'une comparaison restent du code valide, l'incident est un geste, pas une API bannie. Il vit dans `CONTRIBUTING.md`, qui le porte en prose, et il n'entre dans cette liste qu'après un incident qui l'a fait manquer au moins une fois.
+_Avoid_ : règle, standard, convention, garde-fou
 
 ## La distribution
 
