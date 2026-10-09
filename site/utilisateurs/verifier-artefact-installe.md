@@ -51,9 +51,12 @@ assertion ait tourné. Il faut donc lire le rapport TAP :
 # skipped      == 0
 ```
 
-Le nombre de scénarios vient de la table elle-même : une comparaison manuelle qui ne dérive
-pas. La stratégie de comptage, mesurée, est dans
+Le nombre de scénarios vient de la table elle-même, donc la comparaison est automatique et ne
+peut pas dériver. La stratégie de comptage, mesurée, est dans
 [`site/contributeurs/parity.md`](../contributeurs/parity.md).
+
+> **Marqueur** — si vous savez lire un rapport TAP, vous avez la fiche. La section suivante dit
+> ce qu'une suite verte ne vous promet pas.
 
 ## Ce que ça ne prouve pas
 
@@ -67,9 +70,9 @@ Une suite verte prouve que **ce fichier** satisfait la table des scénarios, sur
   sort du contrat.
 - **Que les trois métriques de couverture tiennent.** Elles sont mesurées sur la source dans le
   dépôt, pas chez vous. La suite installée n'énumère pas les branches — elle les parcourt.
-- **Que la minification est bonne pour vous.** Elle est identique octet pour octet à la suite
-  de la source, donc plus petite : les noms de champs internes sont stables, mais ce n'est pas
-  ce que la couverture mesure.
+- **Que la minification est bonne pour vous.** Le minifié est strictement plus petit que le
+  buildé — c'est la seule assertion — et les noms de champs internes sont stables, mais ce n'est
+  pas ce que la couverture mesure.
 - **Que le code mort n'est pas livré.** Une branche inatteignable passe la suite ; c'est la
   couverture qui la déclare, et elle n'est pas exécutée chez vous.
 

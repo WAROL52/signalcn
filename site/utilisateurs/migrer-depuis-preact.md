@@ -56,6 +56,9 @@ baseline en faisait une fois un objet poison global.
 prototype pour détecter le type — il verra une erreur au lieu d'un poison qu'il a lui-même
 semé.
 
+> **Marqueur** — si vous savez ce que change chaque écart, vous avez la fiche. La section
+> suivante est la liste de relecture, pour le moment où vous ouvrez votre code.
+
 ## La liste de relecture
 
 Cinq recherches, à lancer dans l'ordre :

@@ -84,16 +84,12 @@ batch(() => {
 
 L'effet ne tourne pas entre les deux écritures : il tourne une fois, à la sortie, sur la
 dernière valeur. Écrire la même valeur deux fois ne notifie qu'une fois — la coalescence,
-fite par `SPEC.md` §9.3.
+figée par `SPEC.md` §9.3.
 
 Un `batch` imbriqué ne draine rien de plus : seul le batch le plus externe déclenche la
 propagation. La surprise — d'un ordre, d'une portée, d'un computed lu trop tôt — mord à
 l'exécution, pas à la lecture. C'est le sujet de
 [Le batch et ses surprises](./batch-et-surprises.md).
-
-> **Marqueur** — si vous écrivez, lisez et disposez, vous n'avez plus rien à apprendre ici. Les
-> sections suivantes expliquent pourquoi le suivi marche, et elles sont pour le jour où ça vous
-> surprend.
 
 ## S'arrêter
 
@@ -108,8 +104,11 @@ Et le cleanup quand une source change : le corps d'un `effect` peut **retourner*
 de nettoyage, appelée avant la ré-exécution suivante — ou à la dispose. Le sujet, avec les
 écarts assumés, est dans `SPEC.md` §12.
 
+> **Marqueur** — si vous savez créer, lire, regrouper et disposer, vous avez la fiche. La
+> section suivante est un renvoi, pas un coût.
+
 ## Et pour les objets ?
 
 `createModel()` fait pour un objet métier ce que `signal` fait pour une valeur : chaque champ
-devient un signal, et chaque méthode un `action`. Cette fiche s'arrête là — c'est le seul export
-dont la forme vaut une lecture séparée, et le `README.md` la couvre.
+devient un signal, et chaque méthode own énumérable un `action`. Cette fiche s'arrête là — c'est
+le seul export dont la forme vaut une lecture séparée, et le `README.md` la couvre.
