@@ -7,8 +7,8 @@ non plus des commentaires dans `signals.ts` — c'est l'objet d'un ticket sépar
 
 ## 1. Deux publics, deux ensembles
 
-Le dépôt compte désormais huit documents. Les mélanger est un service rendu : un adopter qui
-veut utiliser la bibliothèque n'a pas à lire une CI pour savoir comment l'installer.
+Les mélanger est un service rendu : un adopter qui veut utiliser la bibliothèque n'a pas à lire
+une CI pour savoir comment l'installer.
 
 ### Public — pour un adopter
 
@@ -17,7 +17,11 @@ veut utiliser la bibliothèque n'a pas à lire une CI pour savoir comment l'inst
 | `README.md` | installation, exemple, surface publique, divergences |
 | `SPEC.md` | le contrat normatif de comportement |
 | `site/contributeurs/PRD.md` | ce que le produit est et pourquoi il existe |
-| [`site/utilisateurs/distribution.md`](../utilisateurs/distribution.md) | où atterrit un artefact, quel chemin d'import |
+| [`site/utilisateurs/distribution.md`](../utilisateurs/distribution.md) | installer : où atterrit un artefact, les deux exigences |
+| [`site/utilisateurs/premier-effet.md`](../utilisateurs/premier-effet.md) | le premier programme qui marche |
+| [`site/utilisateurs/migrer-depuis-preact.md`](../utilisateurs/migrer-depuis-preact.md) | ce qui change dans du code écrit contre la baseline |
+| [`site/utilisateurs/verifier-artefact-installe.md`](../utilisateurs/verifier-artefact-installe.md) | faire tourner la suite installée, et ses limites |
+| [`site/utilisateurs/batch-et-surprises.md`](../utilisateurs/batch-et-surprises.md) | batchs, cascades, `action`, et les surprises à l'exécution |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
 
 ### Interne — pour le mainteneur

@@ -40,7 +40,7 @@ Trois conséquences normatives, figées par `SPEC.md` §9 :
 
 ## Deux règles, pas une
 
-C'est le piège numéro un, et il est fige : `SPEC.md` §13.4 dit **deux règles distinctes**, et
+C'est le piège numéro un, et il est figé : `SPEC.md` §13.4 dit **deux règles distinctes**, et
 les confondre produit une suite qui passe sur les graphes simples et échoue sur les graphes
 réels.
 
@@ -86,6 +86,9 @@ C'est la forme pour les **mutations** : une action est synchrone, elle retourne 
 fonction, et elle est sûre à appeler depuis n'importe où. `createModel()` les produit tout seul
 sur les méthodes own énumérables — le détail est dans le `README.md`.
 
+> **Marqueur** — si vous savez regrouper et lire les deux règles, vous avez la fiche. La section
+> suivante est pour le jour où un ordre vous surprend.
+
 ## Ce qui surprend
 
 Une liste courte, et elle ne remplace pas les deux règles :
@@ -99,7 +102,3 @@ Une liste courte, et elle ne remplace pas les deux règles :
 - **Un computed lu pendant un drainage** réévalue et intègre les écritures : un computed
   invalidé puis relu sans abonné n'est pas un computed désactivé.
 - **Disposer un effet pendant le drainage** est licite : l'effet est sauté, sans callback.
-
-> **Marqueur** — si vous savez pourquoi l'effet le plus récent tourne parfois au contraire de
-> l'ordre d'écriture, et pourquoi deux écritures se coalescent, vous avez la fiche. Le reste
-> est la référence : `SPEC.md` §9, §13.4, §13.5.
