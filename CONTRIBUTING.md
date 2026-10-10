@@ -1,7 +1,7 @@
 # Contribuer à signalcn
 
 `signalcn` reproduit le comportement observable de `@preact/signals-core@1.14.4` — quirks
-compris. Ce document est le **mode d'emploi** : comment travailler ici, et les quatre pièges qui
+compris. Ce document est le **mode d'emploi** : comment travailler ici, et les huit pièges qui
 mordent sans prévenir. Les règles de fond sont ailleurs, et il n'y a pas de troisième version
 d'elles ici : [`ROADMAP.md`](site/contributeurs/ROADMAP) §2 les porte, [`SPEC.md`](./SPEC.md) est le contrat
 normatif.
@@ -139,7 +139,11 @@ et **affiche « pas de merge-base » — la non-régression de couverture se dé
 Les deux autres sont `setup-node` épinglé à Node 24 et `npm ci` sur une arborescence propre. Sans
 effet aujourd'hui, mais c'est la raison pour laquelle la CI reste le juge.
 
-## Les quatre pièges
+## Les huit pièges
+
+Une règle n'entre dans cette liste qu'après un incident qui l'a fait manquer au moins une fois.
+La phrase ne juge que les règles venues après elle : les quatre premières sont antérieures, et la
+deuxième vient de « la moitié des bugs de ce dépôt » — pas d'un incident unique.
 
 **1. Ne jamais éditer un `.js` généré.** `registry/default/` contient deux sources tenues à la main
 et quatre artefacts construits. Un `.js` modifié à la main est écrasé au prochain build, et
@@ -165,6 +169,35 @@ pas couverte, écrivez le scénario qui la couvre.
 `v8 ignore` sont interdits, et la porte les cherche dans tout le dépôt. Le seuil porte sur la
 **source** et sur elle seule, par un motif sur `registry/default/`. Une exclusion est invisible par
 construction : le fichier sort du rapport et le chiffre passe.
+
+**5. Produis les deux côtés d'une comparaison de la même façon.** Un `sed` de retour appliqué à un
+seul des deux côtés produit un diff **lisible et faux** : rien dans sa sortie ne dit qu'il a été
+manipulé. Tant que les deux côtés ne sortent pas de la même transformation, ils ne sont pas
+comparables. L'incident : comparer `signals.ts` à celui de `master` par un `sed` inversé sur le seul
+côté courant, et lire dans le résultat une fabrique `valeur` qui n'existe dans aucun des deux
+fichiers. Ce qui l'a annulé, et qui est le seul contrôle qui pouvait : compter les dix exports
+réels des deux côtés.
+
+**6. Une barrière qui tombe doit pouvoir tomber pour une cause mesurée.** Une porte qui échoue un
+jour sur une absence, sur un compte vide ou sur un répertoire jamais peuplé apprend à être ignorée
+— et le jour où elle échoue pour de vrai, plus personne ne la lit. Si une barrière doit être
+désactivée, que ce soit pour une cause nommée. L'incident : la non-régression comparait des
+**ratios**, et a échoué sur une quatrième décimale, deux nombres affichés identiques —
+[`ADR-0012`](docs/adr/0012-la-non-regression-compare-le-reliquat.md) la compare au **reliquat**.
+
+**7. Un chiffre écrit dans une prose doit être gardé par quelque chose.** Un nombre ne se périme pas
+en criant : il devient faux et personne ne le voit. Alors il est supprimé, ou il est gardé par une
+assertion — jamais laissé dans du texte libre. L'incident, deux fois dans une même session : les
+nombres du contrat étaient recopiés à la main dans six endroits, dont une troisième copie que le
+journal du harnais rend déjà et que rien ne vérifiait.
+
+**8. Confronte la prose neuve aux documents normatifs du dépôt.** Une fiche, une page, un paragraphe
+répète des faits que portent le `README.md`, la SPEC et les ADR : si elle en diverge, elle ment, et
+aucune porte ne le voit — la prose ne se relit pas. Relisez ce que vous venez d'écrire **contre la
+source qui fait foi**, pas contre votre souvenirs d'il y a une heure. L'incident, trois fois dans
+une seule passe de revue : une fiche affirmait que `createModel` enveloppe chaque méthode, quand
+`SPEC.md` §16.2 exclut les méthodes de classe ; une autre écrivait qu'une comparaison était
+manuelle quand la parité la fait automatiquement.
 
 ## Ce qu'on ne fait pas
 
