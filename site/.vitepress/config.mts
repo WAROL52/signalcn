@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress"
 
 import { journalHarnais } from "./journal-harnais.mjs"
+import { mermaid, validerMermaid } from "./mermaid.mjs"
 
 // Trois publics, trois sections, et les documents du dépôt rendus sans qu'aucun bouge.
 //
@@ -91,8 +92,22 @@ export default defineConfig({
   // d'exécution — le même fait que les deux règles de drainage de `SPEC.md` §13.4, que la figure
   // d'`architecture.md` doit dessiner. Voir #50, et `npm run documentation` qui garde la présence
   // du marqueur sur la page.
+  // Un thème, et une seule chose à enregistrer : le composant que le plugin markdown-it émet.
+  // Sans lui, un bloc `mermaid` devient un composant inconnu et VitePress le rend en texte
+  // brut — donc le diagramme apparaîtrait sous forme de code, et le build resterait vert.
+  vite: {
+    plugins: [validerMermaid],
+  },
+
   markdown: {
-    config: journalHarnais,
+    // Deux plugins, deux métiers : l'un injecte le journal du harnais, l'autre émet le
+    // composant Mermaid. Les deux sont des règles `core` `after("block")`, donc l'ordre n'est
+    // pas une promesse — ils ne se touchent jamais, l'un cherchant `<!-- harnais -->` et
+    // l'autre un bloc dont l'info est `mermaid`.
+    config: (md) => {
+      journalHarnais(md)
+      mermaid(md)
+    },
   },
 
   themeConfig: {
