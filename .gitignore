@@ -6,3 +6,7 @@ node_modules/
 # suffisent, en interrogeant git et non ce fichier.
 site/.vitepress/dist/
 site/.vitepress/cache/
+
+# Les brouillons de la session : tickets en cours, corps de pull request. Ce sont des notes de
+# travail, pas des documents du dépôt — un corps de PR s'écrit ailleurs et se colle à `gh`.
+.scratch/
