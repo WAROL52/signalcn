@@ -11,6 +11,17 @@
 #
 # L'ordre est SÉVÉRITÉ : la forme d'un code qui ne compile pas se corrige avant le code lui-même.
 #
+# `message` n'est pas dans `pre-commit` et ne pourrait pas y être. Pendant `pre-commit`, le commit
+# en cours n'existe pas encore, et `.git/COMMIT_EDITMSG` porte le message du commit **précédent** ;
+# sur `commit-msg`, ce même fichier porte le message en cours. Mesuré le 2026-10-09 : un contrôle en
+# `pre-commit` lit `premier commit de référence` pendant que le commit s'appelle
+# `Un 一头 dans le titre` — et il valide. C'est l'événement qui décide, pas le fichier : le même
+# fichier, lu au même endroit, donne la bonne réponse une fois sur les deux.
+#
+# `{1}` est le chemin que git transmet au hook et que lefthook rend au job, mesuré par une sonde.
+# Il ne doit jamais être reconstruit dans le script : une reconstruction lit le fichier périmé, et
+# c'est exactement ce que ce câblage corrige.
+#
 # Les commandes vivent dans `package.json`, comme celles de la CI : ce fichier appelle, il ne
 # décide pas. Voir `site/contributeurs/ci.md` §7.
 pre-commit:
@@ -19,3 +30,8 @@ pre-commit:
       run: npm run formater
     - name: compilation
       run: npm run typecheck
+
+commit-msg:
+  jobs:
+    - name: message
+      run: node scripts/verifier-message.mjs {1}
