@@ -50,6 +50,12 @@ export default defineConfig({
   // tiret cadratin disparaît chez GitHub et reste chez VitePress. Le `œ` n'est PAS un diacritique,
   // donc les deux le gardent — « VitePress mange les accents » serait faux, et c'est mesuré.
   //
+  // L'APOSTROPHE EST UN QUATRIÈME ÉCART, et il ne se voit pas dans les trois exemples ci-dessus
+  // parce qu'aucun de leurs titres n'en porte. GitHub la supprime, VitePress la remplace par un
+  // tiret : `## Ce que l'installation ne prouve pas` donne `ce-que-linstallation-ne-prouve-pas` chez
+  // le premier, `ce-que-l-installation-ne-prouve-pas` chez le second. Mesuré le 2026-10-09, deux
+  // cycles de build perdus : les trois règles voisines étaient écrites, celle-ci ne l'était pas.
+  //
   // Une ancre ne peut donc être ni VALIDÉE — il faudrait réimplémenter les deux slugifiers, et ils
   // sont une dépendance versionnée de l'un et de l'autre — ni REFUSÉE : mesuré, 421 des 422 ancres de
   // ce site sont la barre latérale et la table des matières que VitePress émet lui-même, et rien dans
