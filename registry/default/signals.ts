@@ -1263,7 +1263,10 @@ const AsyncFunction = (async () => {}).constructor
  * wrapper, donc `model.a === model.b`. Sans ce cache, la clé visitée en second recevrait un
  * wrapper du wrapper — une seconde couche `batch` + `untracked`, donc deux fois le flush.
  */
-const enveloppes = new WeakMap<(...args: unknown[]) => unknown, (...args: unknown[]) => unknown>()
+const enveloppes = new WeakMap<
+  (...args: unknown[]) => unknown,
+  (...args: unknown[]) => unknown
+>()
 
 /**
  * Enveloppe chaque fonction PROPRE énumérable dans une `action`, récursivement.
@@ -1288,10 +1291,10 @@ function wrapInAction(value: Record<string, unknown>): void {
   for (const key of Object.keys(value)) {
     const descripteur = Object.getOwnPropertyDescriptor(value, key)
     if (descripteur === undefined) continue
-    const val =
-      descripteur.get !== undefined || descripteur.set !== undefined
-        ? value[key]
-        : descripteur.value
+    // Un accesseur : ni lu, ni écrit. La valeur d'un getter n'entre donc pas dans le modèle.
+    if (descripteur.get !== undefined || descripteur.set !== undefined) continue
+
+    const val = descripteur.value
     if (typeof val === "function") {
       let enveloppe = enveloppes.get(val)
       if (enveloppe === undefined) {

@@ -1116,7 +1116,10 @@ function wrapInAction(value) {
         const descripteur = Object.getOwnPropertyDescriptor(value, key);
         if (descripteur === undefined)
             continue;
-        const val = descripteur.get !== undefined || descripteur.set !== undefined ? value[key] : descripteur.value;
+        // Un accesseur : ni lu, ni écrit. La valeur d'un getter n'entre donc pas dans le modèle.
+        if (descripteur.get !== undefined || descripteur.set !== undefined)
+            continue;
+        const val = descripteur.value;
         if (typeof val === "function") {
             let enveloppe = enveloppes.get(val);
             if (enveloppe === undefined) {
