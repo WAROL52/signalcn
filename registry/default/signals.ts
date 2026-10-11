@@ -1263,10 +1263,7 @@ const AsyncFunction = (async () => {}).constructor
  * wrapper, donc `model.a === model.b`. Sans ce cache, la clé visitée en second recevrait un
  * wrapper du wrapper — une seconde couche `batch` + `untracked`, donc deux fois le flush.
  */
-const enveloppes = new WeakMap<
-  (...args: unknown[]) => unknown,
-  (...args: unknown[]) => unknown
->()
+const enveloppes = new WeakMap<(...args: unknown[]) => unknown, (...args: unknown[]) => unknown>()
 
 /**
  * Enveloppe chaque fonction PROPRE énumérable dans une `action`, récursivement.
@@ -1291,11 +1288,13 @@ function wrapInAction(value: Record<string, unknown>): void {
   for (const key of Object.keys(value)) {
     const descripteur = Object.getOwnPropertyDescriptor(value, key)
     if (descripteur === undefined) continue
-    // Un accesseur : ni lu, ni écrit. La valeur d'un getter n'entre donc pas dans le modèle.
-    if (descripteur.get !== undefined || descripteur.set !== undefined) continue
-
-    const val = descripteur.value
+    const estAccesseur = descripteur.get !== undefined || descripteur.set !== undefined
+    const val = estAccesseur ? value[key] : descripteur.value
     if (typeof val === "function") {
+      // Un accesseur en lecture ne reçoit PAS l'enveloppe : écrire dans un slot en accès sans
+      // setter levait une `TypeError` en mode strict, et était un no-op silencieux en sloppy.
+      // C'est le défaut que l'ADR corrige — et le seul.
+      if (estAccesseur) continue
       let enveloppe = enveloppes.get(val)
       if (enveloppe === undefined) {
         if (val.constructor === AsyncFunction) {
