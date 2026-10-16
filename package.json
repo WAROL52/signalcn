@@ -21,9 +21,10 @@
     "documentation-statique": "git status --porcelain -z --untracked-files=all > \"$(git rev-parse --git-dir)/avant-build\" && vitepress build site",
     "verifier-proprete": "node scripts/verifier-proprete.mjs",
     "verifier-liens-publies": "node scripts/verifier-liens-publies.mjs",
+    "verifier-figures": "node scripts/verifier-figures.mjs",
     "verifier-installation": "node scripts/verifier-installation.mjs",
     "verifier-ruleset": "node scripts/verifier-ruleset.mjs",
-    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive && npm run documentation-statique && npm run verifier-proprete && npm run verifier-liens-publies && npm run verifier-ruleset",
+    "porte": "npm run typecheck && npm run harnais && npm run couverture && npm run test && npm run biome && npm run build && npm run zero-dependance && npm run verifier-build && npm run parite && npm run documentation && npm run verifier-derive && npm run documentation-statique && npm run verifier-proprete && npm run verifier-liens-publies && npm run verifier-figures && npm run verifier-ruleset",
     "prepare": "lefthook install"
   },
   "devDependencies": {
