@@ -101,8 +101,13 @@ export const validerMermaid = {
 
     const mermaid = await chargerMermaid()
 
-    for (const [corps, graphe] of blocs) {
-      const ligne = code.slice(0, corps.index).split("\n").length
+    for (const match of blocs) {
+      // L'indice vit sur le TABLEAU de correspondance, pas sur la chaîne : une déstructuration
+      // `[corps, graphe]` perd `match.index`, et une ligne calculée sur `undefined` — donc sur le
+      // fichier ENTIER — annonçait la dernière ligne de la page comme celle du bloc. Mesuré sur la
+      // démonstration forcée : une fence à la ligne 5, une ligne annoncée 9.
+      const graphe = match[1]
+      const ligne = code.slice(0, match.index).split("\n").length
       try {
         await mermaid.parse(graphe)
       } catch (cause) {
