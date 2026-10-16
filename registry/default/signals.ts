@@ -1279,7 +1279,12 @@ const enveloppes = new WeakMap<(...args: unknown[]) => unknown, (...args: unknow
  *
  * Le veto qui protège les signaux compare la VALEUR de la marque et non son nom. La baseline
  * testait `!("brand" in val)`, donc tout objet métier portant une propriété `brand` — un
- * catalogue, un DTO — était silencieusement ni validé ni enveloppé.
+ * catalogue, un DTO — était silencieusement ni validé ni enveloppé. Ici la comparaison porte sur
+ * la valeur rangée SOUS LE NOM `brand` — `val.brand` — et non sur une lecture par la clé
+ * symbole : la marque est posée sous le nom `brand` (`conv#12`, ADR-0004), donc `val[BRAND_SYMBOL]`
+ * ne lit rien, et la marche serait descendue dans le signal lui-même, jamais protégé — elle aurait
+ * remplacé le `_fn` d'un computé par l'enveloppe, et le cache dérivé serait à jamais périmé ;
+ * sur un computé déjà lu, la descente dans les nœuds internes déborde la pile.
  *
  * Le cycle n'est PAS détecté : un objet cyclique produit toujours un dépassement de pile après
  * mutation partielle, parce que la matrice le fige.
@@ -1314,7 +1319,13 @@ function wrapInAction(value: Record<string, unknown>): void {
       continue
     }
 
-    if (typeof val === "object" && val !== null && val[BRAND_SYMBOL] !== BRAND_SYMBOL) {
+    // Le veto qui protège les signaux : la marque est lue PAR SON NOM, et c'est sa VALEUR qu'on
+    // compare au symbole. Voir le commentaire de la fonction, plus haut.
+    if (
+      typeof val === "object" &&
+      val !== null &&
+      (val as Record<string, unknown>).brand !== BRAND_SYMBOL
+    ) {
       wrapInAction(val as Record<string, unknown>)
     }
   }
