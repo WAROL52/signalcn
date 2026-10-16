@@ -376,8 +376,8 @@ porte(
 // dans ce dépôt ». Un mot français ne peut pas l'éviter, et un mot anglais neuf le déclare — une
 // ligne dans le lexique, qui est la seule liste que cette porte possède.
 //
-// Le périmètre est la règle entière, en deux lectures. Les 97 descripteurs que la suite enregistre
-// (82 scénarios et 15 tests `signalcn-seul`) et les cinq identifiants que #46 a renommés dans le
+// Le périmètre est la règle entière, en deux lectures. Les 104 descripteurs que la suite enregistre
+// (82 scénarios et 22 tests `signalcn-seul`) et les cinq identifiants que #46 a renommés dans le
 // cœur, au §7 ; puis TOUTES les déclarations du cœur, au §7 bis. Les commentaires ne sont pas lus,
 // et c'est voulu : ils sont en français. Ce qui n'est pas lu, c'est le fichier de test — ses
 // variables locales ne sont pas des descripteurs, donc la règle ne les nomme pas.
