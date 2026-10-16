@@ -3779,6 +3779,35 @@ export const COUVERTURE = {
     "modele#32": "model/two-instances",
     "modele#33": "model/two-instances",
     "modele#34": "model/cyclic-getter-and-primitives",
+    // Les sept corrections de `createModel` d'ADR-0005 : une par écart du §16.6 de `SPEC.md`, et
+    // chaque entrée porte UN test `signalcn-seul`, sans aucun marqueur. La règle est celle de
+    // l'introduction : le marqueur dit l'invisibilité d'artefact, jamais une divergence assumée —
+    // donc la moitié CORRIGÉE de chaque écart ne peut se figer nulle part dans un test rejouable,
+    // et elle vit en prose, dans ADR-0005, dans `SPEC.md` §16.6 et §21.2, et dans la ligne de
+    // `research/baseline-1.14.4.md` qui porte le même numéro (sondes des deux moteurs, 16 octobre).
+    // Ce que chaque test fige, c'est la BORNE de la correction : ce qu'elle ne devait pas casser,
+    // observable des deux côtés.
+    // `modele#35` — le veto de la marque : signal et computé traversés restent LES MÊMES objets
+    //   (la garde du paquet lit la clé `L1081`), et l'actualisation d'un computé survit.
+    "modele#35": "signalcn-seul/brand-value-skips-a-signal-in-a-model",
+    // `modele#36` — la fabrique n'embrasse que les clés PROPREMENT énumérables, `L1076`-`L1081`.
+    "modele#36": "signalcn-seul/only-own-enumerable-keys-are-wrapped",
+    // `modele#37` — l'accesseur est LU au sens du descripteur et JAMAIS écrit : invoqué une fois
+    //   à la construction, il reste un accesseur, la descente continue dans son objet (`L1077`-`L1080`).
+    "modele#37": "signalcn-seul/getter-is-read-not-written",
+    // `modele#38` — le sous-arbre partagé ne se ré-emballe pas : une seule enveloppe pour deux
+    //   routes de lecture (`L1077`-`L1081`).
+    "modele#38": "signalcn-seul/shared-subtree-identity",
+    // `modele#39` — un `Symbol.dispose` fourni par l'utilisateur n'ajoute aucune clé au modèle ;
+    //   il est rangé sous son propre symbole, et rien de plus (`L1111`).
+    "modele#39": "signalcn-seul/no-stray-key-on-the-model",
+    // `modele#40` — une fonction async enveloppée draine en DEUX passages, et le journal est
+    //   identique des deux côtés (`L991`-`L993`) ; l'avertissement est étouffé pendant le
+    //   rejeu, sa moitié divergente reste dans ADR-0005.
+    "modele#40": "signalcn-seul/asynchronous-fn-drains-in-two-passes",
+    // `modele#41` — une fabrique qui ne renvoie pas un objet lève une `TypeError` : chez nous par
+    //   la garde, chez le paquet par l'écriture du dispositeur en mode strict (`L1113`-`L1118`).
+    "modele#41": "signalcn-seul/null-factory-return-throws-on-first-use",
     // --- groupe `subscribe` : 15 entrees
     // `subscribe#12` est le SEUL cas que la table ne peut pas dire : l'effet interne se nomme "sub",
     // et le paquet publie minifie ses noms de fonctions, donc `name` y vaut la chaine vide.
@@ -3884,7 +3913,9 @@ export const ENTREES_ATTENDUES = [
     // `signalcn-seul/internal-effect-takes-the-options-name`.
     // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
     ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
-    ...Array.from({ length: 34 }, (_, i) => `modele#${i + 1}`),
+    // Les sept corrections de `createModel` (ADR-0005) portent la portée à 41 : #35 a #41, une
+    // entrée par correction du §16.6 — voir la matrice de couverture, chacune porte son test.
+    ...Array.from({ length: 41 }, (_, i) => `modele#${i + 1}`),
     // Les dix entrées NÉES DU DÉCOUPAGE. Une entrée qui asserte un comportement vérifiable ET
     // un nom que l'artefact minifie est deux entrées : l'une comparable, l'autre marquée. La
     // lettre reprend le précédent de `computed#3b` et `computed#18b`, et le mot `b` signifie
@@ -4293,6 +4324,11 @@ export const testsSignalcnSeul = {
         new ClasseEffet(() => {
             assert.throws(() => finir(), /Out-of-order effect/);
         })._callback();
+        // Refermer la portée ABANDONNÉE. Le hors-ordre ne referme rien : fermer la portée d'un effet
+        // courant est un refus, et l'état reste celui de celui qui a ouvert. Laisser `batchDepth`
+        // empilé ici empoisonnait la suite : les écritures des tests suivants ne draineraient plus
+        // jamais — repéré le 16 octobre par le test async, le premier qui écrit après ce garde.
+        finir();
     },
     // `dispose#5` — un realm où `Symbol.dispose` est ABSENT fait de la clé la chaîne
     // `"undefined"` chez la baseline, et c'est un quasi-leak : `using` devient un no-op qui fuit
@@ -4343,6 +4379,214 @@ export const testsSignalcnSeul = {
         assert.throws(() => {
             s.value = 2;
         }, TypeError);
+    },
+    // ---- Les sept corrections de `createModel` (ADR-0005) ------------------------------------
+    //
+    // Sept entrées du registre couvrent les sept écarts du §16.6 de `SPEC.md`. La règle qui les
+    // tient est une seule, et elle est sévère : chaque test n'affirme que ce qui tient des DEUX
+    // côtés — chez nous ET sur le paquet installé, c'est-à-dire ce que le harnais rejoue. La
+    // moitié CORRIGÉE de chaque écart — l'observable que la correction fabrique — ne peut pas se
+    // figer ici : la rejouer échouerait sur l'artefact par construction, et un marqueur ne la
+    // sauverait pas, parce que le marqueur dit l'invisibilité d'artefact, jamais une divergence
+    // assumée. La moitié divergente reste donc en prose : ADR-0005, `SPEC.md` §16.6 et §21.2, et
+    // les lignes de `research/baseline-1.14.4.md`. Ce que chaque test fige, c'est la BORNE de la
+    // correction : ce qu'elle ne devait pas casser.
+    // modele#35 — le veto `brand`. Se fige : un signal et un computé restent LES MÊMES objets à
+    // travers la fabrique, et l'actualisation d'un computé survit. Historique de sonde du
+    // 16 octobre : tant que le veto lisait `val[BRAND_SYMBOL]` — une clé par symbole, qui ne
+    // porte rien, la marque vivant sous le NOM `brand` — la descente entrait dans le computé
+    // lui-même et remplaçait son `_fn` : le cache dérivé restait périmé pour toujours.
+    // Divergent, donc en prose : l'objet métier portant `brand` est enveloppé chez nous et
+    // passé brut chez la baseline — le test ne peut rien en dire, il se rejouerait rouge.
+    "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel }) => {
+        const source = moteur(0);
+        const derive = computed(() => source.value + 1);
+        const M = createModel(() => ({ source, derive }));
+        const modele = new M();
+        assert.equal(modele.source, source, "le signal reste le même objet à travers la fabrique");
+        assert.equal(modele.derive, derive, "le computé aussi : il porte la marque");
+        assert.equal(source.brand, Symbol.for("preact-signals"), "c'est cette VALEUR, lue sous le nom `brand`, que le veto compare");
+        source.value = 7;
+        assert.equal(modele.source.value, 7, "la source est la même, l'écriture y passe");
+        assert.equal(modele.derive.value, 8, "le computé suit la source : la descente n'a rien cassé");
+    },
+    // modele#36 — le domaine d'énumération : le PROPRE énumérable, et rien d'autre. Se fige,
+    // des deux côtés : une méthode de classe (prototype, non énumérable), une fonction propre
+    // non énumérable, une fonction héritée énumérable restent utilisables — par identité, et
+    // par `this` pour l'état. Divergent, donc en prose : l'héritée énumérable est COPIÉE comme
+    // propriété propre chez la baseline (`Object.keys` la remonte) et intacte chez nous ; une
+    // pollution énumérable de `Object.prototype` atterrit sur chaque modèle chez elle et ne
+    // les atteint plus chez nous ; une pollution posée en GETTER fait lever la création chez
+    // elle et passe chez nous.
+    "only-own-enumerable-keys-are-wrapped": async ({ createModel }) => {
+        class K {
+            constructor() {
+                this.n = 0;
+            }
+            met(v) {
+                this.n += v;
+                return this.n;
+            }
+        }
+        const methode = K.prototype.met;
+        const MK = createModel(() => new K());
+        const mk = new MK();
+        assert.equal(mk.met, methode, "une méthode de classe n'est pas enveloppée : identité conservée");
+        assert.equal(mk.met(3), 3, "et `this` reste l'instance");
+        assert.equal(mk.n, 3);
+        const visible = function visible(v) {
+            return v;
+        };
+        const cachee = function cache() {
+            return 42;
+        };
+        const par = { visible };
+        Object.defineProperty(par, "cache", {
+            value: cachee,
+            enumerable: false,
+            writable: true,
+            configurable: true,
+        });
+        const MP = createModel(() => par);
+        const mp = new MP();
+        assert.equal(mp.cache, cachee, "une clé propre NON énumérable n'est pas dans le domaine");
+        assert.equal(typeof mp.visible, "function", "le propre énumérable reste le domaine de l'enveloppe");
+        const traverse = { v: 0, inc(v) { this.v += v; return this.v; } };
+        const MT = createModel(() => traverse);
+        const mt = new MT();
+        assert.equal(mt.inc(4), 4, "l'enveloppe est posée, `this` reste le modèle");
+        assert.equal(traverse.v, 4);
+        const prototype = {
+            h(v) {
+                this.v = (this.v ?? 0) + v;
+                return this.v;
+            },
+        };
+        const heritee = Object.create(prototype);
+        heritee.v = 0;
+        const MH = createModel(() => heritee);
+        const mh = new MH();
+        assert.equal(mh.h(5), 5, "une héritée énumérable reste appelable, `this` = modèle");
+        assert.equal(heritee.v, 5, "l'état du modèle a tourné des deux côtés");
+    },
+    // modele#37 — la descension lit le DESCRIPTEUR. Se fige : l'accesseur est invoqué UNE fois à
+    // la construction des deux côtés, reste un accesseur — le descripteur n'est jamais remplacé
+    // par une propriété de données — et la descente CONTINUE dans l'objet qu'il renvoie, dont
+    // la fonction est remplacée et garde son `this`. Divergent, donc en prose : la baseline se
+    // sert de la lecture pour choisir la branche PUIS écrit dans le même slot — un accesseur en
+    // lecture sans setter lève une `TypeError` en strict (le paquet installé la lève encore,
+    // mesure du 16 octobre : « Cannot set property acc of #<Object> which has only a getter »),
+    // et un `set` présent y reçoit l'enveloppe — jamais chez nous.
+    "getter-is-read-not-written": async ({ createModel }) => {
+        const inc = function inc(v) {
+            interieur.v += v;
+            return interieur.v;
+        };
+        const interieur = { v: 0, inc };
+        let tours = 0;
+        const base = {};
+        Object.defineProperty(base, "acc", {
+            get() {
+                tours++;
+                return interieur;
+            },
+            enumerable: true,
+            configurable: true,
+        });
+        const M = createModel(() => base);
+        const m = new M();
+        assert.equal(tours, 1, "l'accesseur est invoqué une seule fois, à la construction");
+        const descripteur = Object.getOwnPropertyDescriptor(m, "acc");
+        assert.equal(descripteur.get !== undefined && descripteur.set === undefined, true, "l'accesseur reste un accesseur, jamais une propriété de données");
+        assert.equal(interieur.inc !== inc, true, "la descente a continué dans l'objet du getter");
+        assert.equal(interieur.inc(7), 7, "et la fonction enveloppée garde son `this`");
+        assert.equal(interieur.v, 7);
+    },
+    // modele#38 — la mémoïsation. Un sous-arbre partagé garde UNE identité par toutes ses
+    // routes, et l'état y passe comme par une seule. L'objet de la fabrique lui-même reste
+    // l'instance : rien n'est copié. Divergent, donc en prose : deux clés pointant une MÊME
+    // fonction donnent deux enveloppes chez la baseline (`m.a !== m.b`, mesure du 16 octobre)
+    // et une chez nous — et chez elle, la marche repasse sur le sous-arbre partagé et
+    // re-enveloppe : deux remplacements comptés par un piège à setter là où la nôtre n'en fait
+    // plus qu'un.
+    "shared-subtree-identity": async ({ createModel }) => {
+        const feuille = { v: 0, inc(v) { this.v += v; return this.v; } };
+        const arbre = { feuille };
+        const M = createModel(() => ({ A: arbre, B: arbre }));
+        const m = new M();
+        assert.equal(m.A, m.B, "les deux clés pointent la même instance");
+        assert.equal(m.A, arbre, "et le modèle est l'objet de la fabrique, muté en place");
+        assert.equal(m.A.feuille, m.B.feuille, "le sous-arbre partagé, identique par les deux routes");
+        assert.equal(m.A.feuille.inc(3), 3, "l'état passe par la première route");
+        assert.equal(feuille.v, 3, "et c'est le même objet : aucun état ne se dédouble");
+    },
+    // modele#39 — `Symbol.dispose` absent ne produit aucune clé. Dans un realm NORMAL, les deux
+    // côtés rangent le dispositeur sous le seul symbole : aucun nom de plus sur le modèle, aucun
+    // symbole de plus. Divergent, donc en prose : le realm où le symbole manque — sonde `vm` en
+    // CJS du 16 octobre — porte sur CHAQUE modèle une clé `\"undefined\"` énumérable dont la
+    // valeur est une fonction, et `getOwnPropertySymbols` n'y renvoie rien ; chez nous, rien
+    // n'est posé. Le no-op de `using` qui en découle reste du côté de la baseline.
+    "no-stray-key-on-the-model": async ({ createModel }) => {
+        const M = createModel(() => ({ a: 0, b: 1 }));
+        const m = M();
+        assert.deepEqual(Object.getOwnPropertyNames(m), ["a", "b"], "pas un nom de plus sur le modèle");
+        assert.deepEqual(Object.getOwnPropertySymbols(m), [Symbol.dispose], "et le seul symbole du dispositeur");
+        assert.equal(typeof m[Symbol.dispose], "function", "le dispositeur est une fonction");
+        assert.equal(
+        // biome-ignore lint/suspicious/noPrototypeBuiltins: la cible est ES2020 (`lib` du tsconfig) et `Object.hasOwn` est ES2022 — le correctif de la règle ferait tomber `tsc`.
+        Object.prototype.hasOwnProperty.call(m, "undefined"), false, "aucune clé `\"undefined\"` — chez la baseline, il n'y en a qu'avec le symbole absent");
+    },
+    // modele#40 — une fonction async enveloppée déclenche un AVERTISSEMENT. Le signal fait partie
+    // de la correction, et un test ne peut rien en faire : il est émis à la CONSTRUCTION, et le
+    // harnais rejoue la construction sur l'artefact, qui reste silencieux. Ce qui se fige est ce
+    // que le silence couvrait : les DEUX drainages, journal pour journal identiques des deux
+    // côtés — le préfixe synchrone se vide sur place, l'écriture après le premier `await` dans
+    // un second passage. L'avertissement est étouffé pendant la construction : sa
+    // moitié-divergence reste en prose (ADR-0005).
+    "asynchronous-fn-drains-in-two-passes": async ({ signal: moteur, effect: effet, createModel, }) => {
+        const avertir = console.warn;
+        console.warn = () => { };
+        try {
+            const source = moteur(0);
+            const journal = [];
+            effet(() => journal.push(`e${source.value}`));
+            const M = createModel(() => ({
+                async go() {
+                    source.value = 1;
+                    journal.push("apres1");
+                    await Promise.resolve();
+                    source.value = 2;
+                    journal.push("apres2");
+                },
+            }));
+            const m = new M();
+            journal.push("debut");
+            const promesse = m.go();
+            assert.ok(promesse instanceof Promise, "la méthode async retourne une promesse");
+            journal.push("retour");
+            await promesse;
+            assert.deepEqual(journal, ["e0", "debut", "apres1", "e1", "retour", "e2", "apres2"], "deux drainages : `e1` avant `retour`, `e2` après l'attente");
+        }
+        finally {
+            console.warn = avertir;
+        }
+    },
+    // modele#41 — les quatre gardes défensives. Le seul observable qu'une garde CORRIGE et que
+    // les deux côtés partagent : une fabrique qui ne renvoie pas un objet lève une `TypeError`.
+    // Chez nous, la garde la lève AVANT toute mutation ; chez la baseline, la levée
+    // vient plus loin — l'écriture du dispositeur sur une primitive (`L1111`), « Cannot set
+    // properties of null » / « Cannot create property... on number '42' » — et ne survit qu'en
+    // mode strict, qui est le mode de l'artefact. Les trois autres gardes restent en prose :
+    // l'accesseur de modele#37, le `Symbol.dispose` fourni par l'utilisateur jamais écrasé (la
+    // baseline l'écrase : « log vide », ligne 29 de `research/baseline-1.14.4.md`), et le
+    // tableau d'effets effacé dans un `finally` (chez elle, un dispose rejoué après un cleanup
+    // qui lève fait rejouer le reste de la file — sonde du 16 octobre, `c3` refermée au second
+    // dispose).
+    "null-factory-return-throws-on-first-use": async ({ createModel }) => {
+        const M = createModel(() => null);
+        assert.throws(() => M(), TypeError, "une fabrique qui renvoie null lève : la garde chez nous, l'écriture du dispositeur chez elle");
+        const N = createModel(() => 42);
+        assert.throws(() => N(), TypeError, "un nombre non plus : une propriété sur une primitive lève en strict des deux côtés");
     },
 };
 /**
