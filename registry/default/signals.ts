@@ -1263,7 +1263,7 @@ const AsyncFunction = (async () => {}).constructor
  * wrapper, donc `model.a === model.b`. Sans ce cache, la clé visitée en second recevrait un
  * wrapper du wrapper — une seconde couche `batch` + `untracked`, donc deux fois le flush.
  */
-const enveloppes = new WeakMap<(...args: unknown[]) => unknown, (...args: unknown[]) => unknown>()
+const wrappers = new WeakMap<(...args: unknown[]) => unknown, (...args: unknown[]) => unknown>()
 
 /**
  * Enveloppe chaque fonction PROPRE énumérable dans une `action`, récursivement.
@@ -1291,17 +1291,17 @@ const enveloppes = new WeakMap<(...args: unknown[]) => unknown, (...args: unknow
  */
 function wrapInAction(value: Record<string, unknown>): void {
   for (const key of Object.keys(value)) {
-    const descripteur = Object.getOwnPropertyDescriptor(value, key)
-    if (descripteur === undefined) continue
-    const estAccesseur = descripteur.get !== undefined || descripteur.set !== undefined
-    const val = estAccesseur ? value[key] : descripteur.value
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    if (descriptor === undefined) continue
+    const isAccessor = descriptor.get !== undefined || descriptor.set !== undefined
+    const val = isAccessor ? value[key] : descriptor.value
     if (typeof val === "function") {
       // Un accesseur en lecture ne reçoit PAS l'enveloppe : écrire dans un slot en accès sans
       // setter levait une `TypeError` en mode strict, et était un no-op silencieux en sloppy.
       // C'est le défaut que l'ADR corrige — et le seul.
-      if (estAccesseur) continue
-      let enveloppe = enveloppes.get(val)
-      if (enveloppe === undefined) {
+      if (isAccessor) continue
+      let wrapper = wrappers.get(val)
+      if (wrapper === undefined) {
         if (val.constructor === AsyncFunction) {
           console.warn(
             "signalcn — action() ne groupe que le préfixe synchrone d'une fonction async : " +
@@ -1309,13 +1309,13 @@ function wrapInAction(value: Record<string, unknown>): void {
             val,
           )
         }
-        enveloppe = action(val)
-        enveloppes.set(val, enveloppe)
+        wrapper = action(val)
+        wrappers.set(val, wrapper)
         // L'enveloppe se mappe sur ELLE-MÊME : sans cela, un sous-arbre partagé se voit comme
         // une fonction inconnue au second passage et reçoit une seconde couche batch + untracked.
-        enveloppes.set(enveloppe, enveloppe)
+        wrappers.set(wrapper, wrapper)
       }
-      value[key] = enveloppe
+      value[key] = wrapper
       continue
     }
 

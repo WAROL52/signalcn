@@ -1091,7 +1091,7 @@ const AsyncFunction = (async () => { }).constructor;
  * wrapper, donc `model.a === model.b`. Sans ce cache, la clé visitée en second recevrait un
  * wrapper du wrapper — une seconde couche `batch` + `untracked`, donc deux fois le flush.
  */
-const enveloppes = new WeakMap();
+const wrappers = new WeakMap();
 /**
  * Enveloppe chaque fonction PROPRE énumérable dans une `action`, récursivement.
  *
@@ -1106,40 +1106,49 @@ const enveloppes = new WeakMap();
  *
  * Le veto qui protège les signaux compare la VALEUR de la marque et non son nom. La baseline
  * testait `!("brand" in val)`, donc tout objet métier portant une propriété `brand` — un
- * catalogue, un DTO — était silencieusement ni validé ni enveloppé.
+ * catalogue, un DTO — était silencieusement ni validé ni enveloppé. Ici la comparaison porte sur
+ * la valeur rangée SOUS LE NOM `brand` — `val.brand` — et non sur une lecture par la clé
+ * symbole : la marque est posée sous le nom `brand` (`conv#12`, ADR-0004), donc `val[BRAND_SYMBOL]`
+ * ne lit rien, et la marche serait descendue dans le signal lui-même, jamais protégé — elle aurait
+ * remplacé le `_fn` d'un computé par l'enveloppe, et le cache dérivé serait à jamais périmé ;
+ * sur un computé déjà lu, la descente dans les nœuds internes déborde la pile.
  *
  * Le cycle n'est PAS détecté : un objet cyclique produit toujours un dépassement de pile après
  * mutation partielle, parce que la matrice le fige.
  */
 function wrapInAction(value) {
     for (const key of Object.keys(value)) {
-        const descripteur = Object.getOwnPropertyDescriptor(value, key);
-        if (descripteur === undefined)
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (descriptor === undefined)
             continue;
-        const estAccesseur = descripteur.get !== undefined || descripteur.set !== undefined;
-        const val = estAccesseur ? value[key] : descripteur.value;
+        const isAccessor = descriptor.get !== undefined || descriptor.set !== undefined;
+        const val = isAccessor ? value[key] : descriptor.value;
         if (typeof val === "function") {
             // Un accesseur en lecture ne reçoit PAS l'enveloppe : écrire dans un slot en accès sans
             // setter levait une `TypeError` en mode strict, et était un no-op silencieux en sloppy.
             // C'est le défaut que l'ADR corrige — et le seul.
-            if (estAccesseur)
+            if (isAccessor)
                 continue;
-            let enveloppe = enveloppes.get(val);
-            if (enveloppe === undefined) {
+            let wrapper = wrappers.get(val);
+            if (wrapper === undefined) {
                 if (val.constructor === AsyncFunction) {
                     console.warn("signalcn — action() ne groupe que le préfixe synchrone d'une fonction async : " +
                         "les écritures après le premier await se propageront dans un second drainage.", val);
                 }
-                enveloppe = action(val);
-                enveloppes.set(val, enveloppe);
+                wrapper = action(val);
+                wrappers.set(val, wrapper);
                 // L'enveloppe se mappe sur ELLE-MÊME : sans cela, un sous-arbre partagé se voit comme
                 // une fonction inconnue au second passage et reçoit une seconde couche batch + untracked.
-                enveloppes.set(enveloppe, enveloppe);
+                wrappers.set(wrapper, wrapper);
             }
-            value[key] = enveloppe;
+            value[key] = wrapper;
             continue;
         }
-        if (typeof val === "object" && val !== null && val[BRAND_SYMBOL] !== BRAND_SYMBOL) {
+        // Le veto qui protège les signaux : la marque est lue PAR SON NOM, et c'est sa VALEUR qu'on
+        // compare au symbole. Voir le commentaire de la fonction, plus haut.
+        if (typeof val === "object" &&
+            val !== null &&
+            val.brand !== BRAND_SYMBOL) {
             wrapInAction(val);
         }
     }
