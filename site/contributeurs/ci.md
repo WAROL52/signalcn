@@ -21,6 +21,7 @@ transporte d'une machine à l'autre, un chronomètre non.
 | Contrôle | Coût |
 |---|---|
 | Liens publiés : chaque lien interne existe dans la sortie du site | 0,09 s |
+| Figures : le HTML publié ne porte aucune balise `svg` ni aucun `xlink:href` | 0,30 s |
 | Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
@@ -37,12 +38,12 @@ transporte d'une machine à l'autre, un chronomètre non.
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles, hors installation, réunis coûtent **26,1 s**. L'installation en coûte **4,1 fois
+Tous les contrôles, hors installation, réunis coûtent **26,4 s**. L'installation en coûte **4,0 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Quatre jobs
-représentent quatre démarrages pour quinze contrôles qui coûtent ensemble 26,1 secondes.
+représentent quatre démarrages pour seize contrôles qui coûtent ensemble 26,4 secondes.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -148,8 +149,10 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 | **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible, un harnais en échec |
 | **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit hors de `site/` |
 | **Liens publiés** — `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier |
+| **Figures** — `npm run verifier-figures` | Une figure rendue au build : une balise `svg` ou un `xlink:href` dans la sortie, quand le rendu vit dans le navigateur (#120) |
 
-Les trois coûts sont ceux du §1 — 5,65 s, 0,32 s et 0,09 s — et ils sont dominés par le build : la
+Les quatre coûts sont ceux du §1 — 5,65 s, 0,32 s, 0,09 s et 0,30 s — et ils sont dominés par le
+build : la
 porte de propreté relit un `git status` de plus — celui que le build a pris avant de tourner —, et
 la porte des liens publiés trente-huit fichiers HTML.
 À comparer aux 107 s de l'installation, qui est le seul coût qui mérite qu'on discute de sa
