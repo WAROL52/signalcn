@@ -4141,6 +4141,31 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     // rendrait un signal illisible.
     assert.notEqual(modele.marque.toString.name, "actionWrapper", "un signal n'est pas envelopes")
     assert.equal(modele.marque.brand, Symbol.for("preact-signals"), "le signal est intact")
+
+    // Un accesseur dont le getter renvoie une FONCTION : la descente le lit, puis ne touche
+    // plus — le slot reste un accesseur, la fonction reste sienne. À la baseline, la descente
+    // écrirait le slot après l'avoir lu : en strict, « TypeError », et en sloppy un no-op —
+    // la moitié divergente est par conséquent au §21.2, et ce test la suppose notres en se
+    // gardant : ses citations portent toutes deux le marqueur `divergence:SPEC.md#17.2`,
+    // donc le harnais ne le rejoue pas.
+    const attire = createModel(() => {
+      const aimant: Record<string, unknown> = {}
+      Object.defineProperty(aimant, "accesseur", {
+        get() {
+          return function corps(v: number) {
+            return v + 1
+          }
+        },
+        enumerable: true,
+        configurable: true,
+      })
+      return aimant
+    })() as Record<string, unknown>
+    assert.equal(
+      (attire.accesseur as (v: number) => number).name,
+      "corps",
+      "l'accesseur renvoie encore SA fonction : le slot n'a pas été touché",
+    )
   },
 
   // Le nom du wrapper d'`action` est un CONTRACT, pas une etiquette : la matrice le fige, et le
@@ -4719,6 +4744,30 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     assert.equal(interieur.inc !== inc, true, "la descente a continué dans l'objet du getter")
     assert.equal(interieur.inc(7), 7, "et la fonction enveloppée garde son `this`")
     assert.equal(interieur.v, 7)
+
+    // Le descripteur est consulté À L'INSTANT de la clé : un getter qui supprime la clé
+    // suivante pendant sa lecture la retire du modèle des deux côtés — chez nous parce que
+    // son descripteur n'existe plus quand son tour arrive, chez la baseline parce que son
+    // `for…in` saute une clé supprimée. Sonde du 16 octobre : les deux moteurs donnent
+    // `Object.getOwnPropertyNames` au seul nom `"a"`.
+    const tombe: Record<string, unknown> = {}
+    Object.defineProperty(tombe, "a", {
+      get() {
+        delete tombe.b
+        return 0
+      },
+      enumerable: true,
+      configurable: true,
+    })
+    tombe.b = 2
+    const T = createModel(() => tombe)
+    const t = T() as unknown as Record<string, unknown>
+    assert.deepEqual(
+      Object.getOwnPropertyNames(t),
+      ["a"],
+      "la clé supprimée sous le couvert d'un autre getter n'est pas parvenue au modèle",
+    )
+    assert.equal(t.a, 0, "l'accesseur, lui, reste lisible")
   },
 
   // modele#38 — la mémoïsation. Un sous-arbre partagé garde UNE identité par toutes ses

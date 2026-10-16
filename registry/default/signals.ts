@@ -1255,8 +1255,15 @@ function startCapturingEffects(): () => Effect<any>[] | undefined {
 /**
  * Le constructeur des fonctions `async`, lu une fois. La détection est par VALEUR et non par nom :
  * le paquet distribué minifie les noms, donc `constructor.name` ne dit rien dans l'artefact.
+ *
+ * L'échantillon est APPELÉ une fois, tout de suite : une flèche jamais appelée serait une fonction
+ * non couverte dans le relevé, et la porte de non-régression la compterait en régression. Son
+ * appel à vide ne résout qu'une promesse abandonnée — personne ne s'y inscrit, donc elle ne
+ * programme rien.
  */
-const AsyncFunction = (async () => {}).constructor
+const asyncCalled = async (): Promise<void> => {}
+asyncCalled()
+const AsyncFunction = asyncCalled.constructor
 
 /**
  * Les enveloppes mémoïsées, ADR-0005. Deux clés pointant la même fonction partagent le même
