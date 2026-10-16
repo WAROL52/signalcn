@@ -43,3 +43,25 @@ Utilisées par `/wayfinder`. La **carte** est une issue unique, les **tickets en
 - **Requête de frontière** : lister les enfants ouverts de la carte (`gh issue list --state open`, restreint à ses sous-issues / task list), écarter ceux qui ont un bloquant ouvert (`issue_dependencies_summary.blocked_by > 0`, ou une issue ouverte dans la ligne `Blocked by`) ou un assigné ; le premier dans l'ordre de la carte gagne.
 - **Claim** : `gh issue edit <n> --add-assignee @me` — la première écriture de la session.
 - **Résolution** : `gh issue comment <n> --body "<réponse>"`, puis `gh issue close <n>`, puis ajouter un pointeur de contexte (gist + lien) aux Décisions prises de la carte.
+
+## Le tableau
+
+Le tableau [`signalcn-project`](https://github.com/users/WAROL52/projects/14) reflète le travail,
+il ne le gouverne pas : la frontière reste la requête du dessus (les dépendances natives), les
+labels décident de qui peut poser sa main. Deux champs portent l'état pour les yeux :
+
+- **Statut** (le champ natif) dit la file dans notre langue de travail : `Backlog` = une arête
+  bloquante encore ouverte ; `Ready` = la frontière dégagée, prête à claimer ; `In progress` =
+  claimé ; `In review` = la PR levée ; `Done` = fermé. S'il y faut une règle : un ticket ne dit
+  jamais `Ready` tant que la requête de frontière le garde — le champ suit, il ne tranche pas.
+- **Étape** (champ de tableau) porte la découpe de #118, dans l'ordre d'atterrissage : *Mise à
+  terre*, *La couture*, *Le chapitre — la cellule*, *Les pages d'API*, *Le chapitre*, *Le pont*.
+  Positionner une étape :
+  `gh project item-edit --id <item> --project-id <id-projet> --field-id <champ-étape>
+  --single-select-option-id <option>`.
+- **Les deux écritures d'une session** : le claim (le dessus), puis le statut de l'item en
+  `In progress`. À la levée de la PR : `In review`. La bascule vers `Done` est le workflow du
+  tableau (*Item closed*) — vérifier qu'il est armé une fois, l'oublier ensuite.
+- **La vue** : la vue par défaut se groupe par *Étape*, triée par numéro — l'ordre d'atterrissage
+  se lit en descendant les groupes, la frontière se lit au statut `Ready`. Le regroupement se
+  règle à la main, une fois, dans l'interface du tableau — l'API ne crée pas de vues.
