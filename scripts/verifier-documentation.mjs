@@ -63,8 +63,11 @@
  *      `site/contributeurs/`, n'y figuraient pas. Les quatre fiches du guide y figuraient
  *      seulement parce qu'un agent de revue les y avait ajoutées — du jugement là où une porte
  *      suffisait. Un contrôle par liste échoue toujours de la même façon, par liste incomplète :
- *      l'absence est le seul sens qui mérite une assertion. Le §12 dit ce qu'il exempte et ce
- *      qu'il ne vérifie pas.
+ *      l'absence est le seul sens qui mérite une assertion. L'étendue des ensembles s'y ajoute
+ *      au §12 bis ([#121]) : une ligne de §1 qui nomme ses fichiers contre-vérifie son
+ *      répertoire dans les deux sens, extension `.md` dépouillée ; une ligne de répertoire qui
+ *      ne nomme rien ne porte pas de liste, et reste de la prose. Le §12 dit ce qu'il exempte
+ *      et ce qu'il ne vérifie pas.
  *
  *   node scripts/verifier-documentation.mjs
  */
@@ -835,6 +838,156 @@ porte(
   "chaque page de site/ est declaree dans documentation.md",
   nonDeclarees.length === 0,
   nonDeclarees.join(", "),
+)
+
+// ---- 12 bis. L'étendue exacte des ensembles ---------------------------------------------------------------
+//
+// [#121]. Une ligne de §1 dont la cellule *Document* est un répertoire — son premier nom entre
+// accents graves finit par « / » — peut déclarer l'étendue EXACTE de l'ensemble : chaque nom
+// entre accents graves de sa cellule *Rôle* nomme un fichier du répertoire, l'extension `.md`
+// dépouillée avant tout rapprochement. La liste est vérifiée dans les deux sens, les mêmes que
+// la surface du §1 : un nom déclaré sans fichier, et un fichier sans nom. Dans les deux cas le
+// message nomme le fichier en cause, parce qu'un « ECHEC » nu oblige à rejouer la lecture à
+// la main.
+//
+// Une ligne de répertoire qui ne nomme AUCUN fichier ne porte pas de liste, donc il n'y a
+// aucune liste à contre-vérifier : les deux tables en comptent trois ainsi écrites
+// (`docs/adr/`, `docs/agents/`, `research/`), et elles restent de la prose. Tant qu'aucune
+// ligne ne porte de liste, la lecture est vacueuse et la porte reste verte — c'est le
+// prefactoring : les pages viendront ensuite, et l'ajout d'une page dans un répertoire
+// déclaré sans actualiser sa liste fera échouer cette porte.
+//
+// Les exemptions ne bougent pas : l'`index.md` d'un ensemble reste hors porte — un index
+// nomme la lecture de l'ensemble, il n'est pas une page de l'ensemble, et les listes
+// l'omettront — et `documentation.md` reste non déclarable de lui-même. Un répertoire
+// d'ensemble est plat : la lecture ne descend pas dans ses sous-répertoires, contrairement à
+// `pagesDeSite` qui lit le site entier.
+const sansExtension = (nom) => nom.replace(/\.md$/, "")
+
+/**
+ * Les noms des fichiers d'un répertoire d'ensemble : `.md` seul, hors les exemptions de la
+ * porte, et l'extension dépouillée par `sansExtension`.
+ */
+const nomsDeFichiers = (fichiers) =>
+  fichiers
+    .filter((fichier) => fichier.endsWith(".md") && !SANS_DECLARATION.has(fichier))
+    .map(sansExtension)
+
+/**
+ * L'étendue, lue dans les DEUX sens. Les deux listes sont en noms sans extension : `manquants`
+ * est ce que la liste déclare sans que le répertoire le contienne, `enTrop` ce que le
+ * répertoire contient sans que la liste le déclare.
+ */
+const etendueDe = (noms, fichiers) => ({
+  manquants: noms.filter((nom) => !fichiers.includes(nom)),
+  enTrop: fichiers.filter((fichier) => !noms.includes(fichier)),
+})
+
+/**
+ * Les lignes des deux tables qui déclarent un ensemble. La cellule *Document* nomme le
+ * répertoire — le chemin se lit tel qu'écrit, relatif à la racine du dépôt, `docs/adr/` comme
+ * `site/utilisateurs/`, et le lien Markdown derrière les [crochets] ne porte que l'adresse du
+ * site publié —, la cellule *Rôle* porte les noms. Une ligne sans noms dans sa cellule *Rôle*
+ * ne déclare pas d'étendue, et n'ouvre donc rien à contre-vérifier.
+ */
+const ensemblesDe = (declaration) =>
+  [...declaration.matchAll(/^(\|.*)$/gm)]
+    .map((m) => m[1].split("|"))
+    .filter((cellules) => cellules.length >= 3)
+    .map((cellules) => ({
+      repertoire: (cellules[1]?.match(/`([^`]+)`/) ?? [])[1],
+      role: cellules[2] ?? "",
+    }))
+    .filter(({ repertoire }) => repertoire?.endsWith("/"))
+    .map(({ repertoire, role }) => ({
+      repertoire,
+      noms: [...role.matchAll(/`([^`]+)`/g)].map((m) => sansExtension(m[1])),
+    }))
+    .filter(({ noms }) => noms.length > 0)
+
+/**
+ * Les fichiers du répertoire d'un ensemble, en noms. Un répertoire entièrement absent est le
+ * cas extrême de l'étendue : tout ce qui est déclaré manque, et rien n'existe à lire dans
+ * l'autre sens — la lecture renvoie null, et le porte-à-faux se règle sur `manquants` seul.
+ */
+const fichiersDeEnsemble = async (repertoire) => {
+  const dossier = join(RACINE, repertoire)
+  if (!existsSync(dossier)) return null
+  const entrees = await readdir(dossier, { withFileTypes: true })
+  return nomsDeFichiers(entrees.filter((entree) => entree.isFile()).map((entree) => entree.name))
+}
+
+// Les lecteurs de l'étendue sont EXERCISÉS sur un manifeste qui ment, pour la même raison que
+// les lecteurs de citations au §11 : un dépôt propre est vert derrière un lecteur cassé, donc
+// c'est ici que la lecture a une exécution. Le manifeste ment de toutes les façons utiles :
+// deux lignes qui ne déclarent rien — une de prose, un répertoire sans liste —, et une ligne
+// qui nomme un fantôme et oublie un fichier.
+const manifesteMent = `
+| Document | Rôle |
+|---|---|
+| \`README.md\` | prose, sans répertoire à lire |
+| \`docs/adr/\` | un répertoire sans liste, encore de la prose |
+| [\`site/utilisateurs/temoin/\`](../utilisateurs/temoin/) | \`premier-effet.md\`, \`page-fantome.md\` |
+`
+const temoinsDeManif = ensemblesDe(manifesteMent)
+porte(
+  "le lecteur d'ensembles retient la seule ligne qui porte une etendue, repertoire et noms",
+  temoinsDeManif.length === 1 &&
+    temoinsDeManif[0].repertoire === "site/utilisateurs/temoin/" &&
+    temoinsDeManif[0].noms.join(" ") === "premier-effet page-fantome",
+  JSON.stringify(temoinsDeManif),
+)
+
+const nomsExempt = nomsDeFichiers([
+  "premier-effet.md",
+  "index.md",
+  "documentation.md",
+  "figure.png",
+])
+porte(
+  "les noms d'un repertoire depouillent l'extension et laissent les exemptions dehors",
+  nomsExempt.join(" ") === "premier-effet",
+  nomsExempt.join(" "),
+)
+
+const attenteEtendue = JSON.stringify(
+  etendueDe(["premier-effet", "page-fantome"], ["premier-effet", "veille-interdite"]),
+)
+porte(
+  "l'etendue accuse les deux sens dans une seule lecture, fantome et fichier non declare",
+  attenteEtendue === '{"manquants":["page-fantome"],"enTrop":["veille-interdite"]}',
+  attenteEtendue,
+)
+
+// Le répertoire réel, maintenant : la liste est celle de `documentation.md` §1. Tant qu'elle ne
+// porte aucune ligne d'ensemble, les deux lectures ne trouvent rien — deux listes vides, deux
+// portes vertes, et le dépôt n'a rien à reformer.
+const fichiersManquants = []
+const nomsEnTrop = []
+for (const { repertoire, noms } of ensemblesDe(declarees)) {
+  const fichiers = await fichiersDeEnsemble(repertoire)
+  const nommerFichier = (nom) => `${repertoire}${nom}.md`
+  if (fichiers === null) {
+    fichiersManquants.push(...noms.map(nommerFichier))
+  } else {
+    const { manquants, enTrop } = etendueDe(noms, fichiers)
+    fichiersManquants.push(...manquants.map(nommerFichier))
+    nomsEnTrop.push(...enTrop.map(nommerFichier))
+  }
+}
+
+porte(
+  "chaque nom declare par un ensemble a son fichier dans le repertoire",
+  fichiersManquants.length === 0,
+  fichiersManquants.join(", "),
+)
+porte(
+  "chaque fichier .md d'un ensemble est declare dans documentation.md",
+  nomsEnTrop.length === 0,
+  nomsEnTrop.join(", "),
+)
+console.log(
+  "  --   les fichiers qui ne finissent pas par .md ne font pas partie d'une etendue : la porte n'ouvre que les pages",
 )
 
 // La porte dit ce qu'elle ne vérifie pas, comme les sections précédentes : le RÔLE écrit dans la
