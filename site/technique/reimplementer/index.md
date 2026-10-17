@@ -1,18 +1,22 @@
 # Le chapitre de reconstruction
 
-Le moteur rejoué vu de l'extérieur, dans l'ordre où on le réécrirait — code et journal à
-chaque pas. Chaque page est une étape, complète à son ticket ; un titre sans lien est une
-étape pas encore écrite.
+Le moteur se relit comme on le réécrirait. Chaque étape rejoue une règle du mécanisme avec
+code et journal, et dit la page de la norme qui la porte. L'ordre ci-dessous est celui de la
+réécriture, et il ne vit nulle part ailleurs.
 
-1. [`la-cellule.md`](./la-cellule.md) — la cellule et le nœud.
-2. La dépendance.
-3. L'invalidation.
-4. Le computé.
-5. L'effet et le drainage.
-6. Le batch.
-7. Le cycle et la borne.
-8. `untracked`.
-9. `action`.
-10. La portée de capture et `createModel`.
+1. [la cellule et le nœud](./la-cellule) — ce qui décide qu'une écriture se tait, et quelle
+   cible l'entend
+2. la dépendance
+3. l'invalidation
+4. le computé
+5. l'effet et le drainage
+6. le batch
+7. le cycle et la borne
+8. `untracked`
+9. `action`
+10. la portée de capture et `createModel`
 
-L'ordre ci-dessus est le seul du dépôt : les pages l'entendent, elles ne le recopient pas.
+Chaque étape se rejoue de l'extérieur : aucun bloc de code n'entre dans le paquet, aucun
+interne n'y est cité par son nom minifié. Les reconstitutions vivent dans la suite
+`signalcn-seul` du registre, citées par des entrées de matrice existantes, et le harnais les
+rejoue contre le paquet de référence.
