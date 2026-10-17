@@ -1,7 +1,9 @@
 # La cellule et le nœud
 
 Ce qui décide qu'une écriture se tait, qu'une écriture réveille, et quelle cible
-l'entend — trois règles distinctes, rejouées ici code et journal à l'appui.
+l'entend — trois règles distinctes, rejouées ici code et journal à l'appui. Cette page
+est une étape du [chapitre de reconstruction](./index) ; le chapitre rejoue le moteur
+dans l'ordre où on le réécrirait.
 
 > **Structure :** [`architecture.md`](../architecture.md) — la cellule (`Signal`), la liste
 > de ses cibles, et le nœud qu'une réactivation ne réalloue pas.
@@ -12,6 +14,7 @@ l'entend — trois règles distinctes, rejouées ici code et journal à l'appui.
 | Vous voulez | Allez à |
 | --- | --- |
 | voir quand une écriture se tait et quand elle passe | [Les écritures que l'identité refuse](#les-ecritures-que-lidentite-refuse) |
+| voir la place de cette page dans l'ordre du chapitre | [Le chapitre de reconstruction](./index) |
 
 Chaque bloc de code de cette page est une **reconstitution** : le corps d'un test de la
 suite `signalcn-seul`, exécuté au moment du rendu contre l'artefact distribué. Le journal
