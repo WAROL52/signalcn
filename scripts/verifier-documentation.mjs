@@ -90,10 +90,10 @@ import { join } from "node:path"
 // sens pour un mot dans le même dépôt, c'est la faute que le lexique des descripteurs existe pour
 // éviter.
 import {
-  MARQUEUR_INJECTION,
-  lecteurInjection,
-  nettoyer,
   blocDe,
+  lecteurInjection,
+  MARQUEUR_INJECTION,
+  nettoyer,
   resoudre,
 } from "../site/.vitepress/journal-harnais.mjs"
 import { cheminsGit, ecritsParBuild, RACINE, reporter } from "./porte.mjs"
