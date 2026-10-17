@@ -1113,8 +1113,8 @@ const ailleurs = await essaiTransform(
   join(RACINE, "site/technique/architecture.md"),
 )
 porte(
-  "un marqueur hors de la page qui le porte est refusé",
-  ailleurs !== null && ailleurs.includes("site/utilisateurs/api/signal.md"),
+  "un marqueur hors des ensembles de la référence est refusé",
+  ailleurs !== null && ailleurs.includes("site/utilisateurs/api/"),
   ailleurs ?? "le transform a réussi",
 )
 console.log(
