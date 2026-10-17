@@ -13,8 +13,6 @@ l'artefact, et connaître les surprises. Le parcours suit cet ordre :
    installée, et ne pas s'y fier plus qu'il ne faut.
 5. [`batch-et-surprises.md`](./batch-et-surprises.md) — batchs, cascades, `action`, et les
    surprises à l'exécution.
-6. [`api/signal.md`](./api/signal.md) — `signal()`, la première page d'API : chaque bloc de code
-   est un scénario de la table, exécuté au build avec le journal qu'il produit.
 
 Deux documents restent des références, et ne sont pas dans le parcours : le [`README.md`](/README.md), qui est la seule déclaration de surface, et la section « Différences connues » qu'il porte — c'est elle que la fiche de migration ne répète pas, et vers laquelle elle renvoie. La stratégie de parité est devenue un document interne, dans [`site/contributeurs/parity.md`](../contributeurs/parity.md).
 
