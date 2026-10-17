@@ -17,7 +17,7 @@ réécrirait.
 | voir quand une écriture se tait et quand elle passe | [Les écritures que l'identité refuse](#les-ecritures-que-l-identite-refuse) |
 | voir une dépendance abandonnée redevenir notifiante | [La dépendance abandonnée revit](#la-dependance-abandonnee-revit) |
 | voir une écriture réveiller toutes ses cibles | [Une écriture, toutes les cibles](#une-ecriture-toutes-les-cibles) |
-| comprendre pourquoi le nœud ne se réalloue pas | [Pourquoi le nœud ne se réalloue pas](#pourquoi-le-noœud-ne-se-realloue-pas) |
+| comprendre pourquoi le nœud ne se réalloue pas | [Pourquoi le nœud ne se réalloue pas](#pourquoi-le-nœud-ne-se-realloue-pas) |
 | savoir où lisent les autres | [Les trois lectures](#les-trois-lectures) |
 | voir la place de cette page dans l'ordre du chapitre | [Le chapitre de reconstruction](./index) |
 
