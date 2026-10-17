@@ -66,9 +66,16 @@ const lireJournal = (() => {
     })
     // `error` plutôt qu'un `status` faux : un binaire introuvable ne donne pas un code de sortie, il
     // donne une erreur de spawn. Sans elle, le message porterait un deux-points et rien derrière.
+    // Les lignes ` ECHEC ` du journal sont nommées dans le message : le rapport du harnais dit
+    // QUI a levé et pourquoi, et un build qui ne montre pas cette raison oblige à relancer le
+    // harnais à la main pour la voir.
     if (status !== 0) {
+      const raisons = stdout
+        .split("\n")
+        .filter((ligne) => ligne.includes(" ECHEC "))
+        .join("\n")
       throw new Error(
-        `le harnais a échoué — le site ne peut pas afficher un harnais en échec :\n${error?.message ?? stderr.trim()}`,
+        `le harnais a échoué — le site ne peut pas afficher un harnais en échec :\n${raisons || stderr.trim() || error?.message}`,
       )
     }
 
