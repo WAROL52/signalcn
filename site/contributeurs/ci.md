@@ -34,16 +34,23 @@ transporte d'une machine à l'autre, un chronomètre non.
 | Parité, quatre cibles | 2,53 s |
 | Build + minify + réécriture | 3,17 s |
 | Dérive : le build ne touche aucun artefact committé | 3,17 s |
-| Documentation statique : build du site, journal du harnais rendu | 5,65 s |
+| Documentation statique : build du site, journal du harnais rendu | 33,60 s |
 | Portes du build : reproductibilité, `--keep-names`, tailles | 4,51 s |
 | **Installation des six items** | **107 s** |
 
-Tous les contrôles, hors installation, réunis coûtent **26,4 s**. L'installation en coûte **4,0 fois
+Tous les contrôles, hors installation, réunis coûtent **54,40 s**. L'installation en coûte **2,0 fois
 plus**. C'est le seul coût réel de la CI, et c'est le seul qui mérite qu'on discute de sa
 fréquence — ce qui a été fait, et la décision est : à chaque PR.
 
 Le coût dominant n'est pas la commande, c'est le **démarrage de runner**. Quatre jobs
-représentent quatre démarrages pour seize contrôles qui coûtent ensemble 26,4 secondes.
+représentent quatre démarrages pour seize contrôles qui coûtent ensemble 54,40 secondes.
+
+À l'atterrissage du lecteur d'injection (#122), la ligne du build du site a été re-mesurée : elle
+portait **5,65 s**, et la même commande coûte **33,6 s** en médiane — le site a grossi de la page
+`signal()` et des figures, et la ligne n'avait pas suivi. Deux campagnes entrelacées, avec et sans
+lecteur, donnent 33,53 s contre 33,48 s puis 34,05 s contre 33,50 s : le rapport du lecteur,
+0,2 % puis 1,6 %, est celui du bruit des campagnes elles-mêmes — la ligne porte donc la commande
+ré-mesurée, pas un rapport appliqué.
 
 ## 2. Job « rapide » — par sévérité
 
@@ -151,7 +158,7 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 | **Liens publiés** — `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier |
 | **Figures** — `npm run verifier-figures` | Une figure rendue au build : la balise `svg` ou l'attribut `xlink` du rendu serveur dans la sortie, quand le rendu vit dans le navigateur (#120) |
 
-Les quatre coûts sont ceux du §1 — 5,65 s, 0,32 s, 0,09 s et 0,30 s — et ils sont dominés par le
+Les quatre coûts sont ceux du §1 — 33,60 s, 0,32 s, 0,09 s et 0,30 s — et ils sont dominés par le
 build : la
 porte de propreté relit un `git status` de plus — celui que le build a pris avant de tourner —, et
 la porte des liens publiés trente-huit fichiers HTML.
@@ -169,7 +176,7 @@ ont été lancées dos à dos sur la même machine, cinq fois chacune : l'écart
 `npm run` lui-même, qui domine un door de 0,32 s, donc la ligne reste à sa valeur. Seule la
 **différence** est reportée ici, jamais les chiffres absolus de cette mesure — ils sont ceux d'une
 autre machine que celle du tableau, et les y écrire fausserait une somme que la porte vérifie. Le
-`git status` pris avant le build ne se voit pas davantage dans les 5,65 s.
+`git status` pris avant le build ne se voit pas davantage dans les 33,5 s.
 
 **L'ajout du harnais, lui, se voit, et il est mesuré de la même façon.** Les deux versions du build
 ont été entrelacées sur la même machine, cinq fois chacune : 6,24 s contre 6,50 s en médiane, donc
@@ -177,6 +184,14 @@ ont été entrelacées sur la même machine, cinq fois chacune : 6,24 s contre 6
 chiffre absolu, pour la même raison : la machine de la mesure n'est pas celle du tableau, et seul le
 rapport des deux commandes, pris sur une machine, est portable. Les deux versions entrelacées, c'est
 la charge de la machine qui s'annule ; deux campagnes séparées, elle ne s'annule pas.
+
+**Le lecteur d'injection ne se voit pas dans la ligne du build — le changement de la ligne est sans
+lui.** Deux campagnes entrelacées sur la même machine, trois alternances chacune : 33,53 s contre
+33,48 s en médiane, puis 34,05 s contre 33,50 s — les rapports, 0,2 % et 1,6 %, sont l'ordre du
+bruit des alternances prises une à une. La ligne du §1 a donc été re-mesurée en absolu sur l'état
+d'atterrissage et non portée par un rapport : la commande coûte 33,5 s, elle en coûtait 5,65 à la
+campagne du harnais, et ni le fichier de plus ni le harnais ne l'expliquent — c'est le site qui a
+grossi, ligne jamais re-mesurée depuis.
 
 Sur le runner, une fois observé : le job entier a pris **17 s** — `npm ci` 8 s, build 3 s, porte 1 s,
 le reste en installation et en teardown. C'est un relevé unique et pas une médiane ; le tableau du
