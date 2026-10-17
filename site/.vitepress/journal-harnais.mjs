@@ -536,11 +536,12 @@ export const nettoyer = (corps, paires = []) => {
 // exactement l'endroit de `validerMermaid`. Il ne lit que les `.md`, et ne réécrit que les
 // blocs-marqueurs — une page sans marqueur sort de son transform telle qu'elle est entrée.
 //
-// Les marqueurs ne vivent QUE sur `signal.md` — un bloc-marqueur écrit ailleurs est un marqueur
-// sans source au point où on s'attend à le lire, donc une faute, pas un oubli.
+// Les marqueurs ne vivent QUE sur les PAGES qui les déclarent — un bloc-marqueur écrit ailleurs
+// est un marqueur sans source au point où on s'attend à le lire, donc une faute, pas un oubli.
+// La liste suit les pages d'API au fur et à mesure de leur atterrissage.
 // ---------------------------------------------------------------------------------------------
 
-const PAGE_LECTEUR = "site/utilisateurs/api/signal.md"
+const PAGES_LECTEUR = ["site/utilisateurs/api/signal.md", "site/utilisateurs/api/effect.md"]
 
 /**
  * Le bloc exécuté, UNE fois par marqueur et par construction. Un échec s'efface de la mémoire :
@@ -621,14 +622,14 @@ export const lecteurInjection = {
   async transform(code, id) {
     if (!id.endsWith(".md")) return null
     const chemin = id.replaceAll("\\", "/")
-    const estPage = chemin.endsWith(`/${PAGE_LECTEUR}`)
+    const estPage = PAGES_LECTEUR.some((page) => chemin.endsWith(`/${page}`))
 
     const blocs = [...code.matchAll(BLOC_MARQUEUR)]
     if (blocs.length === 0) return null
     if (!estPage) {
       throw new Error(
         `${chemin}:${code.slice(0, code.search(BLOC_MARQUEUR)).split("\n").length} — ` +
-          `le bloc-marqueur ne vit que sur ${PAGE_LECTEUR}`,
+          `le bloc-marqueur ne vit que sur ${PAGES_LECTEUR.join(", ")}`,
       )
     }
 
