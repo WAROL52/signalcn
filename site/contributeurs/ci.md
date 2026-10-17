@@ -21,7 +21,7 @@ transporte d'une machine à l'autre, un chronomètre non.
 | Contrôle | Coût |
 |---|---|
 | Liens publiés : chaque lien interne existe dans la sortie du site | 0,09 s |
-| Figures : le HTML publié ne porte aucune balise `svg` ni aucun `xlink:href` | 0,30 s |
+| Figures : le HTML publié ne porte ni balise `svg` rendue ni attribut `xlink` | 0,30 s |
 | Zéro-dépendance : metafile et recherche sur l'artefact | 0,31 s |
 | Documentation : surface déclarée contre surface réelle | 0,43 s |
 | Harnais différentiel | 0,50 s |
@@ -149,7 +149,7 @@ qu'aucun commit n'ait changé. Gain secondaire mesuré : trente pour cent plus r
 | **Build du site** — `npm run documentation-statique` | Une page qui ne se rend pas, un lien mort entre pages, une configuration illisible, un harnais en échec |
 | **Propreté** — `npm run verifier-proprete` | Le build du site qui écrit hors de `site/` |
 | **Liens publiés** — `npm run verifier-liens-publies` | Un lien interne qui, dans la sortie du site, ne pointe vers aucun fichier |
-| **Figures** — `npm run verifier-figures` | Une figure rendue au build : une balise `svg` ou un `xlink:href` dans la sortie, quand le rendu vit dans le navigateur (#120) |
+| **Figures** — `npm run verifier-figures` | Une figure rendue au build : la balise `svg` ou l'attribut `xlink` du rendu serveur dans la sortie, quand le rendu vit dans le navigateur (#120) |
 
 Les quatre coûts sont ceux du §1 — 5,65 s, 0,32 s, 0,09 s et 0,30 s — et ils sont dominés par le
 build : la
