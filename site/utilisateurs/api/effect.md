@@ -10,7 +10,7 @@ l'arrête. C'est la réaction du moteur : elle ne rend rien d'autre que le moyen
 | ne suivre aucun signal, tourner une seule fois | [Ne rien suivre](#ne-rien-suivre) |
 | arrêter un effet, dehors ou du dedans | [S'arrêter](#s-arreter) |
 | savoir ce que `effect()` rend, et le passer à `using` | [La forme du rendu](#la-forme-du-rendu) |
-| connaître l'ordre des runs, dans et hors `batch` | [L'ordre](#lordre) |
+| connaître l'ordre des runs, dans et hors `batch` | [L'ordre](#l-ordre) |
 | comprendre quand une erreur sort, ou pourquoi un effet boucle | [Les erreurs](#les-erreurs) |
 | accéder à l'instance, et donner un nom | [La classe derrière](#la-classe-derriere) |
 
