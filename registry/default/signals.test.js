@@ -3533,7 +3533,7 @@ export const COUVERTURE = {
     "signal#9": "signal/strict-equality-object + signalcn-seul/identical-writes-are-not-notified",
     "signal#10": "signal/strict-equality-object",
     "signal#11": "signal/strict-equality-object",
-    "signal#12": "signal/synchronous-notification",
+    "signal#12": "signal/synchronous-notification + signalcn-seul/write-wakes-every-target",
     "signal#13": "signal/synchronous-notification",
     // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
     "signal#14": "signal/synchronous-notification",
@@ -3584,7 +3584,7 @@ export const COUVERTURE = {
     "computed#6": "computed/identical-value-reread",
     "computed#7": "computed/invalidation-and-recompute",
     "computed#8": "computed/dynamic-dependencies",
-    "computed#9": "computed/reactivation-after-abandon",
+    "computed#9": "computed/reactivation-after-abandon + signalcn-seul/reread-wakes-dependency",
     // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
     // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
     "computed#10": "signalcn-seul/sources-in-read-order + source:src/index.ts#L508-531",
@@ -4650,8 +4650,8 @@ export const testsSignalcnSeul = {
     //
     // Les trois reconstitutions de la page « la cellule et le nœud », première étape du chapitre :
     // l'identité stricte (§5.2), la dépendance abandonnée qui redevient notifiante (§7), et
-    // l'écriture qui réveille chaque cible connue (§5.1). Les seuls journaux des trois pages
-    // suivantes attendent leurs propres reconstitutions — une reconstitution de plus par page.
+    // l'écriture qui réveille chaque cible connue (§5.1). Les pages suivantes attendent leurs
+    // propres reconstitutions — une reconstitution au moins par page du chapitre.
     // `signal#9` — l'identité stricte rejouée du côté de la LECTURE : la même primitive ne
     // notifie pas, `NaN` passe deux fois (§14), et un `-0` écrit sur `0` n'y change rien. La
     // dernière ligne du journal est le côté invisible de la même règle : la cellule a tourné une
@@ -4693,6 +4693,53 @@ export const testsSignalcnSeul = {
             "tours après -0 sur le même zéro 1",
             "la valeur reste-t-elle 0 ? true",
         ], "l'identité stricte décide seule de ce qui se tait et de ce qui passe");
+    },
+    // `computed#9` — la réactivation de la SPEC §7, vue du côté effet : la dépendance abandonnée
+    // pendant que le cache tient redevient notifiante dès que la lecture la retrouve, et l'écriture
+    // qui a eu lieu entre les deux lectures s'y intègre. Le nœud ne se recrée pas, il revit — ce
+    // que le compte de tours raconte mieux que n'importe quel commentaire.
+    "reread-wakes-dependency": async ({ signal: moteur, effect, log }) => {
+        const bascule = moteur(true);
+        const gauche = moteur(1);
+        const droite = moteur(2);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("l'effet tourne et lit", String(bascule.value ? gauche.value : droite.value));
+        });
+        bascule.value = false;
+        log("tours après le basculement, la dépendance gauche est abandonnée", String(tours));
+        gauche.value = 10;
+        log("tours après l'écriture de la cellule abandonnée", String(tours));
+        bascule.value = true;
+        log("tours après la relecture, le nœud revit", String(tours));
+        gauche.value = 11;
+        log("tours après une écriture sur la cellule revenue", String(tours));
+        assert.deepEqual(log.entries, [
+            "l'effet tourne et lit 1",
+            "l'effet tourne et lit 2",
+            "tours après le basculement, la dépendance gauche est abandonnée 2",
+            "tours après l'écriture de la cellule abandonnée 2",
+            "l'effet tourne et lit 10",
+            "tours après la relecture, le nœud revit 3",
+            "l'effet tourne et lit 11",
+            "tours après une écriture sur la cellule revenue 4",
+        ], "le nœud abandonné revit, et l'écriture entre les deux lectures s'y intègre");
+    },
+    // `signal#12` — la propagation de la SPEC §5.1, vue sur l'écriture : une écriture réveille
+    // TOUTES les cibles que la cellule connaît, chacune une fois, et pas plus. Les tournées de
+    // création parlent déjà ; l'écriture parle du nombre de tournées, pas de leur ordre.
+    "write-wakes-every-target": async ({ signal: moteur, effect, log }) => {
+        const partage = moteur(0);
+        effect(() => log("le premier entend la cellule", String(partage.value)));
+        effect(() => log("le second entend la même cellule", String(partage.value)));
+        partage.value = 1;
+        assert.deepEqual(log.entries, [
+            "le premier entend la cellule 0",
+            "le second entend la même cellule 0",
+            "le premier entend la cellule 1",
+            "le second entend la même cellule 1",
+        ], "une écriture réveille chaque cible connue, une fois");
     },
 };
 /**
