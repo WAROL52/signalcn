@@ -3530,7 +3530,7 @@ export const COUVERTURE = {
     "signal#7b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
     "signal#8": "signal/zero-and-negative-zero",
     "signal#8b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
-    "signal#9": "signal/strict-equality-object",
+    "signal#9": "signal/strict-equality-object + signalcn-seul/identical-writes-are-not-notified",
     "signal#10": "signal/strict-equality-object",
     "signal#11": "signal/strict-equality-object",
     "signal#12": "signal/synchronous-notification",
@@ -4639,6 +4639,61 @@ export const testsSignalcnSeul = {
         const N = createModel(() => 42);
         assert.throws(() => N(), TypeError, "un nombre non plus : une propriété sur une primitive lève en strict des deux côtés");
     },
+    // ---- Les reconstitutions du chapitre de reconstruction ----------------------------------------------------------------
+    //
+    // Le chapitre rejoue le moteur à l'ordre de reconstruction ; une reconstitution de page est un
+    // test de cette suite, cité par une entrée de matrice existante ([#123]). Le corps de la page
+    // n'est PAS recopié ici : le lecteur du site (#122) en fait le bloc affiché et le journal que
+    // l'artefact a produit pour lui — donc les corps sont écrits POUR LA PAGE : aucun interne, les
+    // `log()` en mains, et le dernier `assert` porte le verdict. Le journal s'écrit toujours
+    // d'abord contre le moteur, la page ensuite — la règle du protocole des prototypes.
+    //
+    // Les trois reconstitutions de la page « la cellule et le nœud », première étape du chapitre :
+    // l'identité stricte (§5.2), la dépendance abandonnée qui redevient notifiante (§7), et
+    // l'écriture qui réveille chaque cible connue (§5.1). Les seuls journaux des trois pages
+    // suivantes attendent leurs propres reconstitutions — une reconstitution de plus par page.
+    // `signal#9` — l'identité stricte rejouée du côté de la LECTURE : la même primitive ne
+    // notifie pas, `NaN` passe deux fois (§14), et un `-0` écrit sur `0` n'y change rien. La
+    // dernière ligne du journal est le côté invisible de la même règle : la cellule a tourné une
+    // seule fois, la valeur reste celle qu'elle avait.
+    "identical-writes-are-not-notified": async ({ signal: moteur, effect, log }) => {
+        const source = moteur(1);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("la cellule tourne, voit", source.value);
+        });
+        source.value = 2;
+        log("tours après une écriture nouvelle", String(tours));
+        source.value = 2;
+        log("tours après la même primitive", String(tours));
+        source.value = NaN;
+        log("tours après NaN", String(tours));
+        source.value = NaN;
+        log("tours après un deuxième NaN", String(tours));
+        const zero = moteur(0);
+        let toursZero = 0;
+        effect(() => {
+            toursZero++;
+            log("la seconde cellule voit -0 ?", String(Object.is(zero.value, -0)));
+        });
+        zero.value = -0;
+        log("tours après -0 sur le même zéro", String(toursZero));
+        log("la valeur reste-t-elle 0 ?", String(Object.is(zero.value, 0)));
+        assert.deepEqual(log.entries, [
+            "la cellule tourne, voit 1",
+            "la cellule tourne, voit 2",
+            "tours après une écriture nouvelle 2",
+            "tours après la même primitive 2",
+            "la cellule tourne, voit NaN",
+            "tours après NaN 3",
+            "la cellule tourne, voit NaN",
+            "tours après un deuxième NaN 4",
+            "la seconde cellule voit -0 ? false",
+            "tours après -0 sur le même zéro 1",
+            "la valeur reste-t-elle 0 ? true",
+        ], "l'identité stricte décide seule de ce qui se tait et de ce qui passe");
+    },
 };
 /**
  * Combien de tests ce fichier ENREGISTRE, une fois exécuté par `node --test`.
@@ -4701,7 +4756,11 @@ if (process.env.NODE_TEST_CONTEXT) {
     }
     for (const [nom, corps] of Object.entries(testsSignalcnSeul)) {
         test(`signalcn-seul/${nom}`, async () => {
-            await corps(await moteurDe());
+            // Le moteur porte son journal, comme le module du lecteur le fournit au rendu et le
+            // harnais rejoue les reconstitutions rejouables : la suite et les trois sources voient
+            // la même table.
+            const moteur = await moteurDe();
+            await corps({ ...moteur, log: makeLog() });
         });
     }
     // ---- Le registre est complet ------------------------------------------------------

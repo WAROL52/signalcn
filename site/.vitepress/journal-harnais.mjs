@@ -429,7 +429,10 @@ const corpsReconstitution = (source, nom) => {
     const net = morceau.trim()
     if (net === "") continue
     const renomme = /^([\w$]+)\s*:\s*([\w$]+)$/.exec(net)
-    paires.push(renomme ? { local: renomme[1], cle: renomme[2] } : { local: net, cle: net })
+    // La LHS de `{ signal: moteur }` est la cle du moteur (celle que la page montre), la RHS est le
+    // local du corps — l'inverse d'une lecture naïve, celle qui faisait afficher `moteur` à la
+    // place de `signal`.
+    paires.push(renomme ? { local: renomme[2], cle: renomme[1] } : { local: net, cle: net })
   }
   return { corps, paires }
 }

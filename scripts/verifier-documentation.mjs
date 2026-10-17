@@ -1056,6 +1056,21 @@ porte(
   nomsPacte.join(", "),
 )
 
+// Le pacte du nettoyage, sur un ALIAS — la déstructuration `{ signal: moteur }` d'une
+// reconstitution. La gauche du deux-points est la cle (celle que la page montre), la droite le
+// local du corps : un parseur qui lit l'inverse affichait `const source = moteur(1)` sur un build
+// VERT — la pire défaillance, la page mentait en silence. La garde dit la bonne direction : la
+// cle arrive dans le code, le local n'en sort jamais.
+const blocAlias = await blocDe("reconstitution/identical-writes-are-not-notified")
+const { code: codeAlias, noms: nomsAlias } = nettoyer(blocAlias.corps, blocAlias.paires)
+porte(
+  "le pacte du nettoyage lit un alias sous sa cle, jamais sous son local",
+  nomsAlias.includes("signal") &&
+    codeAlias.includes("const source = signal(") &&
+    !codeAlias.includes("moteur"),
+  nomsAlias.join(", "),
+)
+
 // Le transform, sur une source qui ment au marqueur : le message porte fichier ET ligne — la
 // règle du plugin du journal du harnais, étendue au lecteur. La ligne est celle du marqueur :
 // « titre » 1, la fence ouvre à la ligne 3.
