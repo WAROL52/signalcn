@@ -538,10 +538,13 @@ export const nettoyer = (corps, paires = []) => {
 //
 // Les marqueurs ne vivent QUE sur les PAGES qui les déclarent — un bloc-marqueur écrit ailleurs
 // est un marqueur sans source au point où on s'attend à le lire, donc une faute, pas un oubli.
-// La liste suit les pages d'API au fur et à mesure de leur atterrissage.
+// Les pages qui les portent sont celles des DEUX ENSEMBLES de la référence, dit au plugin.
 // ---------------------------------------------------------------------------------------------
 
-const PAGES_LECTEUR = ["site/utilisateurs/api/signal.md", "site/utilisateurs/api/effect.md"]
+// Les deux ensembles de la référence (la spec, « Les deux ensembles ») : une page qui vit sous
+// l'un d'eux porte son bloc-marqueur résolu; une page hors d'eux refuse. Rien ne se liste page
+// par page — la couture se sert seule, la découpe ajoute ses pages sans écrire ici.
+const ENSEMBLES_LECTEUR = ["site/utilisateurs/api/", "site/technique/reimplementer/"]
 
 /**
  * Le bloc exécuté, UNE fois par marqueur et par construction. Un échec s'efface de la mémoire :
@@ -622,14 +625,14 @@ export const lecteurInjection = {
   async transform(code, id) {
     if (!id.endsWith(".md")) return null
     const chemin = id.replaceAll("\\", "/")
-    const estPage = PAGES_LECTEUR.some((page) => chemin.endsWith(`/${page}`))
+    const estEnsemble = ENSEMBLES_LECTEUR.some((ensemble) => chemin.includes(ensemble))
 
     const blocs = [...code.matchAll(BLOC_MARQUEUR)]
     if (blocs.length === 0) return null
-    if (!estPage) {
+    if (!estEnsemble) {
       throw new Error(
         `${chemin}:${code.slice(0, code.search(BLOC_MARQUEUR)).split("\n").length} — ` +
-          `le bloc-marqueur ne vit que sur ${PAGES_LECTEUR.join(", ")}`,
+          `le bloc-marqueur ne vit que sur les ensembles de la référence — ${ENSEMBLES_LECTEUR.join(" et ")}`,
       )
     }
 
