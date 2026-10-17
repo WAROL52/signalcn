@@ -39,7 +39,7 @@ Node utilisé : v24.18.1.
 
 ## Sommaire de l'inventaire
 
-**231 comportements** documentés, répartis ainsi :
+**238 comportements** documentés, répartis ainsi :
 
 | Section | Comportements | Entrées marquées « non documenté » |
 |---|---|---|
@@ -50,11 +50,11 @@ Node utilisé : v24.18.1.
 | `batch(fn)` | 27 | 19 |
 | `untracked(fn)` | 13 | 7 |
 | `action(fn)` | 11 | 7 |
-| `createModel(factory)` | 38 | 30 |
+| `createModel(factory)` | 45 | 37 |
 | `Signal.prototype.subscribe(fn)` | 18 | 17 |
 | Conversions `toString` / `toJSON` / `valueOf` / `brand` | 15 | 12 |
 | `dispose` et `Symbol.dispose` | 10 | 5 |
-| **Total** | **231** | **166** |
+| **Total** | **238** | **173** |
 
 Les deux colonnes comptent la même population : les lignes de la matrice qui ont une entrée de
 leur côté dans le registre, branche comprise. Deux lignes ne s'additionnent donc pas. La ligne des
@@ -483,6 +483,13 @@ par probe**.
 | 32 | Signal partagé entre deux modèles : chaque modèle possède son effect | `L1096-1119` | `["e:0","e:0","e:1","e:1","e:2"]` | non | — |
 | 33 | Un effet d'un modèle qui s'inscrit sur un signal externe reste possédé | `L902-905` | dispose → plus de `"sub:1"` | non | — |
 | 34 | Factory qui renvoie une primitive | `L1098`,`L1109-1111` | avec `new` : le retour primitif est ignoré, l'instance est un objet vide `{}` (`Object.keys === []`, `[Symbol.dispose] === undefined`) — l'affectation est un no-op silencieux. Avec `null` : `TypeError: Cannot set properties of null` dans les deux modes. ESM strict + primitif : `TypeError: Cannot create property 'Symbol(Symbol.dispose)' on number '42'` | non | dépend de la strictness et de `new` |
+| 35 | La garde de marque consulte la clé **par symbole**, alors que la marque vit sous le **nom** `brand` | `L1081` | la marque étant un NOM, le garde par symbole ne la voit pas : la descente est entrée dans le signal ou le computé de la factory, a remplacé son `_fn`, et le cache dérivé restait périmé pour toujours. Sonde du 16 octobre : signal et computé traversés restent les mêmes objets chez signalcn, et l'actualisation d'un computé survit | non | la marque vit sous un nom, pas un symbole |
+| 36 | La descente `for…in` embrasse aussi ce qui est HÉRITÉ énumérable, et le copie en propre | `L1076-1081` | une méthode héritée énumérable est copiée sur le modèle comme si elle était propre (sonde du 16 octobre). Chez signalcn : elle reste héritée, et elle reste appelable avec `this` = modèle | non | une boucle qui embrasse les prototypes |
+| 37 | L'accesseur est écrasé : le descripteur est lu pour choisir la branche, puis le slot est RÉÉCRIT en donnée | `L1077-1080` | getter sans setter en strict : `TypeError: Cannot set property acc of #<Object> which has only a getter` — le paquet lève toujours. Sonde du 16 octobre : chez signalcn, l'accesseur est invoqué une fois à la construction, il reste accesseur, et le slot n'est jamais réécrit (descente étroite) | non | la correction est ce qui supprime l'écriture |
+| 38 | Un sous-arbre partagé présenté par deux clés est ré-emballé à CHAQUE route | `L1077-1081` | sonde du 16 octobre, compte par un piège à setter : 2 remplacements de fonction contre 0 chez signalcn, et les deux routes n'observent pas la même enveloppe. Chez nous, une seule enveloppe sert les deux routes (`m.A === m.B === arbre`) | non | un objet partagé ne passe pas deux fois |
+| 39 | Un `Symbol.dispose` ABSENT du realm fait une clé chaîne `"undefined"` | `L1111` | sonde `vm` en CJS du 16 octobre : chaque modèle porte une clé énumérable `"undefined"` dont la valeur est une fonction, et `getOwnPropertySymbols` n'y renvoie rien. Chez nous, rien n'est posé quand le symbole manque | non | le `using` devient un no-op qui fuit |
+| 40 | Une `AsyncFunction` est enveloppée sans un mot | `L991-993` | le journal des drainages est IDENTIQUE au nôtre (`["e0","debut","apres1","e1","retour","e2","apres2"]`, sonde du 16 octobre), mais la construction reste silencieuse. Chez signalcn, un avertissement prévient que seul le préfixe synchrone est groupé | non | l'avertissement n'existe que chez signalcn |
+| 41 | Une fabrique qui ne renvoie pas un objet lève à l'écriture du dispositeur, pas avant | `L1113-1118` | en ESM strict, `M()` lève une `TypeError` — celle de l'affectation d'un dispositeur sur `null` / un nombre, conforme au mode du MODULE consommateur. Chez signalcn, une garde lève AVANT toute mutation | non | les quatre gardes coalescent sur cet observable |
 
 ---
 

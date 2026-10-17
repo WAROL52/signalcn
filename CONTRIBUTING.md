@@ -54,7 +54,7 @@ exception à la règle.
 - `chain`
 
 `npm run documentation` applique la règle et lit cette section — il ne recopie ni la phrase ni la
-liste. Son périmètre est ce qu'il sait lire : les 97 descripteurs que la suite enregistre, et les
+liste. Son périmètre est ce qu'il sait lire : les 104 descripteurs que la suite enregistre, et les
 cinq identifiants que [#46](https://github.com/WAROL52/signalcn/issues/46) a renommés dans le
 cœur. Les mots anglais qu'il accepte sont versionnés dans
 `scripts/vocabulaire-identifiants.txt` : un mot anglais nouveau s'y ajoute, et rien d'autre ne se

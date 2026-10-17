@@ -22,6 +22,8 @@ une CI pour savoir comment l'installer.
 | [`site/utilisateurs/migrer-depuis-preact.md`](../utilisateurs/migrer-depuis-preact.md) | ce qui change dans du code écrit contre la baseline |
 | [`site/utilisateurs/verifier-artefact-installe.md`](../utilisateurs/verifier-artefact-installe.md) | faire tourner la suite installée, et ses limites |
 | [`site/utilisateurs/batch-et-surprises.md`](../utilisateurs/batch-et-surprises.md) | batchs, cascades, `action`, et les surprises à l'exécution |
+| [`site/utilisateurs/api/signal.md`](../utilisateurs/api/signal.md) | `signal()`, la première page d'API : sept scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/effect.md`](../utilisateurs/api/effect.md) | `effect()`, la classe du paquet à sa fabrique : dix scénarios de la table rendus avec leur journal |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
 
 ### Interne — pour le mainteneur
@@ -31,6 +33,7 @@ une CI pour savoir comment l'installer.
 | [`site/technique/architecture.md`](../technique/architecture.md) | comment le graphe est construit |
 | [`site/technique/graphe-de-dependances.md`](../technique/graphe-de-dependances.md) | la figure du graphe : chaîne, diamant, dépendance dynamique |
 | [`site/technique/regles-de-drainage.md`](../technique/regles-de-drainage.md) | les deux ordres d'exécution, et lequel s'applique |
+| [`site/technique/reimplementer/la-cellule.md`](../technique/reimplementer/la-cellule.md) | la cellule et le nœud — première étape du chapitre de reconstruction |
 | [`site/contributeurs/build.md`](./build.md) | la chaîne de build et de minification |
 | [`site/contributeurs/ci.md`](./ci.md) | les jobs et leur ordre |
 | [`site/contributeurs/parity.md`](./parity.md) | comment la garantie de conformité s'applique |

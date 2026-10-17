@@ -62,7 +62,7 @@ for (const scenario of scenarios) {
 
 // --- Les tests `signalcn-seul` rejouables contre le paquet installé ----------------------
 //
-// Cinq de ces quinze tests ne lisent aucun interne minifié : ils ne parlent que l'API publique, ou
+// Douze de ces vingt-deux tests ne lisent aucun interne minifié : ils ne parlent que l'API publique, ou
 // des symboles et des méthodes qui gardent leur nom dans l'artefact. Ceux-là ne sont PAS
 // « nôtres seulement » — ils sont simplement jamais joués, parce que le harnais ne jouait que la
 // table. Les rejouer est la seule façon de prouver que nos assertions y sont aussi celles de la
@@ -75,7 +75,9 @@ let rejoues = 0
 for (const nom of REJOUABLES) {
   const libelle = `  signalcn-seul/${nom}  [rejouable sur l'artefact]`
   try {
-    await testsSignalcnSeul[nom](baselineApi)
+    // `baselineApi` emporte un journal : les reconstitutions (#123) journalisent, et le
+    // harnais rejoue leur test comme la suite et le lecteur du site jouent la même table.
+    await testsSignalcnSeul[nom]({ ...baselineApi, log: makeLog() })
     porte(libelle, true)
     rejoues++
   } catch (erreur) {

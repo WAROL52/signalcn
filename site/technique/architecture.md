@@ -127,7 +127,7 @@ La première sortie ne demande **aucun abonné**. Une version de ce paragraphe e
 motif que « sans abonné, aucune source ne prévient, donc court-circuiter rendrait une valeur
 périmée ». C'était faux : la comparaison des versions se fait nœud par nœud et ne dépend d'aucun
 abonnement. Ce que le test coûtait : un computed nu réévaluait sur toute écriture non liée. La
-preuve est le scénario `computed/evaluation-dune-ecriture-non-liee`.
+preuve est le scénario `computed/unlinked-write-evaluation`.
 
 La seconde sortie est **délibérément trop large** : n'importe quelle écriture de n'importe quel
 signal invalide le cache de tous les computeds du programme. Le pire cas est un recalcul

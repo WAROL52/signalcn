@@ -1253,21 +1253,86 @@ function startCapturingEffects(): () => Effect<any>[] | undefined {
 }
 
 /**
+ * Le constructeur des fonctions `async`, lu une fois. La détection est par VALEUR et non par nom :
+ * le paquet distribué minifie les noms, donc `constructor.name` ne dit rien dans l'artefact.
+ *
+ * L'échantillon est APPELÉ une fois, tout de suite : une flèche jamais appelée serait une fonction
+ * non couverte dans le relevé, et la porte de non-régression la compterait en régression. Son
+ * appel à vide ne résout qu'une promesse abandonnée — personne ne s'y inscrit, donc elle ne
+ * programme rien.
+ */
+const asyncCalled = async (): Promise<void> => {}
+asyncCalled()
+const AsyncFunction = asyncCalled.constructor
+
+/**
+ * Les enveloppes mémoïsées, ADR-0005. Deux clés pointant la même fonction partagent le même
+ * wrapper, donc `model.a === model.b`. Sans ce cache, la clé visitée en second recevrait un
+ * wrapper du wrapper — une seconde couche `batch` + `untracked`, donc deux fois le flush.
+ */
+const wrappers = new WeakMap<(...args: unknown[]) => unknown, (...args: unknown[]) => unknown>()
+
+/**
  * Enveloppe chaque fonction PROPRE énumérable dans une `action`, récursivement.
  *
- * Le `for…in` et non `Object.keys` : les méthodes de classe sont sur le prototype, donc non
- * énumérables, donc NON enveloppées. C'est un quirk figé — une méthode de classe n'est pas une
- * fonction d'état.
+ * `Object.keys` et non `for…in` : seules les clés PROPRES énumérables sont parcourues. Les
+ * méthodes de classe restent non enveloppées — le prototype n'étant pas énumérable, c'est le
+ * même effet qu'avant, mais une propriété héritée énumérable n'est plus ni enveloppée ni recopiée
+ * comme propriété propre, et une pollution de `Object.prototype` n'atteint plus les modèles.
  *
- * On ne descend pas dans un objet qui porte une marque : c'est un signal ou un computé, et ses
- * méthodes sont les siennes. Sans cette garde, un modèle ne pourrait pas contenir un signal.
+ * Le DESCRIPTEUR est consulté avant d'écrire. La baseline lisait `value[key]` pour choisir une
+ * branche puis écrivait dans le même slot ; sur un accesseur, lire et écrire n'est pas la même
+ * opération. Un accesseur en lecture n'est donc jamais invoqué ni réassigné.
+ *
+ * Le veto qui protège les signaux compare la VALEUR de la marque et non son nom. La baseline
+ * testait `!("brand" in val)`, donc tout objet métier portant une propriété `brand` — un
+ * catalogue, un DTO — était silencieusement ni validé ni enveloppé. Ici la comparaison porte sur
+ * la valeur rangée SOUS LE NOM `brand` — `val.brand` — et non sur une lecture par la clé
+ * symbole : la marque est posée sous le nom `brand` (`conv#12`, ADR-0004), donc `val[BRAND_SYMBOL]`
+ * ne lit rien, et la marche serait descendue dans le signal lui-même, jamais protégé — elle aurait
+ * remplacé le `_fn` d'un computé par l'enveloppe, et le cache dérivé serait à jamais périmé ;
+ * sur un computé déjà lu, la descente dans les nœuds internes déborde la pile.
+ *
+ * Le cycle n'est PAS détecté : un objet cyclique produit toujours un dépassement de pile après
+ * mutation partielle, parce que la matrice le fige.
  */
 function wrapInAction(value: Record<string, unknown>): void {
-  for (const key in value) {
-    const val = value[key]
+  for (const key of Object.keys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    if (descriptor === undefined) continue
+    const isAccessor = descriptor.get !== undefined || descriptor.set !== undefined
+    const val = isAccessor ? value[key] : descriptor.value
     if (typeof val === "function") {
-      value[key] = action(val as (...args: unknown[]) => unknown)
-    } else if (typeof val === "object" && val !== null && !("brand" in val)) {
+      // Un accesseur en lecture ne reçoit PAS l'enveloppe : écrire dans un slot en accès sans
+      // setter levait une `TypeError` en mode strict, et était un no-op silencieux en sloppy.
+      // C'est le défaut que l'ADR corrige — et le seul.
+      if (isAccessor) continue
+      let wrapper = wrappers.get(val)
+      if (wrapper === undefined) {
+        if (val.constructor === AsyncFunction) {
+          console.warn(
+            "signalcn — action() ne groupe que le préfixe synchrone d'une fonction async : " +
+              "les écritures après le premier await se propageront dans un second drainage.",
+            val,
+          )
+        }
+        wrapper = action(val)
+        wrappers.set(val, wrapper)
+        // L'enveloppe se mappe sur ELLE-MÊME : sans cela, un sous-arbre partagé se voit comme
+        // une fonction inconnue au second passage et reçoit une seconde couche batch + untracked.
+        wrappers.set(wrapper, wrapper)
+      }
+      value[key] = wrapper
+      continue
+    }
+
+    // Le veto qui protège les signaux : la marque est lue PAR SON NOM, et c'est sa VALEUR qu'on
+    // compare au symbole. Voir le commentaire de la fonction, plus haut.
+    if (
+      typeof val === "object" &&
+      val !== null &&
+      (val as Record<string, unknown>).brand !== BRAND_SYMBOL
+    ) {
       wrapInAction(val as Record<string, unknown>)
     }
   }
@@ -1283,7 +1348,8 @@ function wrapInAction(value: Record<string, unknown>): void {
  *
  * L'objet rendu par la fabrique EST le modèle, muté en place : il n'est ni copié, ni enveloppé, ni
  * proxyfié. C'est ce qui rend `createModel` transparent, et c'est aussi ce qui le rend fragile —
- * une fabrique qui renvoie une primitive produit un modèle vide, silencieusement.
+ * une fabrique qui renvoie une primitive est rejetée par la garde ci-dessous, AVANT toute
+ * mutation, donc le modèle n'est jamais à moitié construit sans que personne ne le sache.
  */
 export function createModel<TModel, TFactoryArgs extends any[] = []>(
   modelFactory: (...args: TFactoryArgs) => TModel,
@@ -1305,22 +1371,41 @@ export function createModel<TModel, TFactoryArgs extends any[] = []>(
       modelEffects = stopCapturingEffects()
     }
 
+    // La garde AVANT toute mutation : sans elle, une fabrique qui renvoyait une primitive
+    // produisait un modèle vide et silencieux en mode sloppy, et une `TypeError` de V8 — dont le
+    // message ne dit rien — seulement en mode strict.
+    if (model === null || (typeof model !== "object" && typeof model !== "function")) {
+      throw new TypeError(
+        "signalcn — createModel() attend une fabrique qui renvoie un objet ; " +
+          `elle a renvoyé ${model === null ? "null" : typeof model}.`,
+      )
+    }
+
     wrapInAction(model as unknown as Record<string, unknown>)
 
     const disposable = model as unknown as Record<symbol, unknown>
-    disposable[Symbol.dispose] = action(function disposeModel() {
-      if (modelEffects) {
-        // Une boucle SANS `try` : un cleanup qui leve interrompt les disposes suivants. C'est un
-        // défaut figé par la matrice — `createModel#26` — et le corriger changerait le contrat.
-        const effects: Effect<any>[] = modelEffects
-        // `for…of` et non une boucle d'index : l'ordre de création est l'ordre de dispose, donc les
-        // deux se confondent, et l'index n'apporte rien.
-        for (const instance of effects) {
-          instance._dispose()
+    // Deux gardes, une seule condition : `Symbol.dispose` absent ne doit pas poser de clé, et un
+    // dispositeur fourni par l'utilisateur ne doit pas être écrasé en silence.
+    if (typeof Symbol.dispose === "symbol" && disposable[Symbol.dispose] === undefined) {
+      disposable[Symbol.dispose] = action(function disposeModel() {
+        if (modelEffects) {
+          // Une boucle SANS `try` PAR EFFET : un cleanup qui lève interrompt les disposes suivants.
+          // C'est un défaut figé par la matrice — `createModel#26` — et le corriger changerait le
+          // contrat. Ce qui est corrigé ici, c'est l'effacement : il passe dans un `finally`, donc
+          // un cleanup qui lève ne laisse pas le tableau d'effets en vie pour un second dispose.
+          const effects: Effect<any>[] = modelEffects
+          // `for…of` et non une boucle d'index : l'ordre de création est l'ordre de dispose, donc les
+          // deux se confondent, et l'index n'apporte rien.
+          try {
+            for (const instance of effects) {
+              instance._dispose()
+            }
+          } finally {
+            modelEffects = undefined
+          }
         }
-      }
-      modelEffects = undefined
-    })
+      })
+    }
 
     return model
   } as unknown as ((...args: TFactoryArgs) => TModel) & (new (...args: TFactoryArgs) => TModel)
