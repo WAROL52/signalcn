@@ -75,7 +75,9 @@ let rejoues = 0
 for (const nom of REJOUABLES) {
   const libelle = `  signalcn-seul/${nom}  [rejouable sur l'artefact]`
   try {
-    await testsSignalcnSeul[nom](baselineApi)
+    // `baselineApi` emporte un journal : les reconstitutions (#123) journalisent, et le
+    // harnais rejoue leur test comme la suite et le lecteur du site jouent la même table.
+    await testsSignalcnSeul[nom]({ ...baselineApi, log: makeLog() })
     porte(libelle, true)
     rejoues++
   } catch (erreur) {
