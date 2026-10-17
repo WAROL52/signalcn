@@ -1,6 +1,6 @@
 import { defineConfig } from "vitepress"
 
-import { journalHarnais } from "./journal-harnais.mjs"
+import { journalHarnais, lecteurInjection } from "./journal-harnais.mjs"
 import { mermaid, validerMermaid } from "./mermaid.mjs"
 
 // Trois publics, trois sections, et les documents du dépôt rendus sans qu'aucun bouge.
@@ -84,19 +84,25 @@ export default defineConfig({
   // serait affaiblir le contrôle des liens.
   srcExclude: [".github/**", "prototype/**"],
 
-  // Le journal du harnais différentiel entre dans `scenarios.md` au moment du rendu, par un plugin
-  // markdown-it qui remplace un marqueur — et **aucun fichier n'est écrit**, donc l'arbre de travail
-  // reste propre et la porte de propreté reste verte. Si un scénario diverge, le build ÉCHOUE : une
-  // page qui afficherait un harnais rouge mentirait, et `SPEC.md` §19 exige que les trois cibles
-  // soient indiscernables. Le bloc montre le résumé puis le groupe `batch/*`, qui montre l'ordre
-  // d'exécution — le même fait que les deux règles de drainage de `SPEC.md` §13.4, que la figure
-  // d'`architecture.md` doit dessiner. Voir #50, et `npm run documentation` qui garde la présence
-  // du marqueur sur la page.
+  // La chaîne des démonstrations inversées. Le journal du harnais différentiel entre dans
+  // `scenarios.md` au moment du rendu, par un plugin markdown-it qui remplace un marqueur — et
+  // **aucun fichier n'est écrit**, donc l'arbre de travail reste propre et la porte de propreté
+  // reste verte. Si un scénario diverge, le build ÉCHOUE : une page qui afficherait un harnais
+  // rouge mentirait, et `SPEC.md` §19 exige que les trois cibles soient indiscernables. Le bloc
+  // montre le résumé puis le groupe `batch/*`, qui montre l'ordre d'exécution — le même fait que
+  // les deux règles de drainage de `SPEC.md` §13.4, que la figure d'`architecture.md` doit
+  // dessiner. Voir #50, et `npm run documentation` qui garde la présence du marqueur sur la page.
+  //
+  // Le lecteur d'injection (#122) marche sur le même fil, au niveau de la SOURCE : un plugin Vite
+  // `enforce: "pre"` réécrit le `.md` avant que le markdown n'y passe, et chaque bloc-marqueur
+  // de la page `signal()` reçoit le code nettoyé et le journal que l'exécution a produits.
+  // Aucun journal de page n'est écrit d'avance — le lecteur refuse celui qui est porté à la main.
+  //
   // Un thème, et une seule chose à enregistrer : le composant que le plugin markdown-it émet.
   // Sans lui, un bloc `mermaid` devient un composant inconnu et VitePress le rend en texte
   // brut — donc le diagramme apparaîtrait sous forme de code, et le build resterait vert.
   vite: {
-    plugins: [validerMermaid],
+    plugins: [validerMermaid, lecteurInjection],
   },
 
   markdown: {

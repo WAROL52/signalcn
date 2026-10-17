@@ -376,6 +376,23 @@ const corpsDe = (source, debut) => {
   return null
 }
 
+/**
+ * Le bloc SOURCE d'un marqueur — à la main par les exercices du verifier, au fil de l'eau par
+ * `executer` : quel que soit le préfixe, un corps, et les paires d'alias d'une reconstitution.
+ */
+export const blocDe = async (marqueur) => {
+  const { genre, nom } = await resoudre(marqueur)
+  const { source } = await lireSources()
+
+  if (genre === "scenario") {
+    const corps = corpsScenario(source, nom)
+    return corps === null ? null : { corps, paires: [] }
+  }
+
+  const extrait = corpsReconstitution(source, nom)
+  return extrait ?? null
+}
+
 /** Le corps d'un scénario de la table : sa ligne `name:`, puis son `run({...})`. */
 const corpsScenario = (source, nom) => {
   const nomme = source.indexOf(`name: "${nom}"`)
@@ -481,11 +498,12 @@ const deballerAuRuntime = (texte) => {
 }
 
 /**
- * Le pacte du nettoyage : commentaires s'en vont, `api.surface` retourne bare, les enveloppes
- * déballées, l'assert terminal privé du code affiché, et l'import nominal ouvre le bloc avec les
- * DIX surfaces réellement utilisées — dans l'ordre du README, pas celui de l'utilisation.
+ * Le pacte du nettoyage, EXERCÉ par le verifier sur des corps réels : les commentaires s'en
+ * vont, `api.surface` retourne bare, les enveloppes de typage sont déballées, l'assert terminal
+ * est retiré du code affiché, et l'import nominal ouvre le bloc avec les surfaces réellement
+ * utilisées — dans l'ordre du README, pas celui de l'utilisation.
  */
-const nettoyer = (corps, paires = []) => {
+export const nettoyer = (corps, paires = []) => {
   let texte = sansAssertion(dedent(marche(corps))).join("\n")
   texte = texte
     .replace(/^\n+/, "")
@@ -530,26 +548,24 @@ const executer = (() => {
 
     const promesse = (async () => {
       const { genre, nom, scenario } = await resoudre(marqueur)
-      const { moteur, makeLog, suiteSeule, source } = await lireSources()
+      const { moteur, makeLog, suiteSeule } = await lireSources()
 
       const log = makeLog()
       const api = Object.fromEntries(SURFACE.map((nomSurface) => [nomSurface, moteur[nomSurface]]))
 
-      let corps, paires
       if (genre === "scenario") {
         scenario.run(api, log)
-        corps = corpsScenario(source, nom)
-        paires = []
       } else {
         await suiteSeule[nom]({ ...api, log })
-        const extrait = corpsReconstitution(source, nom)
-        ;({ corps, paires } = extrait ?? {})
       }
-      if (corps === null) {
+
+      const bloc = await blocDe(marqueur)
+      if (bloc === null) {
         throw new Error(
           `le corps de « ${marqueur} » n'est pas lisible dans sa source — le nom est résolu, le texte non ?`,
         )
       }
+      const { corps, paires } = bloc
 
       const entries = log.entries
       if (entries.length === 0) {
