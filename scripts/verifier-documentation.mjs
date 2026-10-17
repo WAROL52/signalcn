@@ -72,7 +72,7 @@
  *   13. LE LECTEUR D'INJECTION EST EXERCÉ. Deux préfixes de marqueur, deux sources : le bloc
  *      nommé est exécuté au build contre `signalcn`, la page reçoit le code nettoyé et le
  *      journal produit. Un nom non résolu, un journal porté à la main, un bloc qui ne
- *      journalise rien, un marqueur hors de sa page : la construction s'arrête en nommant
+ *      journalise rien, un marqueur hors des ensembles de la référence : la construction s'arrête en nommant
  *      fichier et ligne. Le lecteur vit dans `journal-harnais.mjs` ; cette porte importe
  *      `resoudre`, `blocDe`, `nettoyer` et le plugin Vite lui-même — un lecteur cassé resterait
  *      vert sur un dépôt propre, donc les quatre fautes sont rejouées ici sur des sources qui
@@ -1013,8 +1013,8 @@ porte(
 // Les quatre fautes ont chacune leur exercice, parce qu'elles cassent chacune à leur façon : un
 // nom absent, un journal porté à la main (il resterait caduc et il écrirait par-dessus
 // l'exécution), un bloc qui ne journalise rien (les vingt-deux reconstitutions actuelles ne
-// journalisent pas — la garde dit pourquoi la construction s'arrête), et un marqueur hors de la
-// page qui le porte (« il ne vit QUE sur signal.md »).
+// journalisent pas — la garde dit pourquoi la construction s'arrête), et un marqueur hors des deux
+// ensembles de la référence (« il ne vit QUE sur les ensembles »).
 
 const reussites = await resoudre("scenarios/signal/no-argument")
 const reconstitutionResolue = await resoudre("reconstitution/wrapper-covers-every-surface")
@@ -1054,6 +1054,21 @@ porte(
     !codePacte.includes("assert.") &&
     codePacte.includes("log("),
   nomsPacte.join(", "),
+)
+
+// Le pacte du nettoyage, sur un ALIAS — la déstructuration `{ signal: moteur }` d'une
+// reconstitution. La gauche du deux-points est la cle (celle que la page montre), la droite le
+// local du corps : un parseur qui lit l'inverse affichait `const source = moteur(1)` sur un build
+// VERT — la pire défaillance, la page mentait en silence. La garde dit la bonne direction : la
+// cle arrive dans le code, le local n'en sort jamais.
+const blocAlias = await blocDe("reconstitution/identical-writes-are-not-notified")
+const { code: codeAlias, noms: nomsAlias } = nettoyer(blocAlias.corps, blocAlias.paires)
+porte(
+  "le pacte du nettoyage lit un alias sous sa cle, jamais sous son local",
+  nomsAlias.includes("signal") &&
+    codeAlias.includes("const source = signal(") &&
+    !codeAlias.includes("moteur"),
+  nomsAlias.join(", "),
 )
 
 // Le transform, sur une source qui ment au marqueur : le message porte fichier ET ligne — la

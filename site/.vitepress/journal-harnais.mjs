@@ -429,7 +429,10 @@ const corpsReconstitution = (source, nom) => {
     const net = morceau.trim()
     if (net === "") continue
     const renomme = /^([\w$]+)\s*:\s*([\w$]+)$/.exec(net)
-    paires.push(renomme ? { local: renomme[1], cle: renomme[2] } : { local: net, cle: net })
+    // La LHS de `{ signal: moteur }` est la cle du moteur (celle que la page montre), la RHS est le
+    // local du corps — l'inverse d'une lecture naïve, celle qui faisait afficher `moteur` à la
+    // place de `signal`.
+    paires.push(renomme ? { local: renomme[2], cle: renomme[1] } : { local: net, cle: net })
   }
   return { corps, paires }
 }
@@ -536,11 +539,15 @@ export const nettoyer = (corps, paires = []) => {
 // exactement l'endroit de `validerMermaid`. Il ne lit que les `.md`, et ne réécrit que les
 // blocs-marqueurs — une page sans marqueur sort de son transform telle qu'elle est entrée.
 //
-// Les marqueurs ne vivent QUE sur `signal.md` — un bloc-marqueur écrit ailleurs est un marqueur
-// sans source au point où on s'attend à le lire, donc une faute, pas un oubli.
+// Les marqueurs ne vivent QUE sur les PAGES qui les déclarent — un bloc-marqueur écrit ailleurs
+// est un marqueur sans source au point où on s'attend à le lire, donc une faute, pas un oubli.
+// Les pages qui les portent sont celles des DEUX ENSEMBLES de la référence, dit au plugin.
 // ---------------------------------------------------------------------------------------------
 
-const PAGE_LECTEUR = "site/utilisateurs/api/signal.md"
+// Les deux ensembles de la référence (la spec, « Les deux ensembles ») : une page qui vit sous
+// l'un d'eux porte son bloc-marqueur résolu; une page hors d'eux refuse. Rien ne se liste page
+// par page — la couture se sert seule, la découpe ajoute ses pages sans écrire ici.
+const ENSEMBLES_LECTEUR = ["site/utilisateurs/api/", "site/technique/reimplementer/"]
 
 /**
  * Le bloc exécuté, UNE fois par marqueur et par construction. Un échec s'efface de la mémoire :
@@ -621,14 +628,14 @@ export const lecteurInjection = {
   async transform(code, id) {
     if (!id.endsWith(".md")) return null
     const chemin = id.replaceAll("\\", "/")
-    const estPage = chemin.endsWith(`/${PAGE_LECTEUR}`)
+    const estEnsemble = ENSEMBLES_LECTEUR.some((ensemble) => chemin.includes(ensemble))
 
     const blocs = [...code.matchAll(BLOC_MARQUEUR)]
     if (blocs.length === 0) return null
-    if (!estPage) {
+    if (!estEnsemble) {
       throw new Error(
         `${chemin}:${code.slice(0, code.search(BLOC_MARQUEUR)).split("\n").length} — ` +
-          `le bloc-marqueur ne vit que sur ${PAGE_LECTEUR}`,
+          `le bloc-marqueur ne vit que sur les ensembles de la référence — ${ENSEMBLES_LECTEUR.join(" et ")}`,
       )
     }
 
