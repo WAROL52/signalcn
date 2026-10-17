@@ -22,6 +22,7 @@ une CI pour savoir comment l'installer.
 | [`site/utilisateurs/migrer-depuis-preact.md`](../utilisateurs/migrer-depuis-preact.md) | ce qui change dans du code écrit contre la baseline |
 | [`site/utilisateurs/verifier-artefact-installe.md`](../utilisateurs/verifier-artefact-installe.md) | faire tourner la suite installée, et ses limites |
 | [`site/utilisateurs/batch-et-surprises.md`](../utilisateurs/batch-et-surprises.md) | batchs, cascades, `action`, et les surprises à l'exécution |
+| [`site/utilisateurs/api/signal.md`](../utilisateurs/api/signal.md) | `signal()`, la première page d'API : sept scénarios de la table rendus avec leur journal |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
 
 ### Interne — pour le mainteneur

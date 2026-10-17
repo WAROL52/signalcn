@@ -69,6 +69,15 @@
  *      ne nomme rien ne porte pas de liste, et reste de la prose. Le §12 dit ce qu'il exempte
  *      et ce qu'il ne vérifie pas.
  *
+ *   13. LE LECTEUR D'INJECTION EST EXERCÉ. Deux préfixes de marqueur, deux sources : le bloc
+ *      nommé est exécuté au build contre `signalcn`, la page reçoit le code nettoyé et le
+ *      journal produit. Un nom non résolu, un journal porté à la main, un bloc qui ne
+ *      journalise rien, un marqueur hors de sa page : la construction s'arrête en nommant
+ *      fichier et ligne. Le lecteur vit dans `journal-harnais.mjs` ; cette porte importe
+ *      `resoudre`, `blocDe`, `nettoyer` et le plugin Vite lui-même — un lecteur cassé resterait
+ *      vert sur un dépôt propre, donc les quatre fautes sont rejouées ici sur des sources qui
+ *      mentent. Voir [#122].
+ *
  *   node scripts/verifier-documentation.mjs
  */
 
@@ -80,7 +89,13 @@ import { join } from "node:path"
 // dit pas « marqueur » tout court : `COUVERTURE` a déjà un `MARQUEUR`, qui désigne autre chose. Deux
 // sens pour un mot dans le même dépôt, c'est la faute que le lexique des descripteurs existe pour
 // éviter.
-import { MARQUEUR_INJECTION } from "../site/.vitepress/journal-harnais.mjs"
+import {
+  MARQUEUR_INJECTION,
+  lecteurInjection,
+  nettoyer,
+  blocDe,
+  resoudre,
+} from "../site/.vitepress/journal-harnais.mjs"
 import { cheminsGit, ecritsParBuild, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
@@ -985,6 +1000,107 @@ porte(
   "chaque fichier .md d'un ensemble est declare dans documentation.md",
   nomsEnTrop.length === 0,
   nomsEnTrop.join(", "),
+)
+
+// ---- 13. Le lecteur d'injection, et ses deux sources -----------------------------------------
+//
+// [#122]. Deux préfixes de marqueur, deux sources, UN lecteur : le bloc nommé est exécuté contre
+// `signalcn` au moment du build, et la page reçoit le code nettoyé et le journal produit. Rien
+// ici ne reconstruit la résolution : chaque assertion passe par le module du lecteur, comme le
+// build lui-même — un lecteur cassé sur un arbre propre resterait vert, donc les gardes sont
+// exercées sur des sources qui mentent, le filet du §9 et du §11 appliqué à une deuxième source.
+//
+// Les quatre fautes ont chacune leur exercice, parce qu'elles cassent chacune à leur façon : un
+// nom absent, un journal porté à la main (il resterait caduc et il écrirait par-dessus
+// l'exécution), un bloc qui ne journalise rien (les vingt-deux reconstitutions actuelles ne
+// journalisent pas — la garde dit pourquoi la construction s'arrête), et un marqueur hors de la
+// page qui le porte (« il ne vit QUE sur signal.md »).
+
+const reussites = await resoudre("scenarios/signal/no-argument")
+const reconstitutionResolue = await resoudre("reconstitution/wrapper-covers-every-surface")
+porte(
+  "le lecteur résout les deux préfixes sur la table réelle",
+  reussites.genre === "scenario" &&
+    reussites.nom === "signal/no-argument" &&
+    typeof reussites.scenario.run === "function" &&
+    reconstitutionResolue.genre === "reconstitution" &&
+    reconstitutionResolue.nom === "wrapper-covers-every-surface",
+  `genre ${reussites.genre}/${reconstitutionResolue.genre}`,
+)
+
+const essaiResolu = (marqueur) =>
+  resoudre(marqueur).then(
+    () => null,
+    (cause) => String(cause.message),
+  )
+const fantome = await essaiResolu("scenarios/signal/sans-nom")
+const deuxMots = await essaiResolu("reconstitution/deux/morceaux")
+porte(
+  "un nom non résolu est refusé en nommant l'attendu",
+  fantome !== null && fantome.includes("« signal/sans-nom »") && deuxMots !== null,
+  fantome ?? deuxMots ?? "les deux résolutions ont réussi",
+)
+
+// Le nettoyage, sur un corps réel de la table, affiché mentalement : un import nominal, sans la
+// déstructuration du harnais, sans le verdict de la suite, `log()` toujours dans le code.
+const blocNoArgument = await blocDe("scenarios/signal/no-argument")
+const { code: codePacte, noms: nomsPacte } = nettoyer(blocNoArgument.corps)
+porte(
+  "le pacte du nettoyage est exécuté sur un corps réel de la table",
+  nomsPacte.length === 1 &&
+    nomsPacte[0] === "signal" &&
+    codePacte.trim().startsWith('import { signal } from "signalcn"') &&
+    !codePacte.includes("api.") &&
+    !codePacte.includes("assert.") &&
+    codePacte.includes("log("),
+  nomsPacte.join(", "),
+)
+
+// Le transform, sur une source qui ment au marqueur : le message porte fichier ET ligne — la
+// règle du plugin du journal du harnais, étendue au lecteur. La ligne est celle du marqueur :
+// « titre » 1, la fence ouvre à la ligne 3.
+const PAGE = join(RACINE, "site/utilisateurs/api/signal.md")
+const essaiTransform = (source, id) =>
+  lecteurInjection.transform(source, id).then(
+    () => null,
+    (cause) => String(cause.message),
+  )
+const mentant = "titre\n\n```ts scenarios/signal/introuvable\n```\n"
+const nommé = await essaiTransform(mentant, PAGE)
+porte(
+  "un marqueur non résolu nomme fichier et ligne au transform",
+  nommé !== null && nommé.startsWith(`${PAGE}:3`),
+  nommé ?? "le transform a réussi",
+)
+
+const manuel = await essaiTransform(
+  "titre\n\n```ts scenarios/signal/no-argument\n```\n\n```text\npas produit\n```\n",
+  PAGE,
+)
+porte(
+  "un journal porté à la main est refusé, sur la ligne de la fence",
+  manuel !== null && manuel.includes("écrit à la main") && manuel.includes(`${PAGE}:6`),
+  manuel ?? "le transform a réussi",
+)
+
+const vide = await essaiTransform(
+  "titre\n\n```ts reconstitution/wrapper-covers-every-surface\n```\n",
+  PAGE,
+)
+porte(
+  "une reconstitution qui ne journalise rien est refusée",
+  vide !== null && vide.includes("ne journalise rien"),
+  vide ?? "le transform a réussi",
+)
+
+const ailleurs = await essaiTransform(
+  "titre\n\n```ts scenarios/signal/no-argument\n```\n",
+  join(RACINE, "site/technique/architecture.md"),
+)
+porte(
+  "un marqueur hors de la page qui le porte est refusé",
+  ailleurs !== null && ailleurs.includes("site/utilisateurs/api/signal.md"),
+  ailleurs ?? "le transform a réussi",
 )
 console.log(
   "  --   les fichiers qui ne finissent pas par .md ne font pas partie d'une etendue : la porte n'ouvre que les pages",
