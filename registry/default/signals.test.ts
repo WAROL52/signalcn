@@ -3702,8 +3702,10 @@ export const COUVERTURE: Record<string, string> = {
   "computed#5": "computed/identical-value-reread",
   "computed#6": "computed/identical-value-reread",
   "computed#7": "computed/invalidation-and-recompute",
-  "computed#8": "computed/dynamic-dependencies",
-  "computed#9": "computed/reactivation-after-abandon + signalcn-seul/reread-wakes-dependency",
+  "computed#8":
+    "computed/dynamic-dependencies + signalcn-seul/abandoned-dependency-skips-the-recompute",
+  "computed#9":
+    "computed/reactivation-after-abandon + signalcn-seul/reread-wakes-dependency + signalcn-seul/reread-revives-the-abandoned-dependency",
   // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
   // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
   "computed#10": "signalcn-seul/sources-in-read-order + source:src/index.ts#L508-531",
@@ -3739,7 +3741,10 @@ export const COUVERTURE: Record<string, string> = {
   // --- groupe `effect` : 41 entrées
   "effect#1": "effect/first-run-and-arguments",
   "effect#2": "effect/rerun-and-cleanup",
-  "effect#3": "effect/no-dependency",
+  // effect#3 : « sans dépendance, jamais re-notifié » — le scénario rejoue le cas vide (aucune
+  // lecture), la reconstitution le cas vivant : la cellule jamais lue est muette, celle qui
+  // entre dans la lecture devient notifiante. La même règle du §7, par ses deux bouts.
+  "effect#3": "effect/no-dependency + signalcn-seul/dependencies-follow-the-current-read",
   "effect#4": "effect/shape-of-the-disposer",
   "effect#5": "effect/non-function-return-ignored",
   "effect#6": "effect/rerun-and-cleanup",
@@ -4910,6 +4915,11 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // l'identité stricte (§5.2), la dépendance abandonnée qui redevient notifiante (§7), et
   // l'écriture qui réveille chaque cible connue (§5.1). Les pages suivantes attendent leurs
   // propres reconstitutions — une reconstitution au moins par page du chapitre.
+  //
+  // Les trois reconstitutions de la page « la dépendance », deuxième étape : la collecte qui ne
+  // garde que les lectures du calcul courant (§7), l'abandon qui n'invalide plus (§7), et le
+  // retour de la lecture qui réintègre l'écriture manquée (§7). Le journal s'écrit d'abord
+  // contre le moteur, la page ensuite — la règle du protocole.
 
   // `signal#9` — l'identité stricte rejouée du côté de la LECTURE : la même primitive ne
   // notifie pas, `NaN` passe deux fois (§14), et un `-0` écrit sur `0` n'y change rien. La
@@ -5021,6 +5031,141 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
         "le second entend la même cellule 1",
       ],
       "une écriture réveille chaque cible connue, une fois",
+    )
+  },
+
+  // `effect#3` — la collecte vue de l'effet : une lecture devient une dépendance, et rien
+  // d'autre. Une cellule jamais lue n'est jamais notifiante — l'écriture qu'elle reçoit attend
+  // la lecture suivante ; une cellule qui entre dans la lecture entre dans la liste, et celle
+  // qui n'est plus relue en sort. Le journal dit les tournées et la valeur lue, rien de plus.
+  "dependencies-follow-the-current-read": async ({ signal: moteur, effect, log }) => {
+    const bascule = moteur(true)
+    const a = moteur(1)
+    const b = moteur(2)
+
+    let tours = 0
+    effect(() => {
+      tours++
+      log("l'effet tourne et lit", String(bascule.value ? a.value : b.value))
+    })
+
+    b.value = 20
+    log("tours après une écriture sur une cellule jamais lue", String(tours))
+    bascule.value = false
+    log("tours après la bascule, la lecture a changé de cellule", String(tours))
+    a.value = 10
+    log("tours après une écriture sur la cellule abandonnée", String(tours))
+    b.value = 21
+    log("tours après une écriture sur la cellule lue", String(tours))
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "l'effet tourne et lit 1",
+        "tours après une écriture sur une cellule jamais lue 1",
+        "l'effet tourne et lit 20",
+        "tours après la bascule, la lecture a changé de cellule 2",
+        "tours après une écriture sur la cellule abandonnée 2",
+        "l'effet tourne et lit 21",
+        "tours après une écriture sur la cellule lue 3",
+      ],
+      "la collection est celle de la dernière lecture : jamais lue, jamais notifiante",
+    )
+  },
+
+  // `computed#8` — l'abandon vu du computé : une écriture sur une cellule que le calcul ne
+  // relit plus n'invalide même pas le cache. Le compte d'évaluations le dit ; la valeur seule
+  // ne prouverait rien, puisque le résultat serait le même si le calcul avait repris.
+  "abandoned-dependency-skips-the-recompute": async ({ signal: moteur, computed, log }) => {
+    const bascule = moteur(true)
+    const a = moteur(1)
+    const b = moteur(2)
+
+    let evaluations = 0
+    const c = computed(() => {
+      evaluations++
+      const lue = bascule.value ? "a:" + a.value : "b:" + b.value
+      log("le calcul lit", lue)
+      return lue
+    })
+
+    log("1re lecture", String(c.value))
+    bascule.value = false
+    log("2e lecture après la bascule", String(c.value))
+    a.value = 10
+    log("3e lecture après une écriture sur l'abandonnée", String(c.value))
+    log("évaluations au passage de l'abandon", String(evaluations))
+    b.value = 21
+    log("4e lecture après une écriture sur la cellule lue", String(c.value))
+    log("évaluations après la dernière écriture", String(evaluations))
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "le calcul lit a:1",
+        "1re lecture a:1",
+        "le calcul lit b:2",
+        "2e lecture après la bascule b:2",
+        "3e lecture après une écriture sur l'abandonnée b:2",
+        "évaluations au passage de l'abandon 2",
+        "le calcul lit b:21",
+        "4e lecture après une écriture sur la cellule lue b:21",
+        "évaluations après la dernière écriture 3",
+      ],
+      "une écriture sur une dépendance abandonnée ne recalcule pas, une écriture sur la lue oui",
+    )
+  },
+
+  // `computed#9` — le retour de la lecture, de bout en bout, et deux fois : la valeur réintègre
+  // l'écriture qui a eu lieu pendant l'abandon, la source revenue notifie de nouveau, et le
+  // compte d'évaluations suit. La norme (§7) dit que le nœud est RÉUTILISÉ, pas recréé ; ce
+  // que ce test rejoue est la conséquence observable de cette réutilisation.
+  "reread-revives-the-abandoned-dependency": async ({ signal: moteur, computed, log }) => {
+    const bascule = moteur(true)
+    const a = moteur(1)
+    const b = moteur(2)
+
+    let evaluations = 0
+    const c = computed(() => {
+      evaluations++
+      return bascule.value ? a.value : b.value
+    })
+
+    log("1re lecture", String(c.value))
+    bascule.value = false
+    log("après l'abandon, la lecture vaut", String(c.value))
+    a.value = 10
+    log("l'écriture manquée est-elle visible", String(c.value))
+    bascule.value = true
+    log("au retour de la lecture", String(c.value))
+    log("évaluations après le premier retour", String(evaluations))
+    a.value = 11
+    log("la dépendance revenue notifie", String(c.value))
+    log("évaluations après l'écriture sur la revenue", String(evaluations))
+    bascule.value = false
+    log("second abandon, la lecture vaut", String(c.value))
+    a.value = 12
+    log("la seconde écriture manquée est-elle visible", String(c.value))
+    bascule.value = true
+    log("au second retour de la lecture", String(c.value))
+    log("évaluations après le second retour", String(evaluations))
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "1re lecture 1",
+        "après l'abandon, la lecture vaut 2",
+        "l'écriture manquée est-elle visible 2",
+        "au retour de la lecture 10",
+        "évaluations après le premier retour 3",
+        "la dépendance revenue notifie 11",
+        "évaluations après l'écriture sur la revenue 4",
+        "second abandon, la lecture vaut 2",
+        "la seconde écriture manquée est-elle visible 2",
+        "au second retour de la lecture 12",
+        "évaluations après le second retour 6",
+      ],
+      "le retour réintègre l'écriture manquée, et la dépendance revenue notifie de nouveau",
     )
   },
 }
