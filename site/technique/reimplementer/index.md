@@ -6,7 +6,8 @@ réécriture, et il ne vit nulle part ailleurs.
 
 1. [la cellule et le nœud](./la-cellule) — ce qui décide qu'une écriture se tait, et quelle
    cible l'entend
-2. la dépendance
+2. [la dépendance](./la-dependance) — la collecte des dépendances du calcul courant, l'abandon,
+   et la relecture qui ranime
 3. l'invalidation
 4. le computé
 5. l'effet et le drainage

@@ -35,6 +35,7 @@ une CI pour savoir comment l'installer.
 | [`site/technique/graphe-de-dependances.md`](../technique/graphe-de-dependances.md) | la figure du graphe : chaîne, diamant, dépendance dynamique |
 | [`site/technique/regles-de-drainage.md`](../technique/regles-de-drainage.md) | les deux ordres d'exécution, et lequel s'applique |
 | [`site/technique/reimplementer/la-cellule.md`](../technique/reimplementer/la-cellule.md) | la cellule et le nœud — première étape du chapitre de reconstruction |
+| [`site/technique/reimplementer/la-dependance.md`](../technique/reimplementer/la-dependance.md) | la dépendance — deuxième étape du chapitre de reconstruction : la collecte, l'abandon, la relecture |
 | [`site/contributeurs/build.md`](./build.md) | la chaîne de build et de minification |
 | [`site/contributeurs/ci.md`](./ci.md) | les jobs et leur ordre |
 | [`site/contributeurs/parity.md`](./parity.md) | comment la garantie de conformité s'applique |
