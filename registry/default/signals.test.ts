@@ -3695,7 +3695,8 @@ export const COUVERTURE: Record<string, string> = {
   // liée le fait (#3). Les deux ensemble disent ce que vaut « périmé » ; un seul laisserait la
   // moitié de la règle libre.
   "computed#3b": "computed/unlinked-write-evaluation",
-  "computed#4": "computed/invalidation-and-recompute",
+  "computed#4":
+    "computed/invalidation-and-recompute + signalcn-seul/invalidation-waits-for-the-read",
   // computed#5 et #6 : un résultat identique ne notifie pas les dépendants. Elles pointaient sur le
   // ticket #24, clos, et n'étaient couvertes par AUCUN test — un numéro de ticket est accepté comme
   // destination par `registre-complet`, donc le vide Passait pour une couverture. #38 est passé par là.
@@ -3761,7 +3762,7 @@ export const COUVERTURE: Record<string, string> = {
   // ne s'observe pas — c'est `effect/order-outside-batch`. Les deux formes, donc les deux scénarios :
   // une seule ne prouverait que la moitié de la règle.
   "effect#15": "effect/order-outside-batch + effect/order-in-batch",
-  "effect#16": "effect/auto-write",
+  "effect#16": "effect/auto-write + signalcn-seul/the-write-in-the-run-wakes-again",
   "effect#17": "effect/order-outside-batch + effect/order-in-batch",
   "effect#18": "effect/errors",
   "effect#19": "effect/bounded-cycle",
@@ -3841,7 +3842,7 @@ export const COUVERTURE: Record<string, string> = {
   "batch#12": "batch/identical-write",
   "batch#13": "batch/bounded-and-unbounded-cycle",
   "batch#14": "batch/three-levels-and-order",
-  "batch#15": "batch/identical-write",
+  "batch#15": "batch/identical-write + signalcn-seul/a-generation-wakes-once",
   // batch#16 et batch#20 sont lus par DEUX scénarios chacun. Le second n'est pas un doublon : il
   // est le SEUL test de la suite qui distingue `===` de `Object.is` dans la réconciliation du
   // batch. Mesuré : en remplaçant le `===` de `reconcileBatchSnapshots` par `Object.is`, tous les
@@ -4109,6 +4110,7 @@ export type Moteur = {
   signal: typeof signalFn
   computed: typeof computedFn
   effect: typeof effectFn
+  batch: Api["batch"]
   Signal: typeof SignalClass
   Computed: typeof ComputedClass
   Effect: typeof EffectClass
@@ -5166,6 +5168,132 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
         "évaluations après le second retour 6",
       ],
       "le retour réintègre l'écriture manquée, et la dépendance revenue notifie de nouveau",
+    )
+  },
+
+  // `computed#4` — l'invalidation de la SPEC §6 vue du côté LECTURE : trois écritures sur la
+  // source ne recalculent rien tant que personne ne lit, la première lecture paie le recalcul
+  // UNE fois, et la relecture ne repaie pas. Le scénario de la table montre l'attente courte —
+  // une écriture, une lecture ; ici l'attente est longue, et le compte d'évaluations dit que
+  // rien n'a bougé entre-temps.
+  "invalidation-waits-for-the-read": async ({ signal: moteur, computed, log }) => {
+    const a = moteur(1)
+    let evaluations = 0
+    const c = computed(() => {
+      evaluations++
+      log("le calcul repart, lit", String(a.value))
+      return a.value * 10
+    })
+
+    log("avant toute lecture, evaluations", String(evaluations))
+    log("1re lecture", String(c.value))
+    a.value = 2
+    a.value = 3
+    a.value = 4
+    log("après trois écritures, evaluations", String(evaluations))
+    log("la lecture rend", String(c.value))
+    log("évaluations après la lecture", String(evaluations))
+    log("relire ne recalcule pas", String(c.value))
+    log("évaluations après la relecture", String(evaluations))
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "avant toute lecture, evaluations 0",
+        "le calcul repart, lit 1",
+        "1re lecture 10",
+        "après trois écritures, evaluations 1",
+        "le calcul repart, lit 4",
+        "la lecture rend 40",
+        "évaluations après la lecture 2",
+        "relire ne recalcule pas 40",
+        "évaluations après la relecture 2",
+      ],
+      "trois écritures attendent la lecture, qui recalcule une fois, puis se tait",
+    )
+  },
+
+  // `batch#15` — une génération entendue deux fois ne tourne qu'une fois : le `batch` écrit les
+  // deux cellules que l'effet lit, l'effet est notifié deux fois dans le même drainage et ne
+  // tourne qu'une fois, avec les deux valeurs déjà écrites. Hors batch, chaque écriture a son
+  // drainage, donc son tour.
+  "a-generation-wakes-once": async ({ signal: moteur, effect, batch, log }) => {
+    const a = moteur(0)
+    const b = moteur(0)
+    let tours = 0
+    effect(() => {
+      tours++
+      log("l'effet tourne, voit", `${a.value} et ${b.value}`)
+    })
+
+    batch(() => {
+      a.value = 1
+      b.value = 1
+    })
+    log("après un batch sur les deux cellules, tours", String(tours))
+    a.value = 2
+    log("après l'écriture de la première, tours", String(tours))
+    b.value = 2
+    log("après l'écriture de la seconde, tours", String(tours))
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "l'effet tourne, voit 0 et 0",
+        "l'effet tourne, voit 1 et 1",
+        "après un batch sur les deux cellules, tours 2",
+        "l'effet tourne, voit 2 et 1",
+        "après l'écriture de la première, tours 3",
+        "l'effet tourne, voit 2 et 2",
+        "après l'écriture de la seconde, tours 4",
+      ],
+      "deux notifications dans un même drainage ne font qu'un tour, séparées elles en font deux",
+    )
+  },
+
+  // `effect#16` — l'effet qui s'écrit se réveille dans le MÊME drainage, et l'écriture de son
+  // propre run est posée AVANT l'exécution : le corps voit la valeur qu'il a écrite, pas
+  // l'ancienne. La pose seule fait la triple tournée ; le `batch` montre qu'une écriture faite
+  // pendant un drainage appartient au suivant ; la fin sépare l'écriture identique, qui ne
+  // réveille personne, de l'écriture neuve, qui réveille une fois.
+  "the-write-in-the-run-wakes-again": async ({ signal: moteur, effect, batch, log }) => {
+    const s = moteur(0)
+    let tours = 0
+    effect(() => {
+      tours++
+      log("l'effet tourne, voit", String(s.value))
+      if (s.value < 2) s.value = s.value + 1
+    })
+    log("après la pose, tours", String(tours))
+
+    batch(() => {
+      s.value = 5
+      log("dans le corps du batch, tours", String(tours))
+    })
+    log("après le batch, tours", String(tours))
+    log("valeur finale", String(s.value))
+
+    s.value = 5
+    log("après une écriture identique, tours", String(tours))
+    s.value = 7
+    log("après une écriture neuve, tours", String(tours))
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "l'effet tourne, voit 0",
+        "l'effet tourne, voit 1",
+        "l'effet tourne, voit 2",
+        "après la pose, tours 3",
+        "dans le corps du batch, tours 3",
+        "l'effet tourne, voit 5",
+        "après le batch, tours 4",
+        "valeur finale 5",
+        "après une écriture identique, tours 4",
+        "l'effet tourne, voit 7",
+        "après une écriture neuve, tours 5",
+      ],
+      "l'écriture du run se pose avant l'exécution, et réveille dans le même drainage",
     )
   },
 }

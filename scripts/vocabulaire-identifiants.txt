@@ -21,6 +21,7 @@ abandoned
 accessor
 action
 after
+again
 alternating
 an
 and
@@ -94,6 +95,7 @@ flags
 fn
 follow
 follows
+for
 from
 frozen
 function
@@ -151,6 +153,7 @@ observed
 observer
 of
 on
+once
 only
 options
 order
@@ -231,6 +234,7 @@ using
 val
 value
 version
+waits
 wakes
 watched
 watchers
