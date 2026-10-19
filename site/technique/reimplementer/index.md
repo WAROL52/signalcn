@@ -8,7 +8,8 @@ réécriture, et il ne vit nulle part ailleurs.
    cible l'entend
 2. [la dépendance](./la-dependance) — la collecte des dépendances du calcul courant, l'abandon,
    et la relecture qui ranime
-3. l'invalidation
+3. [l'invalidation](./l-invalidation) — les drapeaux, l'effacement avant l'exécution, et la
+   déduplication dans une génération
 4. le computé
 5. l'effet et le drainage
 6. le batch
