@@ -182,13 +182,16 @@ reentrant
 refresh
 reread
 rerun
+restarts
 restore
 result
 return
+reversed
 revert
 revives
 run
 running
+same
 self
 shape
 shared

@@ -3650,7 +3650,8 @@ export const COUVERTURE: Record<string, string> = {
   "signal#9": "signal/strict-equality-object + signalcn-seul/identical-writes-are-not-notified",
   "signal#10": "signal/strict-equality-object",
   "signal#11": "signal/strict-equality-object",
-  "signal#12": "signal/synchronous-notification + signalcn-seul/write-wakes-every-target",
+  "signal#12":
+    "signal/synchronous-notification + signalcn-seul/write-wakes-every-target + signalcn-seul/same-signal-creation-order",
   "signal#13": "signal/synchronous-notification",
   // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
   "signal#14": "signal/synchronous-notification",
@@ -3762,8 +3763,10 @@ export const COUVERTURE: Record<string, string> = {
   // ne s'observe pas — c'est `effect/order-outside-batch`. Les deux formes, donc les deux scénarios :
   // une seule ne prouverait que la moitié de la règle.
   "effect#15": "effect/order-outside-batch + effect/order-in-batch",
-  "effect#16": "effect/auto-write + signalcn-seul/the-write-in-the-run-wakes-again",
-  "effect#17": "effect/order-outside-batch + effect/order-in-batch",
+  "effect#16":
+    "effect/auto-write + signalcn-seul/the-write-in-the-run-wakes-again + signalcn-seul/self-write-restarts-in-same-drain",
+  "effect#17":
+    "effect/order-outside-batch + effect/order-in-batch + signalcn-seul/three-writes-drain-reversed",
   "effect#18": "effect/errors",
   "effect#19": "effect/bounded-cycle",
   "effect#20": "effect/errors",
@@ -5419,6 +5422,98 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
         "relire ne recalcule pas 1 évaluations:4",
       ],
       "un résultat identique par identité stricte ne notifie pas ; un résultat neuf notifie",
+    )
+  },
+
+  // ---- Les reconstitutions de la page « l'effet et le drainage », cinquième étape du chapitre --
+  //
+  // L'ordre inversé du batch, l'ordre de création sur un même signal, et la ré-exécution dans le
+  // même drainage coupée par l'identité. Les trois tests ne lisent que l'API publique : le harnais
+  // les rejoue contre le paquet installé, et la page montre le journal de cette exécution.
+
+  // `effect#17` — l'ordre INVERSÉ de la SPEC §13.4, rejoué des deux côtés : hors batch chaque
+  // écriture draine seule et l'ordre suit les écritures ; dans un batch, trois signaux distincts
+  // s'empilent et le drain les sort à l'envers. Les trois premières lignes sont les tournées de
+  // création, un effet s'exécutant aussitôt posé.
+  "three-writes-drain-reversed": async ({ signal: moteur, effect, batch, log }) => {
+    const a = moteur(0)
+    const b = moteur(0)
+    const c = moteur(0)
+
+    effect(() => log("A tourne", a.value))
+    effect(() => log("B tourne", b.value))
+    effect(() => log("C tourne", c.value))
+
+    a.value = 1
+    b.value = 1
+
+    batch(() => {
+      a.value = 2
+      b.value = 2
+      c.value = 2
+    })
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "A tourne 0",
+        "B tourne 0",
+        "C tourne 0",
+        "A tourne 1",
+        "B tourne 1",
+        "C tourne 2",
+        "B tourne 2",
+        "A tourne 2",
+      ],
+      "hors batch l'écriture draine seule ; dans le batch le drain sort à l'envers des écritures",
+    )
+  },
+
+  // `signal#12` — l'autre règle du §13.4, celle que `write-wakes-every-target` avait laissée à
+  // cette page : plusieurs effets sur le MÊME signal sortent dans l'ordre de création. La
+  // création les fait tourner une fois chacun, et l'écriture les réveille tous, dans cet ordre.
+  "same-signal-creation-order": async ({ signal: moteur, effect, log }) => {
+    const s = moteur(0)
+
+    effect(() => log("d1 lit", s.value))
+    effect(() => log("d2 lit", s.value))
+    effect(() => log("d3 lit", s.value))
+    effect(() => log("d4 lit", s.value))
+
+    s.value = 1
+
+    assert.deepEqual(
+      log.entries,
+      [
+        "d1 lit 0",
+        "d2 lit 0",
+        "d3 lit 0",
+        "d4 lit 0",
+        "d1 lit 1",
+        "d2 lit 1",
+        "d3 lit 1",
+        "d4 lit 1",
+      ],
+      "plusieurs effets sur le même signal gardent l'ordre de création",
+    )
+  },
+
+  // `effect#16` — un effet qui écrit une dépendance qu'il lit se ré-exécute dans le MÊME drainage
+  // (§8.4). La montée s'arrête à 3 : la troisième tournée écrit 3 sur 3, l'identité stricte
+  // refuse l'écriture identique (§5.1), et la boucle se coupe sans borne.
+  "self-write-restarts-in-same-drain": async ({ signal: moteur, effect, log }) => {
+    const s = moteur(1)
+
+    effect(() => {
+      const v = s.value
+      log("tourne, voit", v)
+      s.value = Math.min(v + 1, 3)
+    })
+
+    assert.deepEqual(
+      log.entries,
+      ["tourne, voit 1", "tourne, voit 2", "tourne, voit 3"],
+      "l'écriture du run relance l'effet dans le même drainage, et l'identité coupe à 3",
     )
   },
 }
