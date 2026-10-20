@@ -3650,8 +3650,7 @@ export const COUVERTURE: Record<string, string> = {
   "signal#9": "signal/strict-equality-object + signalcn-seul/identical-writes-are-not-notified",
   "signal#10": "signal/strict-equality-object",
   "signal#11": "signal/strict-equality-object",
-  "signal#12":
-    "signal/synchronous-notification + signalcn-seul/write-wakes-every-target + signalcn-seul/same-signal-creation-order",
+  "signal#12": "signal/synchronous-notification + signalcn-seul/write-wakes-every-target",
   "signal#13": "signal/synchronous-notification",
   // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
   "signal#14": "signal/synchronous-notification",
@@ -3765,8 +3764,7 @@ export const COUVERTURE: Record<string, string> = {
   "effect#15": "effect/order-outside-batch + effect/order-in-batch",
   "effect#16":
     "effect/auto-write + signalcn-seul/the-write-in-the-run-wakes-again + signalcn-seul/self-write-restarts-in-same-drain",
-  "effect#17":
-    "effect/order-outside-batch + effect/order-in-batch + signalcn-seul/three-writes-drain-reversed",
+  "effect#17": "effect/order-outside-batch + effect/order-in-batch",
   "effect#18": "effect/errors",
   "effect#19": "effect/bounded-cycle",
   "effect#20": "effect/errors",
@@ -3844,7 +3842,8 @@ export const COUVERTURE: Record<string, string> = {
   "batch#11": "batch/identical-write",
   "batch#12": "batch/identical-write",
   "batch#13": "batch/bounded-and-unbounded-cycle",
-  "batch#14": "batch/three-levels-and-order",
+  "batch#14":
+    "batch/three-levels-and-order + signalcn-seul/three-writes-drain-reversed + signalcn-seul/same-signal-creation-order",
   "batch#15": "batch/identical-write + signalcn-seul/a-generation-wakes-once",
   // batch#16 et batch#20 sont lus par DEUX scénarios chacun. Le second n'est pas un doublon : il
   // est le SEUL test de la suite qui distingue `===` de `Object.is` dans la réconciliation du
@@ -5431,7 +5430,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // même drainage coupée par l'identité. Les trois tests ne lisent que l'API publique : le harnais
   // les rejoue contre le paquet installé, et la page montre le journal de cette exécution.
 
-  // `effect#17` — l'ordre INVERSÉ de la SPEC §13.4, rejoué des deux côtés : hors batch chaque
+  // `batch#14` — l'ordre INVERSÉ de la SPEC §13.4, rejoué des deux côtés : hors batch chaque
   // écriture draine seule et l'ordre suit les écritures ; dans un batch, trois signaux distincts
   // s'empilent et le drain les sort à l'envers. Les trois premières lignes sont les tournées de
   // création, un effet s'exécutant aussitôt posé.
@@ -5469,9 +5468,9 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     )
   },
 
-  // `signal#12` — l'autre règle du §13.4, celle que `write-wakes-every-target` avait laissée à
-  // cette page : plusieurs effets sur le MÊME signal sortent dans l'ordre de création. La
-  // création les fait tourner une fois chacun, et l'écriture les réveille tous, dans cet ordre.
+  // `batch#14` — l'autre règle du §13.4, celle que l'entrée porte avec la première : plusieurs
+  // effets sur le MÊME signal sortent dans l'ordre de création. La création les fait tourner une
+  // fois chacun, et l'écriture les réveille tous, dans cet ordre.
   "same-signal-creation-order": async ({ signal: moteur, effect, log }) => {
     const s = moteur(0)
 
