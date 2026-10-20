@@ -26,6 +26,7 @@ une CI pour savoir comment l'installer.
 | [`site/utilisateurs/api/effect.md`](../utilisateurs/api/effect.md) | `effect()`, la classe du paquet à sa fabrique : dix scénarios de la table rendus avec leur journal |
 | [`site/utilisateurs/api/computed.md`](../utilisateurs/api/computed.md) | `computed()`, le dérivé paresseux et ses dépendances : onze scénarios de la table rendus avec leur journal |
 | [`site/utilisateurs/api/batch.md`](../utilisateurs/api/batch.md) | `batch()`, la parenthèse des écritures et son drainage : neuf scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/untracked.md`](../utilisateurs/api/untracked.md) | `untracked()`, la lecture hors registre : six scénarios de la table rendus avec leur journal |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
 
 ### Interne — pour le mainteneur
