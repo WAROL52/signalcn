@@ -158,3 +158,9 @@ jobs:
       # seule qui marche dans le dépôt ET dans le site, et que VitePress ne valide pas (#65).
       - name: liens publies — chaque lien interne existe dans la sortie du build
         run: npm run verifier-liens-publies
+      # Le critère d'acceptation de #120, prouvé à la main à la fusion du plugin : zéro `<svg`,
+      # zéro `xlink:href` dans le HTML de dist — le rendu vit dans le navigateur, donc la
+      # publication n'en porte aucune trace. Après les liens publiés, qui lisent le même espace :
+      # la balise et l'attribut visés ici comptent zéro, l'absence se rejoue à chaque build.
+      - name: figures — zero svg et zero xlink:href dans le html de la sortie
+        run: npm run verifier-figures

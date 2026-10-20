@@ -22,6 +22,12 @@ une CI pour savoir comment l'installer.
 | [`site/utilisateurs/migrer-depuis-preact.md`](../utilisateurs/migrer-depuis-preact.md) | ce qui change dans du code écrit contre la baseline |
 | [`site/utilisateurs/verifier-artefact-installe.md`](../utilisateurs/verifier-artefact-installe.md) | faire tourner la suite installée, et ses limites |
 | [`site/utilisateurs/batch-et-surprises.md`](../utilisateurs/batch-et-surprises.md) | batchs, cascades, `action`, et les surprises à l'exécution |
+| [`site/utilisateurs/api/signal.md`](../utilisateurs/api/signal.md) | `signal()`, la première page d'API : sept scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/effect.md`](../utilisateurs/api/effect.md) | `effect()`, la classe du paquet à sa fabrique : dix scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/computed.md`](../utilisateurs/api/computed.md) | `computed()`, le dérivé paresseux et ses dépendances : onze scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/batch.md`](../utilisateurs/api/batch.md) | `batch()`, la parenthèse des écritures et son drainage : neuf scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/untracked.md`](../utilisateurs/api/untracked.md) | `untracked()`, la lecture hors registre : six scénarios de la table rendus avec leur journal |
+| [`site/utilisateurs/api/action.md`](../utilisateurs/api/action.md) | `action()`, l'emballage d'écritures et son détachement : trois scénarios de la table rendus avec leur journal |
 | `docs/adr/` | le raisonnement derrière les décisions, y compris les divergences |
 
 ### Interne — pour le mainteneur
@@ -31,6 +37,11 @@ une CI pour savoir comment l'installer.
 | [`site/technique/architecture.md`](../technique/architecture.md) | comment le graphe est construit |
 | [`site/technique/graphe-de-dependances.md`](../technique/graphe-de-dependances.md) | la figure du graphe : chaîne, diamant, dépendance dynamique |
 | [`site/technique/regles-de-drainage.md`](../technique/regles-de-drainage.md) | les deux ordres d'exécution, et lequel s'applique |
+| [`site/technique/reimplementer/la-cellule.md`](../technique/reimplementer/la-cellule.md) | la cellule et le nœud — première étape du chapitre de reconstruction |
+| [`site/technique/reimplementer/la-dependance.md`](../technique/reimplementer/la-dependance.md) | la dépendance — deuxième étape du chapitre de reconstruction : la collecte, l'abandon, la relecture |
+| [`site/technique/reimplementer/l-invalidation.md`](../technique/reimplementer/l-invalidation.md) | l'invalidation — troisième étape du chapitre de reconstruction : les drapeaux, l'effacement avant l'exécution, la déduplication dans une génération |
+| [`site/technique/reimplementer/le-compute.md`](../technique/reimplementer/le-compute.md) | le computé — quatrième étape du chapitre de reconstruction : le cache, la péremption, la réconciliation du résultat |
+| [`site/technique/reimplementer/effet-et-drainage.md`](../technique/reimplementer/effet-et-drainage.md) | l'effet et le drainage — cinquième étape du chapitre de reconstruction : l'ordre inversé du batch, l'ordre de création, la ré-exécution coupée par l'identité |
 | [`site/contributeurs/build.md`](./build.md) | la chaîne de build et de minification |
 | [`site/contributeurs/ci.md`](./ci.md) | les jobs et leur ordre |
 | [`site/contributeurs/parity.md`](./parity.md) | comment la garantie de conformité s'applique |

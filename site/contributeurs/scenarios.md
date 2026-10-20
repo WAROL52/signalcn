@@ -29,7 +29,7 @@ primitives, pas dans une onzième.
 | `batch` | 27 | 9 |
 | `untracked` | 13 | 7 |
 | `action` | 11 | 3 |
-| `createModel` | 38 | 7 |
+| `createModel` | 45 | 7 |
 | `subscribe` | 18 | 3 |
 | Conversions | 15 | 7 |
 | `dispose` | 10 | 6 |
@@ -39,7 +39,7 @@ primitives, pas dans une onzième.
 ```ts
 {
   // Le nom porte la référence du CONTRAT. Il se comprend seul, sans la matrice.
-  name: "signal/egalite-stricte-nan-notifie",
+  name: "signal/strict-equality-nan",
 
   // Le champ porte la référence de la MATRICE. Plusieurs entrées si le scénario
   // en couvre plus d'une.
@@ -78,9 +78,9 @@ est l'une de trois choses : le nom d'un scénario, le nom d'un test `signalcn-se
 `divergence:<ref>` quand `signalcn` fait délibérément autre chose. Un numéro de ticket n'en est pas
 une : un ticket est une promesse, et une promesse se périme sans bruit.
 
-Mesuré sur le registre : **231 entrées**, dont **198** couvertes par au moins un scénario, **22**
-par un marqueur, **11** par un `signalcn-seul` seul. Les trois ensembles sont disjoints, donc
-**33 entrées ne sont couvertes par aucun scénario** — et il n'en reste rien à faire, puisque ce qui
+Mesuré sur le registre : **238 entrées**, dont **198** couvertes par au moins un scénario, **22**
+par un marqueur, **18** par un `signalcn-seul` seul. Les trois ensembles sont disjoints, donc
+**40 entrées ne sont couvertes par aucun scénario** — et il n'en reste rien à faire, puisque ce qui
 est demandé est une destination, pas un rejeu par la table.
 
 Deux contrôles, qui ne vivent pas au même endroit. `registre-complet`, dans `signals.test.ts` —

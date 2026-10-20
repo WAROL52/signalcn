@@ -31,7 +31,7 @@ npx biome format --stdin-file-path=registry/default/signals.ts < fichier.ts
 Sans le `--stdin-file-path` qui porte un chemin **du dépôt**, la configuration ne s'applique pas et la
 réponse est fausse.
 
-`npm run porte` enchaîne les quinze contrôles, dans l'ordre du job `rapide`. `verifier-derive` exige un
+`npm run porte` enchaîne les seize contrôles, dans l'ordre du job `rapide`. `verifier-derive` exige un
 **arbre propre** : sur un arbre sale, il accuse vos propres modifications. `docs/contributeurs/ci.md`
 §1 est le tableau des coûts mesurés, le seul endroit où un coût est écrit.
 

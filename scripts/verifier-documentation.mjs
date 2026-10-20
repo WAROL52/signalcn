@@ -63,8 +63,20 @@
  *      `site/contributeurs/`, n'y figuraient pas. Les quatre fiches du guide y figuraient
  *      seulement parce qu'un agent de revue les y avait ajoutées — du jugement là où une porte
  *      suffisait. Un contrôle par liste échoue toujours de la même façon, par liste incomplète :
- *      l'absence est le seul sens qui mérite une assertion. Le §12 dit ce qu'il exempte et ce
- *      qu'il ne vérifie pas.
+ *      l'absence est le seul sens qui mérite une assertion. L'étendue des ensembles s'y ajoute
+ *      au §12 bis ([#121]) : une ligne de §1 qui nomme ses fichiers contre-vérifie son
+ *      répertoire dans les deux sens, extension `.md` dépouillée ; une ligne de répertoire qui
+ *      ne nomme rien ne porte pas de liste, et reste de la prose. Le §12 dit ce qu'il exempte
+ *      et ce qu'il ne vérifie pas.
+ *
+ *   13. LE LECTEUR D'INJECTION EST EXERCÉ. Deux préfixes de marqueur, deux sources : le bloc
+ *      nommé est exécuté au build contre `signalcn`, la page reçoit le code nettoyé et le
+ *      journal produit. Un nom non résolu, un journal porté à la main, un bloc qui ne
+ *      journalise rien, un marqueur hors des ensembles de la référence : la construction s'arrête en nommant
+ *      fichier et ligne. Le lecteur vit dans `journal-harnais.mjs` ; cette porte importe
+ *      `resoudre`, `blocDe`, `nettoyer` et le plugin Vite lui-même — un lecteur cassé resterait
+ *      vert sur un dépôt propre, donc les quatre fautes sont rejouées ici sur des sources qui
+ *      mentent. Voir [#122].
  *
  *   node scripts/verifier-documentation.mjs
  */
@@ -77,7 +89,13 @@ import { join } from "node:path"
 // dit pas « marqueur » tout court : `COUVERTURE` a déjà un `MARQUEUR`, qui désigne autre chose. Deux
 // sens pour un mot dans le même dépôt, c'est la faute que le lexique des descripteurs existe pour
 // éviter.
-import { MARQUEUR_INJECTION } from "../site/.vitepress/journal-harnais.mjs"
+import {
+  blocDe,
+  lecteurInjection,
+  MARQUEUR_INJECTION,
+  nettoyer,
+  resoudre,
+} from "../site/.vitepress/journal-harnais.mjs"
 import { cheminsGit, ecritsParBuild, RACINE, reporter } from "./porte.mjs"
 
 const { porte, cloture } = reporter()
@@ -376,8 +394,8 @@ porte(
 // dans ce dépôt ». Un mot français ne peut pas l'éviter, et un mot anglais neuf le déclare — une
 // ligne dans le lexique, qui est la seule liste que cette porte possède.
 //
-// Le périmètre est la règle entière, en deux lectures. Les 97 descripteurs que la suite enregistre
-// (82 scénarios et 15 tests `signalcn-seul`) et les cinq identifiants que #46 a renommés dans le
+// Le périmètre est la règle entière, en deux lectures. Les 119 descripteurs que la suite enregistre
+// (82 scénarios et 37 tests `signalcn-seul`) et les cinq identifiants que #46 a renommés dans le
 // cœur, au §7 ; puis TOUTES les déclarations du cœur, au §7 bis. Les commentaires ne sont pas lus,
 // et c'est voulu : ils sont en français. Ce qui n'est pas lu, c'est le fichier de test — ses
 // variables locales ne sont pas des descripteurs, donc la règle ne les nomme pas.
@@ -835,6 +853,272 @@ porte(
   "chaque page de site/ est declaree dans documentation.md",
   nonDeclarees.length === 0,
   nonDeclarees.join(", "),
+)
+
+// ---- 12 bis. L'étendue exacte des ensembles ---------------------------------------------------------------
+//
+// [#121]. Une ligne de §1 dont la cellule *Document* est un répertoire — son premier nom entre
+// accents graves finit par « / » — peut déclarer l'étendue EXACTE de l'ensemble : chaque nom
+// entre accents graves de sa cellule *Rôle* nomme un fichier du répertoire, l'extension `.md`
+// dépouillée avant tout rapprochement. La liste est vérifiée dans les deux sens, les mêmes que
+// la surface du §1 : un nom déclaré sans fichier, et un fichier sans nom. Dans les deux cas le
+// message nomme le fichier en cause, parce qu'un « ECHEC » nu oblige à rejouer la lecture à
+// la main.
+//
+// Une ligne de répertoire qui ne nomme AUCUN fichier ne porte pas de liste, donc il n'y a
+// aucune liste à contre-vérifier : les deux tables en comptent trois ainsi écrites
+// (`docs/adr/`, `docs/agents/`, `research/`), et elles restent de la prose. Tant qu'aucune
+// ligne ne porte de liste, la lecture est vacueuse et la porte reste verte — c'est le
+// prefactoring : les pages viendront ensuite, et l'ajout d'une page dans un répertoire
+// déclaré sans actualiser sa liste fera échouer cette porte.
+//
+// Les exemptions ne bougent pas : l'`index.md` d'un ensemble reste hors porte — un index
+// nomme la lecture de l'ensemble, il n'est pas une page de l'ensemble, et les listes
+// l'omettront — et `documentation.md` reste non déclarable de lui-même. Un répertoire
+// d'ensemble est plat : la lecture ne descend pas dans ses sous-répertoires, contrairement à
+// `pagesDeSite` qui lit le site entier.
+const sansExtension = (nom) => nom.replace(/\.md$/, "")
+
+/**
+ * Les noms des fichiers d'un répertoire d'ensemble : `.md` seul, hors les exemptions de la
+ * porte, et l'extension dépouillée par `sansExtension`.
+ */
+const nomsDeFichiers = (fichiers) =>
+  fichiers
+    .filter((fichier) => fichier.endsWith(".md") && !SANS_DECLARATION.has(fichier))
+    .map(sansExtension)
+
+/**
+ * L'étendue, lue dans les DEUX sens. Les deux listes sont en noms sans extension : `manquants`
+ * est ce que la liste déclare sans que le répertoire le contienne, `enTrop` ce que le
+ * répertoire contient sans que la liste le déclare.
+ */
+const etendueDe = (noms, fichiers) => ({
+  manquants: noms.filter((nom) => !fichiers.includes(nom)),
+  enTrop: fichiers.filter((fichier) => !noms.includes(fichier)),
+})
+
+/**
+ * Les lignes des deux tables qui déclarent un ensemble. La cellule *Document* nomme le
+ * répertoire — le chemin se lit tel qu'écrit, relatif à la racine du dépôt, `docs/adr/` comme
+ * `site/utilisateurs/`, et le lien Markdown derrière les [crochets] ne porte que l'adresse du
+ * site publié —, la cellule *Rôle* porte les noms. Une ligne sans noms dans sa cellule *Rôle*
+ * ne déclare pas d'étendue, et n'ouvre donc rien à contre-vérifier.
+ */
+const ensemblesDe = (declaration) =>
+  [...declaration.matchAll(/^(\|.*)$/gm)]
+    .map((m) => m[1].split("|"))
+    .filter((cellules) => cellules.length >= 3)
+    .map((cellules) => ({
+      repertoire: (cellules[1]?.match(/`([^`]+)`/) ?? [])[1],
+      role: cellules[2] ?? "",
+    }))
+    .filter(({ repertoire }) => repertoire?.endsWith("/"))
+    .map(({ repertoire, role }) => ({
+      repertoire,
+      noms: [...role.matchAll(/`([^`]+)`/g)].map((m) => sansExtension(m[1])),
+    }))
+    .filter(({ noms }) => noms.length > 0)
+
+/**
+ * Les fichiers du répertoire d'un ensemble, en noms. Un répertoire entièrement absent est le
+ * cas extrême de l'étendue : tout ce qui est déclaré manque, et rien n'existe à lire dans
+ * l'autre sens — la lecture renvoie null, et le porte-à-faux se règle sur `manquants` seul.
+ */
+const fichiersDeEnsemble = async (repertoire) => {
+  const dossier = join(RACINE, repertoire)
+  if (!existsSync(dossier)) return null
+  const entrees = await readdir(dossier, { withFileTypes: true })
+  return nomsDeFichiers(entrees.filter((entree) => entree.isFile()).map((entree) => entree.name))
+}
+
+// Les lecteurs de l'étendue sont EXERCISÉS sur un manifeste qui ment, pour la même raison que
+// les lecteurs de citations au §11 : un dépôt propre est vert derrière un lecteur cassé, donc
+// c'est ici que la lecture a une exécution. Le manifeste ment de toutes les façons utiles :
+// deux lignes qui ne déclarent rien — une de prose, un répertoire sans liste —, et une ligne
+// qui nomme un fantôme et oublie un fichier.
+const manifesteMent = `
+| Document | Rôle |
+|---|---|
+| \`README.md\` | prose, sans répertoire à lire |
+| \`docs/adr/\` | un répertoire sans liste, encore de la prose |
+| [\`site/utilisateurs/temoin/\`](../utilisateurs/temoin/) | \`premier-effet.md\`, \`page-fantome.md\` |
+`
+const temoinsDeManif = ensemblesDe(manifesteMent)
+porte(
+  "le lecteur d'ensembles retient la seule ligne qui porte une etendue, repertoire et noms",
+  temoinsDeManif.length === 1 &&
+    temoinsDeManif[0].repertoire === "site/utilisateurs/temoin/" &&
+    temoinsDeManif[0].noms.join(" ") === "premier-effet page-fantome",
+  JSON.stringify(temoinsDeManif),
+)
+
+const nomsExempt = nomsDeFichiers([
+  "premier-effet.md",
+  "index.md",
+  "documentation.md",
+  "figure.png",
+])
+porte(
+  "les noms d'un repertoire depouillent l'extension et laissent les exemptions dehors",
+  nomsExempt.join(" ") === "premier-effet",
+  nomsExempt.join(" "),
+)
+
+const attenteEtendue = JSON.stringify(
+  etendueDe(["premier-effet", "page-fantome"], ["premier-effet", "veille-interdite"]),
+)
+porte(
+  "l'etendue accuse les deux sens dans une seule lecture, fantome et fichier non declare",
+  attenteEtendue === '{"manquants":["page-fantome"],"enTrop":["veille-interdite"]}',
+  attenteEtendue,
+)
+
+// Le répertoire réel, maintenant : la liste est celle de `documentation.md` §1. Tant qu'elle ne
+// porte aucune ligne d'ensemble, les deux lectures ne trouvent rien — deux listes vides, deux
+// portes vertes, et le dépôt n'a rien à reformer.
+const fichiersManquants = []
+const nomsEnTrop = []
+for (const { repertoire, noms } of ensemblesDe(declarees)) {
+  const fichiers = await fichiersDeEnsemble(repertoire)
+  const nommerFichier = (nom) => `${repertoire}${nom}.md`
+  if (fichiers === null) {
+    fichiersManquants.push(...noms.map(nommerFichier))
+  } else {
+    const { manquants, enTrop } = etendueDe(noms, fichiers)
+    fichiersManquants.push(...manquants.map(nommerFichier))
+    nomsEnTrop.push(...enTrop.map(nommerFichier))
+  }
+}
+
+porte(
+  "chaque nom declare par un ensemble a son fichier dans le repertoire",
+  fichiersManquants.length === 0,
+  fichiersManquants.join(", "),
+)
+porte(
+  "chaque fichier .md d'un ensemble est declare dans documentation.md",
+  nomsEnTrop.length === 0,
+  nomsEnTrop.join(", "),
+)
+
+// ---- 13. Le lecteur d'injection, et ses deux sources -----------------------------------------
+//
+// [#122]. Deux préfixes de marqueur, deux sources, UN lecteur : le bloc nommé est exécuté contre
+// `signalcn` au moment du build, et la page reçoit le code nettoyé et le journal produit. Rien
+// ici ne reconstruit la résolution : chaque assertion passe par le module du lecteur, comme le
+// build lui-même — un lecteur cassé sur un arbre propre resterait vert, donc les gardes sont
+// exercées sur des sources qui mentent, le filet du §9 et du §11 appliqué à une deuxième source.
+//
+// Les quatre fautes ont chacune leur exercice, parce qu'elles cassent chacune à leur façon : un
+// nom absent, un journal porté à la main (il resterait caduc et il écrirait par-dessus
+// l'exécution), un bloc qui ne journalise rien (un test de la suite qui ne journalise pas fait
+// l'affaire — la garde dit pourquoi la construction s'arrête), et un marqueur hors des deux
+// ensembles de la référence (« il ne vit QUE sur les ensembles »).
+
+const reussites = await resoudre("scenarios/signal/no-argument")
+const reconstitutionResolue = await resoudre("reconstitution/wrapper-covers-every-surface")
+porte(
+  "le lecteur résout les deux préfixes sur la table réelle",
+  reussites.genre === "scenario" &&
+    reussites.nom === "signal/no-argument" &&
+    typeof reussites.scenario.run === "function" &&
+    reconstitutionResolue.genre === "reconstitution" &&
+    reconstitutionResolue.nom === "wrapper-covers-every-surface",
+  `genre ${reussites.genre}/${reconstitutionResolue.genre}`,
+)
+
+const essaiResolu = (marqueur) =>
+  resoudre(marqueur).then(
+    () => null,
+    (cause) => String(cause.message),
+  )
+const fantome = await essaiResolu("scenarios/signal/sans-nom")
+const deuxMots = await essaiResolu("reconstitution/deux/morceaux")
+porte(
+  "un nom non résolu est refusé en nommant l'attendu",
+  fantome !== null && fantome.includes("« signal/sans-nom »") && deuxMots !== null,
+  fantome ?? deuxMots ?? "les deux résolutions ont réussi",
+)
+
+// Le nettoyage, sur un corps réel de la table, affiché mentalement : un import nominal, sans la
+// déstructuration du harnais, sans le verdict de la suite, `log()` toujours dans le code.
+const blocNoArgument = await blocDe("scenarios/signal/no-argument")
+const { code: codePacte, noms: nomsPacte } = nettoyer(blocNoArgument.corps)
+porte(
+  "le pacte du nettoyage est exécuté sur un corps réel de la table",
+  nomsPacte.length === 1 &&
+    nomsPacte[0] === "signal" &&
+    codePacte.trim().startsWith('import { signal } from "signalcn"') &&
+    !codePacte.includes("api.") &&
+    !codePacte.includes("assert.") &&
+    codePacte.includes("log("),
+  nomsPacte.join(", "),
+)
+
+// Le pacte du nettoyage, sur un ALIAS — la déstructuration `{ signal: moteur }` d'une
+// reconstitution. La gauche du deux-points est la cle (celle que la page montre), la droite le
+// local du corps : un parseur qui lit l'inverse affichait `const source = moteur(1)` sur un build
+// VERT — la pire défaillance, la page mentait en silence. La garde dit la bonne direction : la
+// cle arrive dans le code, le local n'en sort jamais.
+const blocAlias = await blocDe("reconstitution/identical-writes-are-not-notified")
+const { code: codeAlias, noms: nomsAlias } = nettoyer(blocAlias.corps, blocAlias.paires)
+porte(
+  "le pacte du nettoyage lit un alias sous sa cle, jamais sous son local",
+  nomsAlias.includes("signal") &&
+    codeAlias.includes("const source = signal(") &&
+    !codeAlias.includes("moteur"),
+  nomsAlias.join(", "),
+)
+
+// Le transform, sur une source qui ment au marqueur : le message porte fichier ET ligne — la
+// règle du plugin du journal du harnais, étendue au lecteur. La ligne est celle du marqueur :
+// « titre » 1, la fence ouvre à la ligne 3.
+const PAGE = join(RACINE, "site/utilisateurs/api/signal.md")
+const essaiTransform = (source, id) =>
+  lecteurInjection.transform(source, id).then(
+    () => null,
+    (cause) => String(cause.message),
+  )
+const mentant = "titre\n\n```ts scenarios/signal/introuvable\n```\n"
+const nommé = await essaiTransform(mentant, PAGE)
+porte(
+  "un marqueur non résolu nomme fichier et ligne au transform",
+  nommé !== null && nommé.startsWith(`${PAGE}:3`),
+  nommé ?? "le transform a réussi",
+)
+
+const manuel = await essaiTransform(
+  "titre\n\n```ts scenarios/signal/no-argument\n```\n\n```text\npas produit\n```\n",
+  PAGE,
+)
+porte(
+  "un journal porté à la main est refusé, sur la ligne de la fence",
+  manuel !== null && manuel.includes("écrit à la main") && manuel.includes(`${PAGE}:6`),
+  manuel ?? "le transform a réussi",
+)
+
+const vide = await essaiTransform(
+  "titre\n\n```ts reconstitution/wrapper-covers-every-surface\n```\n",
+  PAGE,
+)
+porte(
+  "une reconstitution qui ne journalise rien est refusée",
+  vide !== null && vide.includes("ne journalise rien"),
+  vide ?? "le transform a réussi",
+)
+
+const ailleurs = await essaiTransform(
+  "titre\n\n```ts scenarios/signal/no-argument\n```\n",
+  join(RACINE, "site/technique/architecture.md"),
+)
+porte(
+  "un marqueur hors des ensembles de la référence est refusé",
+  ailleurs !== null && ailleurs.includes("site/utilisateurs/api/"),
+  ailleurs ?? "le transform a réussi",
+)
+console.log(
+  "  --   les fichiers qui ne finissent pas par .md ne font pas partie d'une etendue : la porte n'ouvre que les pages",
 )
 
 // La porte dit ce qu'elle ne vérifie pas, comme les sections précédentes : le RÔLE écrit dans la

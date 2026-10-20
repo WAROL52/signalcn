@@ -3530,10 +3530,10 @@ export const COUVERTURE = {
     "signal#7b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
     "signal#8": "signal/zero-and-negative-zero",
     "signal#8b": "signalcn-seul/notification-follows-object-is + source:src/index.ts#L462",
-    "signal#9": "signal/strict-equality-object",
+    "signal#9": "signal/strict-equality-object + signalcn-seul/identical-writes-are-not-notified",
     "signal#10": "signal/strict-equality-object",
     "signal#11": "signal/strict-equality-object",
-    "signal#12": "signal/synchronous-notification",
+    "signal#12": "signal/synchronous-notification + signalcn-seul/write-wakes-every-target",
     "signal#13": "signal/synchronous-notification",
     // L'absence de dependance de `peek()` ne se voit qu'a travers un effet.
     "signal#14": "signal/synchronous-notification",
@@ -3570,21 +3570,21 @@ export const COUVERTURE = {
     "conv#15": "conversions/follow-the-dependency",
     // --- groupe `computed` : 27 entrées
     "computed#1": "computed/lazy-and-cache",
-    "computed#2": "computed/lazy-and-cache",
+    "computed#2": "computed/lazy-and-cache + signalcn-seul/three-reads-one-evaluation",
     "computed#3": "computed/no-subscriber",
     // computed#3b : une écriture NON liée ne fait pas réévaluer un computé nu, alors qu'une écriture
     // liée le fait (#3). Les deux ensemble disent ce que vaut « périmé » ; un seul laisserait la
     // moitié de la règle libre.
-    "computed#3b": "computed/unlinked-write-evaluation",
-    "computed#4": "computed/invalidation-and-recompute",
+    "computed#3b": "computed/unlinked-write-evaluation + signalcn-seul/unlinked-write-is-ignored",
+    "computed#4": "computed/invalidation-and-recompute + signalcn-seul/invalidation-waits-for-the-read",
     // computed#5 et #6 : un résultat identique ne notifie pas les dépendants. Elles pointaient sur le
     // ticket #24, clos, et n'étaient couvertes par AUCUN test — un numéro de ticket est accepté comme
     // destination par `registre-complet`, donc le vide Passait pour une couverture. #38 est passé par là.
-    "computed#5": "computed/identical-value-reread",
+    "computed#5": "computed/identical-value-reread + signalcn-seul/identical-result-is-not-notified",
     "computed#6": "computed/identical-value-reread",
     "computed#7": "computed/invalidation-and-recompute",
-    "computed#8": "computed/dynamic-dependencies",
-    "computed#9": "computed/reactivation-after-abandon",
+    "computed#8": "computed/dynamic-dependencies + signalcn-seul/abandoned-dependency-skips-the-recompute",
+    "computed#9": "computed/reactivation-after-abandon + signalcn-seul/reread-wakes-dependency + signalcn-seul/reread-revives-the-abandoned-dependency",
     // computed#10 : l'ordre de sortie anticipée de `checkDirty` ne se voit qu'à travers le nombre
     // de recalculs d'un effet. Ici on fige l'ordre de la liste, ce qui en est la cause.
     "computed#10": "signalcn-seul/sources-in-read-order + source:src/index.ts#L508-531",
@@ -3620,7 +3620,10 @@ export const COUVERTURE = {
     // --- groupe `effect` : 41 entrées
     "effect#1": "effect/first-run-and-arguments",
     "effect#2": "effect/rerun-and-cleanup",
-    "effect#3": "effect/no-dependency",
+    // effect#3 : « sans dépendance, jamais re-notifié » — le scénario rejoue le cas vide (aucune
+    // lecture), la reconstitution le cas vivant : la cellule jamais lue est muette, celle qui
+    // entre dans la lecture devient notifiante. La même règle du §7, par ses deux bouts.
+    "effect#3": "effect/no-dependency + signalcn-seul/dependencies-follow-the-current-read",
     "effect#4": "effect/shape-of-the-disposer",
     "effect#5": "effect/non-function-return-ignored",
     "effect#6": "effect/rerun-and-cleanup",
@@ -3637,7 +3640,7 @@ export const COUVERTURE = {
     // ne s'observe pas — c'est `effect/order-outside-batch`. Les deux formes, donc les deux scénarios :
     // une seule ne prouverait que la moitié de la règle.
     "effect#15": "effect/order-outside-batch + effect/order-in-batch",
-    "effect#16": "effect/auto-write",
+    "effect#16": "effect/auto-write + signalcn-seul/the-write-in-the-run-wakes-again + signalcn-seul/self-write-restarts-in-same-drain",
     "effect#17": "effect/order-outside-batch + effect/order-in-batch",
     "effect#18": "effect/errors",
     "effect#19": "effect/bounded-cycle",
@@ -3715,8 +3718,8 @@ export const COUVERTURE = {
     "batch#11": "batch/identical-write",
     "batch#12": "batch/identical-write",
     "batch#13": "batch/bounded-and-unbounded-cycle",
-    "batch#14": "batch/three-levels-and-order",
-    "batch#15": "batch/identical-write",
+    "batch#14": "batch/three-levels-and-order + signalcn-seul/three-writes-drain-reversed + signalcn-seul/same-signal-creation-order",
+    "batch#15": "batch/identical-write + signalcn-seul/a-generation-wakes-once",
     // batch#16 et batch#20 sont lus par DEUX scénarios chacun. Le second n'est pas un doublon : il
     // est le SEUL test de la suite qui distingue `===` de `Object.is` dans la réconciliation du
     // batch. Mesuré : en remplaçant le `===` de `reconcileBatchSnapshots` par `Object.is`, tous les
@@ -3779,6 +3782,35 @@ export const COUVERTURE = {
     "modele#32": "model/two-instances",
     "modele#33": "model/two-instances",
     "modele#34": "model/cyclic-getter-and-primitives",
+    // Les sept corrections de `createModel` d'ADR-0005 : une par écart du §16.6 de `SPEC.md`, et
+    // chaque entrée porte UN test `signalcn-seul`, sans aucun marqueur. La règle est celle de
+    // l'introduction : le marqueur dit l'invisibilité d'artefact, jamais une divergence assumée —
+    // donc la moitié CORRIGÉE de chaque écart ne peut se figer nulle part dans un test rejouable,
+    // et elle vit en prose, dans ADR-0005, dans `SPEC.md` §16.6 et §21.2, et dans la ligne de
+    // `research/baseline-1.14.4.md` qui porte le même numéro (sondes des deux moteurs, 16 octobre).
+    // Ce que chaque test fige, c'est la BORNE de la correction : ce qu'elle ne devait pas casser,
+    // observable des deux côtés.
+    // `modele#35` — le veto de la marque : signal et computé traversés restent LES MÊMES objets
+    //   (la garde du paquet lit la clé `L1081`), et l'actualisation d'un computé survit.
+    "modele#35": "signalcn-seul/brand-value-skips-a-signal-in-a-model",
+    // `modele#36` — la fabrique n'embrasse que les clés PROPREMENT énumérables, `L1076`-`L1081`.
+    "modele#36": "signalcn-seul/only-own-enumerable-keys-are-wrapped",
+    // `modele#37` — l'accesseur est LU au sens du descripteur et JAMAIS écrit : invoqué une fois
+    //   à la construction, il reste un accesseur, la descente continue dans son objet (`L1077`-`L1080`).
+    "modele#37": "signalcn-seul/getter-is-read-not-written",
+    // `modele#38` — le sous-arbre partagé ne se ré-emballe pas : une seule enveloppe pour deux
+    //   routes de lecture (`L1077`-`L1081`).
+    "modele#38": "signalcn-seul/shared-subtree-identity",
+    // `modele#39` — un `Symbol.dispose` fourni par l'utilisateur n'ajoute aucune clé au modèle ;
+    //   il est rangé sous son propre symbole, et rien de plus (`L1111`).
+    "modele#39": "signalcn-seul/no-stray-key-on-the-model",
+    // `modele#40` — une fonction async enveloppée draine en DEUX passages, et le journal est
+    //   identique des deux côtés (`L991`-`L993`) ; l'avertissement est étouffé pendant le
+    //   rejeu, sa moitié divergente reste dans ADR-0005.
+    "modele#40": "signalcn-seul/asynchronous-fn-drains-in-two-passes",
+    // `modele#41` — une fabrique qui ne renvoie pas un objet lève une `TypeError` : chez nous par
+    //   la garde, chez le paquet par l'écriture du dispositeur en mode strict (`L1113`-`L1118`).
+    "modele#41": "signalcn-seul/null-factory-return-throws-on-first-use",
     // --- groupe `subscribe` : 15 entrees
     // `subscribe#12` est le SEUL cas que la table ne peut pas dire : l'effet interne se nomme "sub",
     // et le paquet publie minifie ses noms de fonctions, donc `name` y vaut la chaine vide.
@@ -3884,7 +3916,9 @@ export const ENTREES_ATTENDUES = [
     // `signalcn-seul/internal-effect-takes-the-options-name`.
     // `subscribe#16` a #18 : #16 est interne, #18 est un `using`, et #17 l'ordre de creation.
     ...Array.from({ length: 18 }, (_, i) => `subscribe#${i + 1}`),
-    ...Array.from({ length: 34 }, (_, i) => `modele#${i + 1}`),
+    // Les sept corrections de `createModel` (ADR-0005) portent la portée à 41 : #35 a #41, une
+    // entrée par correction du §16.6 — voir la matrice de couverture, chacune porte son test.
+    ...Array.from({ length: 41 }, (_, i) => `modele#${i + 1}`),
     // Les dix entrées NÉES DU DÉCOUPAGE. Une entrée qui asserte un comportement vérifiable ET
     // un nom que l'artefact minifie est deux entrées : l'une comparable, l'autre marquée. La
     // lettre reprend le précédent de `computed#3b` et `computed#18b`, et le mot `b` signifie
@@ -3964,6 +3998,26 @@ export const testsSignalcnSeul = {
         // rendrait un signal illisible.
         assert.notEqual(modele.marque.toString.name, "actionWrapper", "un signal n'est pas envelopes");
         assert.equal(modele.marque.brand, Symbol.for("preact-signals"), "le signal est intact");
+        // Un accesseur dont le getter renvoie une FONCTION : la descente le lit, puis ne touche
+        // plus — le slot reste un accesseur, la fonction reste sienne. À la baseline, la descente
+        // écrirait le slot après l'avoir lu : en strict, « TypeError », et en sloppy un no-op —
+        // la moitié divergente est par conséquent au §21.2, et ce test la suppose notres en se
+        // gardant : ses citations portent toutes deux le marqueur `divergence:SPEC.md#17.2`,
+        // donc le harnais ne le rejoue pas.
+        const attire = createModel(() => {
+            const aimant = {};
+            Object.defineProperty(aimant, "accesseur", {
+                get() {
+                    return function corps(v) {
+                        return v + 1;
+                    };
+                },
+                enumerable: true,
+                configurable: true,
+            });
+            return aimant;
+        })();
+        assert.equal(attire.accesseur.name, "corps", "l'accesseur renvoie encore SA fonction : le slot n'a pas été touché");
     },
     // Le nom du wrapper d'`action` est un CONTRACT, pas une etiquette : la matrice le fige, et le
     // pipeline de generation a besoin de `--keep-names` pour le conserver. Il ne peut PAS etre
@@ -4293,6 +4347,11 @@ export const testsSignalcnSeul = {
         new ClasseEffet(() => {
             assert.throws(() => finir(), /Out-of-order effect/);
         })._callback();
+        // Refermer la portée ABANDONNÉE. Le hors-ordre ne referme rien : fermer la portée d'un effet
+        // courant est un refus, et l'état reste celui de celui qui a ouvert. Laisser `batchDepth`
+        // empilé ici empoisonnait la suite : les écritures des tests suivants ne draineraient plus
+        // jamais — repéré le 16 octobre par le test async, le premier qui écrit après ce garde.
+        finir();
     },
     // `dispose#5` — un realm où `Symbol.dispose` est ABSENT fait de la clé la chaîne
     // `"undefined"` chez la baseline, et c'est un quasi-leak : `using` devient un no-op qui fuit
@@ -4343,6 +4402,737 @@ export const testsSignalcnSeul = {
         assert.throws(() => {
             s.value = 2;
         }, TypeError);
+    },
+    // ---- Les sept corrections de `createModel` (ADR-0005) ------------------------------------
+    //
+    // Sept entrées du registre couvrent les sept écarts du §16.6 de `SPEC.md`. La règle qui les
+    // tient est une seule, et elle est sévère : chaque test n'affirme que ce qui tient des DEUX
+    // côtés — chez nous ET sur le paquet installé, c'est-à-dire ce que le harnais rejoue. La
+    // moitié CORRIGÉE de chaque écart — l'observable que la correction fabrique — ne peut pas se
+    // figer ici : la rejouer échouerait sur l'artefact par construction, et un marqueur ne la
+    // sauverait pas, parce que le marqueur dit l'invisibilité d'artefact, jamais une divergence
+    // assumée. La moitié divergente reste donc en prose : ADR-0005, `SPEC.md` §16.6 et §21.2, et
+    // les lignes de `research/baseline-1.14.4.md`. Ce que chaque test fige, c'est la BORNE de la
+    // correction : ce qu'elle ne devait pas casser.
+    // modele#35 — le veto `brand`. Se fige : un signal et un computé restent LES MÊMES objets à
+    // travers la fabrique, et l'actualisation d'un computé survit. Historique de sonde du
+    // 16 octobre : tant que le veto lisait `val[BRAND_SYMBOL]` — une clé par symbole, qui ne
+    // porte rien, la marque vivant sous le NOM `brand` — la descente entrait dans le computé
+    // lui-même et remplaçait son `_fn` : le cache dérivé restait périmé pour toujours.
+    // Divergent, donc en prose : l'objet métier portant `brand` est enveloppé chez nous et
+    // passé brut chez la baseline — le test ne peut rien en dire, il se rejouerait rouge.
+    "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel }) => {
+        const source = moteur(0);
+        const derive = computed(() => source.value + 1);
+        const M = createModel(() => ({ source, derive }));
+        const modele = new M();
+        assert.equal(modele.source, source, "le signal reste le même objet à travers la fabrique");
+        assert.equal(modele.derive, derive, "le computé aussi : il porte la marque");
+        assert.equal(source.brand, Symbol.for("preact-signals"), "c'est cette VALEUR, lue sous le nom `brand`, que le veto compare");
+        source.value = 7;
+        assert.equal(modele.source.value, 7, "la source est la même, l'écriture y passe");
+        assert.equal(modele.derive.value, 8, "le computé suit la source : la descente n'a rien cassé");
+    },
+    // modele#36 — le domaine d'énumération : le PROPRE énumérable, et rien d'autre. Se fige,
+    // des deux côtés : une méthode de classe (prototype, non énumérable), une fonction propre
+    // non énumérable, une fonction héritée énumérable restent utilisables — par identité, et
+    // par `this` pour l'état. Divergent, donc en prose : l'héritée énumérable est COPIÉE comme
+    // propriété propre chez la baseline (`Object.keys` la remonte) et intacte chez nous ; une
+    // pollution énumérable de `Object.prototype` atterrit sur chaque modèle chez elle et ne
+    // les atteint plus chez nous ; une pollution posée en GETTER fait lever la création chez
+    // elle et passe chez nous.
+    "only-own-enumerable-keys-are-wrapped": async ({ createModel }) => {
+        class K {
+            constructor() {
+                this.n = 0;
+            }
+            met(v) {
+                this.n += v;
+                return this.n;
+            }
+        }
+        const methode = K.prototype.met;
+        const MK = createModel(() => new K());
+        const mk = new MK();
+        assert.equal(mk.met, methode, "une méthode de classe n'est pas enveloppée : identité conservée");
+        assert.equal(mk.met(3), 3, "et `this` reste l'instance");
+        assert.equal(mk.n, 3);
+        const visible = function visible(v) {
+            return v;
+        };
+        const cachee = function cache() {
+            return 42;
+        };
+        const par = { visible };
+        Object.defineProperty(par, "cache", {
+            value: cachee,
+            enumerable: false,
+            writable: true,
+            configurable: true,
+        });
+        const MP = createModel(() => par);
+        const mp = new MP();
+        assert.equal(mp.cache, cachee, "une clé propre NON énumérable n'est pas dans le domaine");
+        assert.equal(typeof mp.visible, "function", "le propre énumérable reste le domaine de l'enveloppe");
+        const traverse = {
+            v: 0,
+            inc(v) {
+                this.v += v;
+                return this.v;
+            },
+        };
+        const MT = createModel(() => traverse);
+        const mt = new MT();
+        assert.equal(mt.inc(4), 4, "l'enveloppe est posée, `this` reste le modèle");
+        assert.equal(traverse.v, 4);
+        const prototype = {
+            h(v) {
+                this.v = (this.v ?? 0) + v;
+                return this.v;
+            },
+        };
+        const heritee = Object.create(prototype);
+        heritee.v = 0;
+        const MH = createModel(() => heritee);
+        const mh = new MH();
+        assert.equal(mh.h(5), 5, "une héritée énumérable reste appelable, `this` = modèle");
+        assert.equal(heritee.v, 5, "l'état du modèle a tourné des deux côtés");
+    },
+    // modele#37 — la descension lit le DESCRIPTEUR. Se fige : l'accesseur est invoqué UNE fois à
+    // la construction des deux côtés, reste un accesseur — le descripteur n'est jamais remplacé
+    // par une propriété de données — et la descente CONTINUE dans l'objet qu'il renvoie, dont
+    // la fonction est remplacée et garde son `this`. Divergent, donc en prose : la baseline se
+    // sert de la lecture pour choisir la branche PUIS écrit dans le même slot — un accesseur en
+    // lecture sans setter lève une `TypeError` en strict (le paquet installé la lève encore,
+    // mesure du 16 octobre : « Cannot set property acc of #<Object> which has only a getter »),
+    // et un `set` présent y reçoit l'enveloppe — jamais chez nous.
+    "getter-is-read-not-written": async ({ createModel }) => {
+        const inc = function inc(v) {
+            interieur.v += v;
+            return interieur.v;
+        };
+        const interieur = { v: 0, inc };
+        let tours = 0;
+        const base = {};
+        Object.defineProperty(base, "acc", {
+            get() {
+                tours++;
+                return interieur;
+            },
+            enumerable: true,
+            configurable: true,
+        });
+        const M = createModel(() => base);
+        const m = new M();
+        assert.equal(tours, 1, "l'accesseur est invoqué une seule fois, à la construction");
+        const descripteur = Object.getOwnPropertyDescriptor(m, "acc");
+        assert.equal(descripteur.get !== undefined && descripteur.set === undefined, true, "l'accesseur reste un accesseur, jamais une propriété de données");
+        assert.equal(interieur.inc !== inc, true, "la descente a continué dans l'objet du getter");
+        assert.equal(interieur.inc(7), 7, "et la fonction enveloppée garde son `this`");
+        assert.equal(interieur.v, 7);
+        // Le descripteur est consulté À L'INSTANT de la clé : un getter qui supprime la clé
+        // suivante pendant sa lecture la retire du modèle des deux côtés — chez nous parce que
+        // son descripteur n'existe plus quand son tour arrive, chez la baseline parce que son
+        // `for…in` saute une clé supprimée. Sonde du 16 octobre : les deux moteurs donnent
+        // `Object.getOwnPropertyNames` au seul nom `"a"`.
+        const tombe = {};
+        Object.defineProperty(tombe, "a", {
+            get() {
+                delete tombe.b;
+                return 0;
+            },
+            enumerable: true,
+            configurable: true,
+        });
+        tombe.b = 2;
+        const T = createModel(() => tombe);
+        const t = T();
+        assert.deepEqual(Object.getOwnPropertyNames(t), ["a"], "la clé supprimée sous le couvert d'un autre getter n'est pas parvenue au modèle");
+        assert.equal(t.a, 0, "l'accesseur, lui, reste lisible");
+    },
+    // modele#38 — la mémoïsation. Un sous-arbre partagé garde UNE identité par toutes ses
+    // routes, et l'état y passe comme par une seule. L'objet de la fabrique lui-même reste
+    // l'instance : rien n'est copié. Divergent, donc en prose : deux clés pointant une MÊME
+    // fonction donnent deux enveloppes chez la baseline (`m.a !== m.b`, mesure du 16 octobre)
+    // et une chez nous — et chez elle, la marche repasse sur le sous-arbre partagé et
+    // re-enveloppe : deux remplacements comptés par un piège à setter là où la nôtre n'en fait
+    // plus qu'un.
+    "shared-subtree-identity": async ({ createModel }) => {
+        const feuille = {
+            v: 0,
+            inc(v) {
+                this.v += v;
+                return this.v;
+            },
+        };
+        const arbre = { feuille };
+        const M = createModel(() => ({ A: arbre, B: arbre }));
+        const m = new M();
+        assert.equal(m.A, m.B, "les deux clés pointent la même instance");
+        assert.equal(m.A, arbre, "et le modèle est l'objet de la fabrique, muté en place");
+        assert.equal(m.A.feuille, m.B.feuille, "le sous-arbre partagé, identique par les deux routes");
+        assert.equal(m.A.feuille.inc(3), 3, "l'état passe par la première route");
+        assert.equal(feuille.v, 3, "et c'est le même objet : aucun état ne se dédouble");
+    },
+    // modele#39 — `Symbol.dispose` absent ne produit aucune clé. Dans un realm NORMAL, les deux
+    // côtés rangent le dispositeur sous le seul symbole : aucun nom de plus sur le modèle, aucun
+    // symbole de plus. Divergent, donc en prose : le realm où le symbole manque — sonde `vm` en
+    // CJS du 16 octobre — porte sur CHAQUE modèle une clé `\"undefined\"` énumérable dont la
+    // valeur est une fonction, et `getOwnPropertySymbols` n'y renvoie rien ; chez nous, rien
+    // n'est posé. Le no-op de `using` qui en découle reste du côté de la baseline.
+    "no-stray-key-on-the-model": async ({ createModel }) => {
+        const M = createModel(() => ({ a: 0, b: 1 }));
+        const m = M();
+        assert.deepEqual(Object.getOwnPropertyNames(m), ["a", "b"], "pas un nom de plus sur le modèle");
+        assert.deepEqual(Object.getOwnPropertySymbols(m), [Symbol.dispose], "et le seul symbole du dispositeur");
+        assert.equal(typeof m[Symbol.dispose], "function", "le dispositeur est une fonction");
+        assert.equal(
+        // biome-ignore lint/suspicious/noPrototypeBuiltins: la cible est ES2020 (`lib` du tsconfig) et `Object.hasOwn` est ES2022 — le correctif de la règle ferait tomber `tsc`.
+        Object.prototype.hasOwnProperty.call(m, "undefined"), false, "aucune clé `\"undefined\"` — chez la baseline, il n'y en a qu'avec le symbole absent");
+    },
+    // modele#40 — une fonction async enveloppée déclenche un AVERTISSEMENT. Le signal fait partie
+    // de la correction, et un test ne peut rien en faire : il est émis à la CONSTRUCTION, et le
+    // harnais rejoue la construction sur l'artefact, qui reste silencieux. Ce qui se fige est ce
+    // que le silence couvrait : les DEUX drainages, journal pour journal identiques des deux
+    // côtés — le préfixe synchrone se vide sur place, l'écriture après le premier `await` dans
+    // un second passage. L'avertissement est étouffé pendant la construction : sa
+    // moitié-divergence reste en prose (ADR-0005).
+    "asynchronous-fn-drains-in-two-passes": async ({ signal: moteur, effect: effet, createModel, }) => {
+        const avertir = console.warn;
+        console.warn = () => { };
+        try {
+            const source = moteur(0);
+            const journal = [];
+            effet(() => journal.push(`e${source.value}`));
+            const M = createModel(() => ({
+                async go() {
+                    source.value = 1;
+                    journal.push("apres1");
+                    await Promise.resolve();
+                    source.value = 2;
+                    journal.push("apres2");
+                },
+            }));
+            const m = new M();
+            journal.push("debut");
+            const promesse = m.go();
+            assert.ok(promesse instanceof Promise, "la méthode async retourne une promesse");
+            journal.push("retour");
+            await promesse;
+            assert.deepEqual(journal, ["e0", "debut", "apres1", "e1", "retour", "e2", "apres2"], "deux drainages : `e1` avant `retour`, `e2` après l'attente");
+        }
+        finally {
+            console.warn = avertir;
+        }
+    },
+    // modele#41 — les quatre gardes défensives. Le seul observable qu'une garde CORRIGE et que
+    // les deux côtés partagent : une fabrique qui ne renvoie pas un objet lève une `TypeError`.
+    // Chez nous, la garde la lève AVANT toute mutation ; chez la baseline, la levée
+    // vient plus loin — l'écriture du dispositeur sur une primitive (`L1111`), « Cannot set
+    // properties of null » / « Cannot create property... on number '42' » — et ne survit qu'en
+    // mode strict, qui est le mode de l'artefact. Les trois autres gardes restent en prose :
+    // l'accesseur de modele#37, le `Symbol.dispose` fourni par l'utilisateur jamais écrasé (la
+    // baseline l'écrase : « log vide », ligne 29 de `research/baseline-1.14.4.md`), et le
+    // tableau d'effets effacé dans un `finally` (chez elle, un dispose rejoué après un cleanup
+    // qui lève fait rejouer le reste de la file — sonde du 16 octobre, `c3` refermée au second
+    // dispose).
+    "null-factory-return-throws-on-first-use": async ({ createModel }) => {
+        const M = createModel(() => null);
+        assert.throws(() => M(), TypeError, "une fabrique qui renvoie null lève : la garde chez nous, l'écriture du dispositeur chez elle");
+        const N = createModel(() => 42);
+        assert.throws(() => N(), TypeError, "un nombre non plus : une propriété sur une primitive lève en strict des deux côtés");
+    },
+    // ---- Les reconstitutions du chapitre de reconstruction ----------------------------------------------------------------
+    //
+    // Le chapitre rejoue le moteur à l'ordre de reconstruction ; une reconstitution de page est un
+    // test de cette suite, cité par une entrée de matrice existante ([#123]). Le corps de la page
+    // n'est PAS recopié ici : le lecteur du site (#122) en fait le bloc affiché et le journal que
+    // l'artefact a produit pour lui — donc les corps sont écrits POUR LA PAGE : aucun interne, les
+    // `log()` en mains, et le dernier `assert` porte le verdict. Le journal s'écrit toujours
+    // d'abord contre le moteur, la page ensuite — la règle du protocole des prototypes.
+    //
+    // Les trois reconstitutions de la page « la cellule et le nœud », première étape du chapitre :
+    // l'identité stricte (§5.2), la dépendance abandonnée qui redevient notifiante (§7), et
+    // l'écriture qui réveille chaque cible connue (§5.1). Les pages suivantes attendent leurs
+    // propres reconstitutions — une reconstitution au moins par page du chapitre.
+    //
+    // Les trois reconstitutions de la page « la dépendance », deuxième étape : la collecte qui ne
+    // garde que les lectures du calcul courant (§7), l'abandon qui n'invalide plus (§7), et le
+    // retour de la lecture qui réintègre l'écriture manquée (§7). Le journal s'écrit d'abord
+    // contre le moteur, la page ensuite — la règle du protocole.
+    // `signal#9` — l'identité stricte rejouée du côté de la LECTURE : la même primitive ne
+    // notifie pas, `NaN` passe deux fois (§14), et un `-0` écrit sur `0` n'y change rien. La
+    // dernière ligne du journal est le côté invisible de la même règle : la cellule a tourné une
+    // seule fois, la valeur reste celle qu'elle avait.
+    "identical-writes-are-not-notified": async ({ signal: moteur, effect, log }) => {
+        const source = moteur(1);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("la cellule tourne, voit", source.value);
+        });
+        source.value = 2;
+        log("tours après une écriture nouvelle", String(tours));
+        source.value = 2;
+        log("tours après la même primitive", String(tours));
+        source.value = NaN;
+        log("tours après NaN", String(tours));
+        source.value = NaN;
+        log("tours après un deuxième NaN", String(tours));
+        const zero = moteur(0);
+        let toursZero = 0;
+        effect(() => {
+            toursZero++;
+            log("la seconde cellule voit -0 ?", String(Object.is(zero.value, -0)));
+        });
+        zero.value = -0;
+        log("tours après -0 sur le même zéro", String(toursZero));
+        log("la valeur reste-t-elle 0 ?", String(Object.is(zero.value, 0)));
+        assert.deepEqual(log.entries, [
+            "la cellule tourne, voit 1",
+            "la cellule tourne, voit 2",
+            "tours après une écriture nouvelle 2",
+            "tours après la même primitive 2",
+            "la cellule tourne, voit NaN",
+            "tours après NaN 3",
+            "la cellule tourne, voit NaN",
+            "tours après un deuxième NaN 4",
+            "la seconde cellule voit -0 ? false",
+            "tours après -0 sur le même zéro 1",
+            "la valeur reste-t-elle 0 ? true",
+        ], "l'identité stricte décide seule de ce qui se tait et de ce qui passe");
+    },
+    // `computed#9` — la réactivation de la SPEC §7, vue du côté effet : la dépendance abandonnée
+    // pendant que le cache tient redevient notifiante dès que la lecture la retrouve, et l'écriture
+    // qui a eu lieu entre les deux lectures s'y intègre. Le nœud ne se recrée pas, il revit — ce
+    // que le compte de tours raconte mieux que n'importe quel commentaire.
+    "reread-wakes-dependency": async ({ signal: moteur, effect, log }) => {
+        const bascule = moteur(true);
+        const gauche = moteur(1);
+        const droite = moteur(2);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("l'effet tourne et lit", String(bascule.value ? gauche.value : droite.value));
+        });
+        bascule.value = false;
+        log("tours après le basculement, la dépendance gauche est abandonnée", String(tours));
+        gauche.value = 10;
+        log("tours après l'écriture de la cellule abandonnée", String(tours));
+        bascule.value = true;
+        log("tours après la relecture, le nœud revit", String(tours));
+        gauche.value = 11;
+        log("tours après une écriture sur la cellule revenue", String(tours));
+        assert.deepEqual(log.entries, [
+            "l'effet tourne et lit 1",
+            "l'effet tourne et lit 2",
+            "tours après le basculement, la dépendance gauche est abandonnée 2",
+            "tours après l'écriture de la cellule abandonnée 2",
+            "l'effet tourne et lit 10",
+            "tours après la relecture, le nœud revit 3",
+            "l'effet tourne et lit 11",
+            "tours après une écriture sur la cellule revenue 4",
+        ], "le nœud abandonné revit, et l'écriture entre les deux lectures s'y intègre");
+    },
+    // `signal#12` — la propagation de la SPEC §5.1, vue sur l'écriture : une écriture réveille
+    // TOUTES les cibles que la cellule connaît, chacune une fois, et pas plus. Les tournées de
+    // création parlent déjà ; l'écriture parle du nombre de tournées, pas de leur ordre.
+    "write-wakes-every-target": async ({ signal: moteur, effect, log }) => {
+        const partage = moteur(0);
+        effect(() => log("le premier entend la cellule", String(partage.value)));
+        effect(() => log("le second entend la même cellule", String(partage.value)));
+        partage.value = 1;
+        assert.deepEqual(log.entries, [
+            "le premier entend la cellule 0",
+            "le second entend la même cellule 0",
+            "le premier entend la cellule 1",
+            "le second entend la même cellule 1",
+        ], "une écriture réveille chaque cible connue, une fois");
+    },
+    // `effect#3` — la collecte vue de l'effet : une lecture devient une dépendance, et rien
+    // d'autre. Une cellule jamais lue n'est jamais notifiante — l'écriture qu'elle reçoit attend
+    // la lecture suivante ; une cellule qui entre dans la lecture entre dans la liste, et celle
+    // qui n'est plus relue en sort. Le journal dit les tournées et la valeur lue, rien de plus.
+    "dependencies-follow-the-current-read": async ({ signal: moteur, effect, log }) => {
+        const bascule = moteur(true);
+        const a = moteur(1);
+        const b = moteur(2);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("l'effet tourne et lit", String(bascule.value ? a.value : b.value));
+        });
+        b.value = 20;
+        log("tours après une écriture sur une cellule jamais lue", String(tours));
+        bascule.value = false;
+        log("tours après la bascule, la lecture a changé de cellule", String(tours));
+        a.value = 10;
+        log("tours après une écriture sur la cellule abandonnée", String(tours));
+        b.value = 21;
+        log("tours après une écriture sur la cellule lue", String(tours));
+        assert.deepEqual(log.entries, [
+            "l'effet tourne et lit 1",
+            "tours après une écriture sur une cellule jamais lue 1",
+            "l'effet tourne et lit 20",
+            "tours après la bascule, la lecture a changé de cellule 2",
+            "tours après une écriture sur la cellule abandonnée 2",
+            "l'effet tourne et lit 21",
+            "tours après une écriture sur la cellule lue 3",
+        ], "la collection est celle de la dernière lecture : jamais lue, jamais notifiante");
+    },
+    // `computed#8` — l'abandon vu du computé : une écriture sur une cellule que le calcul ne
+    // relit plus n'invalide même pas le cache. Le compte d'évaluations le dit ; la valeur seule
+    // ne prouverait rien, puisque le résultat serait le même si le calcul avait repris.
+    "abandoned-dependency-skips-the-recompute": async ({ signal: moteur, computed, log }) => {
+        const bascule = moteur(true);
+        const a = moteur(1);
+        const b = moteur(2);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            const lue = bascule.value ? "a:" + a.value : "b:" + b.value;
+            log("le calcul lit", lue);
+            return lue;
+        });
+        log("1re lecture", String(c.value));
+        bascule.value = false;
+        log("2e lecture après la bascule", String(c.value));
+        a.value = 10;
+        log("3e lecture après une écriture sur l'abandonnée", String(c.value));
+        log("évaluations au passage de l'abandon", String(evaluations));
+        b.value = 21;
+        log("4e lecture après une écriture sur la cellule lue", String(c.value));
+        log("évaluations après la dernière écriture", String(evaluations));
+        assert.deepEqual(log.entries, [
+            "le calcul lit a:1",
+            "1re lecture a:1",
+            "le calcul lit b:2",
+            "2e lecture après la bascule b:2",
+            "3e lecture après une écriture sur l'abandonnée b:2",
+            "évaluations au passage de l'abandon 2",
+            "le calcul lit b:21",
+            "4e lecture après une écriture sur la cellule lue b:21",
+            "évaluations après la dernière écriture 3",
+        ], "une écriture sur une dépendance abandonnée ne recalcule pas, une écriture sur la lue oui");
+    },
+    // `computed#9` — le retour de la lecture, de bout en bout, et deux fois : la valeur réintègre
+    // l'écriture qui a eu lieu pendant l'abandon, la source revenue notifie de nouveau, et le
+    // compte d'évaluations suit. La norme (§7) dit que le nœud est RÉUTILISÉ, pas recréé ; ce
+    // que ce test rejoue est la conséquence observable de cette réutilisation.
+    "reread-revives-the-abandoned-dependency": async ({ signal: moteur, computed, log }) => {
+        const bascule = moteur(true);
+        const a = moteur(1);
+        const b = moteur(2);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            return bascule.value ? a.value : b.value;
+        });
+        log("1re lecture", String(c.value));
+        bascule.value = false;
+        log("après l'abandon, la lecture vaut", String(c.value));
+        a.value = 10;
+        log("l'écriture manquée est-elle visible", String(c.value));
+        bascule.value = true;
+        log("au retour de la lecture", String(c.value));
+        log("évaluations après le premier retour", String(evaluations));
+        a.value = 11;
+        log("la dépendance revenue notifie", String(c.value));
+        log("évaluations après l'écriture sur la revenue", String(evaluations));
+        bascule.value = false;
+        log("second abandon, la lecture vaut", String(c.value));
+        a.value = 12;
+        log("la seconde écriture manquée est-elle visible", String(c.value));
+        bascule.value = true;
+        log("au second retour de la lecture", String(c.value));
+        log("évaluations après le second retour", String(evaluations));
+        assert.deepEqual(log.entries, [
+            "1re lecture 1",
+            "après l'abandon, la lecture vaut 2",
+            "l'écriture manquée est-elle visible 2",
+            "au retour de la lecture 10",
+            "évaluations après le premier retour 3",
+            "la dépendance revenue notifie 11",
+            "évaluations après l'écriture sur la revenue 4",
+            "second abandon, la lecture vaut 2",
+            "la seconde écriture manquée est-elle visible 2",
+            "au second retour de la lecture 12",
+            "évaluations après le second retour 6",
+        ], "le retour réintègre l'écriture manquée, et la dépendance revenue notifie de nouveau");
+    },
+    // `computed#4` — l'invalidation de la SPEC §6 vue du côté LECTURE : trois écritures sur la
+    // source ne recalculent rien tant que personne ne lit, la première lecture paie le recalcul
+    // UNE fois, et la relecture ne repaie pas. Le scénario de la table montre l'attente courte —
+    // une écriture, une lecture ; ici l'attente est longue, et le compte d'évaluations dit que
+    // rien n'a bougé entre-temps.
+    "invalidation-waits-for-the-read": async ({ signal: moteur, computed, log }) => {
+        const a = moteur(1);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            log("le calcul repart, lit", String(a.value));
+            return a.value * 10;
+        });
+        log("avant toute lecture, evaluations", String(evaluations));
+        log("1re lecture", String(c.value));
+        a.value = 2;
+        a.value = 3;
+        a.value = 4;
+        log("après trois écritures, evaluations", String(evaluations));
+        log("la lecture rend", String(c.value));
+        log("évaluations après la lecture", String(evaluations));
+        log("relire ne recalcule pas", String(c.value));
+        log("évaluations après la relecture", String(evaluations));
+        assert.deepEqual(log.entries, [
+            "avant toute lecture, evaluations 0",
+            "le calcul repart, lit 1",
+            "1re lecture 10",
+            "après trois écritures, evaluations 1",
+            "le calcul repart, lit 4",
+            "la lecture rend 40",
+            "évaluations après la lecture 2",
+            "relire ne recalcule pas 40",
+            "évaluations après la relecture 2",
+        ], "trois écritures attendent la lecture, qui recalcule une fois, puis se tait");
+    },
+    // `batch#15` — une génération entendue deux fois ne tourne qu'une fois : le `batch` écrit les
+    // deux cellules que l'effet lit, l'effet est notifié deux fois dans le même drainage et ne
+    // tourne qu'une fois, avec les deux valeurs déjà écrites. Hors batch, chaque écriture a son
+    // drainage, donc son tour.
+    "a-generation-wakes-once": async ({ signal: moteur, effect, batch, log }) => {
+        const a = moteur(0);
+        const b = moteur(0);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("l'effet tourne, voit", `${a.value} et ${b.value}`);
+        });
+        batch(() => {
+            a.value = 1;
+            b.value = 1;
+        });
+        log("après un batch sur les deux cellules, tours", String(tours));
+        a.value = 2;
+        log("après l'écriture de la première, tours", String(tours));
+        b.value = 2;
+        log("après l'écriture de la seconde, tours", String(tours));
+        assert.deepEqual(log.entries, [
+            "l'effet tourne, voit 0 et 0",
+            "l'effet tourne, voit 1 et 1",
+            "après un batch sur les deux cellules, tours 2",
+            "l'effet tourne, voit 2 et 1",
+            "après l'écriture de la première, tours 3",
+            "l'effet tourne, voit 2 et 2",
+            "après l'écriture de la seconde, tours 4",
+        ], "deux notifications dans un même drainage ne font qu'un tour, séparées elles en font deux");
+    },
+    // `effect#16` — l'effet qui s'écrit se réveille dans le MÊME drainage, et l'écriture de son
+    // propre run est posée AVANT l'exécution : le corps voit la valeur qu'il a écrite, pas
+    // l'ancienne. La pose seule fait la triple tournée ; le `batch` montre qu'une écriture faite
+    // pendant un drainage appartient au suivant ; la fin sépare l'écriture identique, qui ne
+    // réveille personne, de l'écriture neuve, qui réveille une fois.
+    "the-write-in-the-run-wakes-again": async ({ signal: moteur, effect, batch, log }) => {
+        const s = moteur(0);
+        let tours = 0;
+        effect(() => {
+            tours++;
+            log("l'effet tourne, voit", String(s.value));
+            if (s.value < 2)
+                s.value = s.value + 1;
+        });
+        log("après la pose, tours", String(tours));
+        batch(() => {
+            s.value = 5;
+            log("dans le corps du batch, tours", String(tours));
+        });
+        log("après le batch, tours", String(tours));
+        log("valeur finale", String(s.value));
+        s.value = 5;
+        log("après une écriture identique, tours", String(tours));
+        s.value = 7;
+        log("après une écriture neuve, tours", String(tours));
+        assert.deepEqual(log.entries, [
+            "l'effet tourne, voit 0",
+            "l'effet tourne, voit 1",
+            "l'effet tourne, voit 2",
+            "après la pose, tours 3",
+            "dans le corps du batch, tours 3",
+            "l'effet tourne, voit 5",
+            "après le batch, tours 4",
+            "valeur finale 5",
+            "après une écriture identique, tours 4",
+            "l'effet tourne, voit 7",
+            "après une écriture neuve, tours 5",
+        ], "l'écriture du run se pose avant l'exécution, et réveille dans le même drainage");
+    },
+    // ---- Les reconstitutions de la page « le computé », quatrième étape du chapitre -------------
+    //
+    // La mise en cache, la péremption et la réconciliation du résultat. Les trois tests ne lisent
+    // que l'API publique : le harnais les rejoue contre le paquet installé, et le journal de la
+    // page est celui de cette exécution.
+    // `computed#2` — la mise en cache de la SPEC §6 : rien avant la première lecture, puis TROIS
+    // lectures consécutives pour UNE évaluation. La dernière écriture ne change pas la source,
+    // donc l'identité la refuse et le cache reste servi sans repasser par le calcul.
+    "three-reads-one-evaluation": async ({ signal: moteur, computed, log }) => {
+        const source = moteur(1);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            log("le calcul lit", String(source.value));
+            return source.value * 10;
+        });
+        log("avant toute lecture, évaluations", String(evaluations));
+        log("1re lecture", String(c.value));
+        log("évaluations après la 1re lecture", String(evaluations));
+        log("2e lecture", String(c.value));
+        log("3e lecture", String(c.value));
+        log("évaluations après trois lectures", String(evaluations));
+        source.value = 1;
+        log("après une écriture identique, évaluations", String(evaluations));
+        log("4e lecture", String(c.value));
+        log("évaluations après la relecture", String(evaluations));
+        assert.deepEqual(log.entries, [
+            "avant toute lecture, évaluations 0",
+            "le calcul lit 1",
+            "1re lecture 10",
+            "évaluations après la 1re lecture 1",
+            "2e lecture 10",
+            "3e lecture 10",
+            "évaluations après trois lectures 1",
+            "après une écriture identique, évaluations 1",
+            "4e lecture 10",
+            "évaluations après la relecture 1",
+        ], "trois lectures consécutives tiennent dans une évaluation : le cache sert tant que rien ne change");
+    },
+    // `computed#3b` — la péremption ne suit pas le compteur global mais les sources lues : deux
+    // écritures sur une cellule étrangère n'expirent pas le cache, une écriture sur la source
+    // l'expire, et la lecture suivante paie le recalcul UNE fois.
+    "unlinked-write-is-ignored": async ({ signal: moteur, computed, log }) => {
+        const source = moteur(1);
+        const etrangere = moteur(0);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            return source.value + 1;
+        });
+        log("1re lecture", `${c.value}, évaluations ${evaluations}`);
+        etrangere.value = 1;
+        etrangere.value = 2;
+        log("après deux écritures non liées, évaluations", String(evaluations));
+        log("relecture", `${c.value}, évaluations ${evaluations}`);
+        source.value = 10;
+        log("après une écriture liée, sans lecture, évaluations", String(evaluations));
+        log("relecture après l'écriture liée", `${c.value}, évaluations ${evaluations}`);
+        log("dernière relecture", `${c.value}, évaluations ${evaluations}`);
+        assert.deepEqual(log.entries, [
+            "1re lecture 2, évaluations 1",
+            "après deux écritures non liées, évaluations 1",
+            "relecture 2, évaluations 1",
+            "après une écriture liée, sans lecture, évaluations 1",
+            "relecture après l'écriture liée 11, évaluations 2",
+            "dernière relecture 11, évaluations 2",
+        ], "le cache n'expire que sur une source lue, et la lecture suivante le repaie une fois");
+    },
+    // `computed#5` — la réconciliation du résultat, par identité stricte : une écriture de même
+    // parité fait repartir le calcul, mais le résultat est le MÊME, donc l'effet n'est pas
+    // notifié ; une écriture de parité opposée change le résultat et l'effet tourne. Le dernier
+    // retour vérifie que la règle vaut dans les deux sens.
+    "identical-result-is-not-notified": async ({ signal: moteur, computed, effect, log }) => {
+        const source = moteur(2);
+        let evaluations = 0;
+        let runs = 0;
+        const c = computed(() => {
+            evaluations++;
+            return source.value % 2;
+        });
+        effect(() => {
+            runs++;
+            log("l'effet lit", String(c.value));
+        });
+        log("à la pose", `évaluations:${evaluations} tours:${runs}`);
+        source.value = 4;
+        log("après une écriture de même parité", `évaluations:${evaluations} tours:${runs}`);
+        source.value = 3;
+        log("après une écriture de parité opposée", `évaluations:${evaluations} tours:${runs}`);
+        source.value = 5;
+        log("après un retour à la même parité", `évaluations:${evaluations} tours:${runs}`);
+        log("relire ne recalcule pas", `${c.value} évaluations:${evaluations}`);
+        assert.deepEqual(log.entries, [
+            "l'effet lit 0",
+            "à la pose évaluations:1 tours:1",
+            "après une écriture de même parité évaluations:2 tours:1",
+            "l'effet lit 1",
+            "après une écriture de parité opposée évaluations:3 tours:2",
+            "après un retour à la même parité évaluations:4 tours:2",
+            "relire ne recalcule pas 1 évaluations:4",
+        ], "un résultat identique par identité stricte ne notifie pas ; un résultat neuf notifie");
+    },
+    // ---- Les reconstitutions de la page « l'effet et le drainage », cinquième étape du chapitre --
+    //
+    // L'ordre inversé du batch, l'ordre de création sur un même signal, et la ré-exécution dans le
+    // même drainage coupée par l'identité. Les trois tests ne lisent que l'API publique : le harnais
+    // les rejoue contre le paquet installé, et la page montre le journal de cette exécution.
+    // `batch#14` — l'ordre INVERSÉ de la SPEC §13.4, rejoué des deux côtés : hors batch chaque
+    // écriture draine seule et l'ordre suit les écritures ; dans un batch, trois signaux distincts
+    // s'empilent et le drain les sort à l'envers. Les trois premières lignes sont les tournées de
+    // création, un effet s'exécutant aussitôt posé.
+    "three-writes-drain-reversed": async ({ signal: moteur, effect, batch, log }) => {
+        const a = moteur(0);
+        const b = moteur(0);
+        const c = moteur(0);
+        effect(() => log("A tourne", a.value));
+        effect(() => log("B tourne", b.value));
+        effect(() => log("C tourne", c.value));
+        a.value = 1;
+        b.value = 1;
+        batch(() => {
+            a.value = 2;
+            b.value = 2;
+            c.value = 2;
+        });
+        assert.deepEqual(log.entries, [
+            "A tourne 0",
+            "B tourne 0",
+            "C tourne 0",
+            "A tourne 1",
+            "B tourne 1",
+            "C tourne 2",
+            "B tourne 2",
+            "A tourne 2",
+        ], "hors batch l'écriture draine seule ; dans le batch le drain sort à l'envers des écritures");
+    },
+    // `batch#14` — l'autre règle du §13.4, celle que l'entrée porte avec la première : plusieurs
+    // effets sur le MÊME signal sortent dans l'ordre de création. La création les fait tourner une
+    // fois chacun, et l'écriture les réveille tous, dans cet ordre.
+    "same-signal-creation-order": async ({ signal: moteur, effect, log }) => {
+        const s = moteur(0);
+        effect(() => log("d1 lit", s.value));
+        effect(() => log("d2 lit", s.value));
+        effect(() => log("d3 lit", s.value));
+        effect(() => log("d4 lit", s.value));
+        s.value = 1;
+        assert.deepEqual(log.entries, [
+            "d1 lit 0",
+            "d2 lit 0",
+            "d3 lit 0",
+            "d4 lit 0",
+            "d1 lit 1",
+            "d2 lit 1",
+            "d3 lit 1",
+            "d4 lit 1",
+        ], "plusieurs effets sur le même signal gardent l'ordre de création");
+    },
+    // `effect#16` — un effet qui écrit une dépendance qu'il lit se ré-exécute dans le MÊME drainage
+    // (§8.4). La montée s'arrête à 3 : la troisième tournée écrit 3 sur 3, l'identité stricte
+    // refuse l'écriture identique (§5.1), et la boucle se coupe sans borne.
+    "self-write-restarts-in-same-drain": async ({ signal: moteur, effect, log }) => {
+        const s = moteur(1);
+        effect(() => {
+            const v = s.value;
+            log("tourne, voit", v);
+            s.value = Math.min(v + 1, 3);
+        });
+        assert.deepEqual(log.entries, ["tourne, voit 1", "tourne, voit 2", "tourne, voit 3"], "l'écriture du run relance l'effet dans le même drainage, et l'identité coupe à 3");
     },
 };
 /**
@@ -4406,7 +5196,11 @@ if (process.env.NODE_TEST_CONTEXT) {
     }
     for (const [nom, corps] of Object.entries(testsSignalcnSeul)) {
         test(`signalcn-seul/${nom}`, async () => {
-            await corps(await moteurDe());
+            // Le moteur porte son journal, comme le module du lecteur le fournit au rendu et le
+            // harnais rejoue les reconstitutions rejouables : la suite et les trois sources voient
+            // la même table.
+            const moteur = await moteurDe();
+            await corps({ ...moteur, log: makeLog() });
         });
     }
     // ---- Le registre est complet ------------------------------------------------------
