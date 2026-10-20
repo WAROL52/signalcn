@@ -4632,7 +4632,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // lui-même et remplaçait son `_fn` : le cache dérivé restait périmé pour toujours.
   // Divergent, donc en prose : l'objet métier portant `brand` est enveloppé chez nous et
   // passé brut chez la baseline — le test ne peut rien en dire, il se rejouerait rouge.
-  "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel }) => {
+  "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel, log }) => {
     const source = moteur(0)
     const derive = computed(() => source.value + 1)
     const M = createModel(() => ({ source, derive }))
@@ -4647,6 +4647,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     )
     source.value = 7
     assert.equal(modele.source.value, 7, "la source est la même, l'écriture y passe")
+    log("le signal traverse la fabrique", String(modele.source === source))
     assert.equal(modele.derive.value, 8, "le computé suit la source : la descente n'a rien cassé")
   },
 
@@ -4658,7 +4659,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // pollution énumérable de `Object.prototype` atterrit sur chaque modèle chez elle et ne
   // les atteint plus chez nous ; une pollution posée en GETTER fait lever la création chez
   // elle et passe chez nous.
-  "only-own-enumerable-keys-are-wrapped": async ({ createModel }) => {
+  "only-own-enumerable-keys-are-wrapped": async ({ createModel, log }) => {
     class K {
       n = 0
       met(v: number) {
@@ -4718,6 +4719,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     const MH = createModel(() => heritee)
     const mh = new MH()
     assert.equal(mh.h(5), 5, "une héritée énumérable reste appelable, `this` = modèle")
+    log("méthode de classe intacte", String(mk.met === methode))
     assert.equal(heritee.v, 5, "l'état du modèle a tourné des deux côtés")
   },
 
@@ -4729,7 +4731,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // lecture sans setter lève une `TypeError` en strict (le paquet installé la lève encore,
   // mesure du 16 octobre : « Cannot set property acc of #<Object> which has only a getter »),
   // et un `set` présent y reçoit l'enveloppe — jamais chez nous.
-  "getter-is-read-not-written": async ({ createModel }) => {
+  "getter-is-read-not-written": async ({ createModel, log }) => {
     const inc = function inc(v: number) {
       interieur.v += v
       return interieur.v
@@ -4780,6 +4782,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
       ["a"],
       "la clé supprimée sous le couvert d'un autre getter n'est pas parvenue au modèle",
     )
+    log("l'accesseur reste un accesseur", String(descripteur.set === undefined))
     assert.equal(t.a, 0, "l'accesseur, lui, reste lisible")
   },
 
@@ -4790,7 +4793,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // et une chez nous — et chez elle, la marche repasse sur le sous-arbre partagé et
   // re-enveloppe : deux remplacements comptés par un piège à setter là où la nôtre n'en fait
   // plus qu'un.
-  "shared-subtree-identity": async ({ createModel }) => {
+  "shared-subtree-identity": async ({ createModel, log }) => {
     const feuille = {
       v: 0,
       inc(v: number) {
@@ -4806,6 +4809,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     assert.equal(m.A, arbre, "et le modèle est l'objet de la fabrique, muté en place")
     assert.equal(m.A.feuille, m.B.feuille, "le sous-arbre partagé, identique par les deux routes")
     assert.equal(m.A.feuille.inc(3), 3, "l'état passe par la première route")
+    log("deux routes, une instance", String(m.A === m.B))
     assert.equal(feuille.v, 3, "et c'est le même objet : aucun état ne se dédouble")
   },
 
@@ -4815,7 +4819,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // CJS du 16 octobre — porte sur CHAQUE modèle une clé `\"undefined\"` énumérable dont la
   // valeur est une fonction, et `getOwnPropertySymbols` n'y renvoie rien ; chez nous, rien
   // n'est posé. Le no-op de `using` qui en découle reste du côté de la baseline.
-  "no-stray-key-on-the-model": async ({ createModel }) => {
+  "no-stray-key-on-the-model": async ({ createModel, log }) => {
     const M = createModel(() => ({ a: 0, b: 1 }))
     const m = M() as unknown as Record<string, unknown>
     assert.deepEqual(Object.getOwnPropertyNames(m), ["a", "b"], "pas un nom de plus sur le modèle")
@@ -4835,6 +4839,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
       false,
       "aucune clé `\"undefined\"` — chez la baseline, il n'y en a qu'avec le symbole absent",
     )
+    log("une clé undefined est posée", String(Object.getOwnPropertyNames(m).includes("undefined")))
   },
 
   // modele#40 — une fonction async enveloppée déclenche un AVERTISSEMENT. Le signal fait partie
@@ -4848,6 +4853,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
     signal: moteur,
     effect: effet,
     createModel,
+    log,
   }) => {
     const avertir = console.warn
     console.warn = () => {}
@@ -4870,6 +4876,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
       assert.ok(promesse instanceof Promise, "la méthode async retourne une promesse")
       journal.push("retour")
       await promesse
+      log("les deux passages", journal.join(" "))
       assert.deepEqual(
         journal,
         ["e0", "debut", "apres1", "e1", "retour", "e2", "apres2"],
@@ -4891,7 +4898,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // tableau d'effets effacé dans un `finally` (chez elle, un dispose rejoué après un cleanup
   // qui lève fait rejouer le reste de la file — sonde du 16 octobre, `c3` refermée au second
   // dispose).
-  "null-factory-return-throws-on-first-use": async ({ createModel }) => {
+  "null-factory-return-throws-on-first-use": async ({ createModel, log }) => {
     const M = createModel(() => null)
     assert.throws(
       () => M(),
@@ -4899,6 +4906,7 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
       "une fabrique qui renvoie null lève : la garde chez nous, l'écriture du dispositeur chez elle",
     )
     const N = createModel(() => 42)
+    log("une fabrique qui ne renvoie pas un objet", "lève TypeError")
     assert.throws(
       () => N(),
       TypeError,
