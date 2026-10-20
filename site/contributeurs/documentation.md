@@ -41,6 +41,7 @@ une CI pour savoir comment l'installer.
 | [`site/technique/reimplementer/la-dependance.md`](../technique/reimplementer/la-dependance.md) | la dépendance — deuxième étape du chapitre de reconstruction : la collecte, l'abandon, la relecture |
 | [`site/technique/reimplementer/l-invalidation.md`](../technique/reimplementer/l-invalidation.md) | l'invalidation — troisième étape du chapitre de reconstruction : les drapeaux, l'effacement avant l'exécution, la déduplication dans une génération |
 | [`site/technique/reimplementer/le-compute.md`](../technique/reimplementer/le-compute.md) | le computé — quatrième étape du chapitre de reconstruction : le cache, la péremption, la réconciliation du résultat |
+| [`site/technique/reimplementer/effet-et-drainage.md`](../technique/reimplementer/effet-et-drainage.md) | l'effet et le drainage — cinquième étape du chapitre de reconstruction : l'ordre inversé du batch, l'ordre de création, la ré-exécution coupée par l'identité |
 | [`site/contributeurs/build.md`](./build.md) | la chaîne de build et de minification |
 | [`site/contributeurs/ci.md`](./ci.md) | les jobs et leur ordre |
 | [`site/contributeurs/parity.md`](./parity.md) | comment la garantie de conformité s'applique |
