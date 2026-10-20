@@ -2574,13 +2574,13 @@ export const scenarios: Scenario[] = [
     name: "model/two-instances",
     matrice: [],
     run(api, log) {
-      const mk = (api: Api, n: number) =>
+      const mk = (n: number) =>
         api.createModel(() => ({
           s: api.signal(n),
           e: api.effect(() => log(`e${n}`, String(n))),
         }))
-      const A = mk(api, 1)
-      const B = mk(api, 2)
+      const A = mk(1)
+      const B = mk(2)
       const a = new A()
       const b = new B()
       log("deux instances creees", "vu")
@@ -4632,7 +4632,12 @@ export const testsSignalcnSeul: Record<string, (moteur: Moteur) => Promise<void>
   // lui-même et remplaçait son `_fn` : le cache dérivé restait périmé pour toujours.
   // Divergent, donc en prose : l'objet métier portant `brand` est enveloppé chez nous et
   // passé brut chez la baseline — le test ne peut rien en dire, il se rejouerait rouge.
-  "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel, log }) => {
+  "brand-value-skips-a-signal-in-a-model": async ({
+    signal: moteur,
+    computed,
+    createModel,
+    log,
+  }) => {
     const source = moteur(0)
     const derive = computed(() => source.value + 1)
     const M = createModel(() => ({ source, derive }))
