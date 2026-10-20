@@ -2508,12 +2508,12 @@ export const scenarios = [
         name: "model/two-instances",
         matrice: [],
         run(api, log) {
-            const mk = (api, n) => api.createModel(() => ({
+            const mk = (n) => api.createModel(() => ({
                 s: api.signal(n),
                 e: api.effect(() => log(`e${n}`, String(n))),
             }));
-            const A = mk(api, 1);
-            const B = mk(api, 2);
+            const A = mk(1);
+            const B = mk(2);
             const a = new A();
             const b = new B();
             log("deux instances creees", "vu");
@@ -4421,7 +4421,7 @@ export const testsSignalcnSeul = {
     // lui-même et remplaçait son `_fn` : le cache dérivé restait périmé pour toujours.
     // Divergent, donc en prose : l'objet métier portant `brand` est enveloppé chez nous et
     // passé brut chez la baseline — le test ne peut rien en dire, il se rejouerait rouge.
-    "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel }) => {
+    "brand-value-skips-a-signal-in-a-model": async ({ signal: moteur, computed, createModel, log, }) => {
         const source = moteur(0);
         const derive = computed(() => source.value + 1);
         const M = createModel(() => ({ source, derive }));
@@ -4431,6 +4431,7 @@ export const testsSignalcnSeul = {
         assert.equal(source.brand, Symbol.for("preact-signals"), "c'est cette VALEUR, lue sous le nom `brand`, que le veto compare");
         source.value = 7;
         assert.equal(modele.source.value, 7, "la source est la même, l'écriture y passe");
+        log("le signal traverse la fabrique", String(modele.source === source));
         assert.equal(modele.derive.value, 8, "le computé suit la source : la descente n'a rien cassé");
     },
     // modele#36 — le domaine d'énumération : le PROPRE énumérable, et rien d'autre. Se fige,
@@ -4441,7 +4442,7 @@ export const testsSignalcnSeul = {
     // pollution énumérable de `Object.prototype` atterrit sur chaque modèle chez elle et ne
     // les atteint plus chez nous ; une pollution posée en GETTER fait lever la création chez
     // elle et passe chez nous.
-    "only-own-enumerable-keys-are-wrapped": async ({ createModel }) => {
+    "only-own-enumerable-keys-are-wrapped": async ({ createModel, log }) => {
         class K {
             constructor() {
                 this.n = 0;
@@ -4496,6 +4497,7 @@ export const testsSignalcnSeul = {
         const MH = createModel(() => heritee);
         const mh = new MH();
         assert.equal(mh.h(5), 5, "une héritée énumérable reste appelable, `this` = modèle");
+        log("méthode de classe intacte", String(mk.met === methode));
         assert.equal(heritee.v, 5, "l'état du modèle a tourné des deux côtés");
     },
     // modele#37 — la descension lit le DESCRIPTEUR. Se fige : l'accesseur est invoqué UNE fois à
@@ -4506,7 +4508,7 @@ export const testsSignalcnSeul = {
     // lecture sans setter lève une `TypeError` en strict (le paquet installé la lève encore,
     // mesure du 16 octobre : « Cannot set property acc of #<Object> which has only a getter »),
     // et un `set` présent y reçoit l'enveloppe — jamais chez nous.
-    "getter-is-read-not-written": async ({ createModel }) => {
+    "getter-is-read-not-written": async ({ createModel, log }) => {
         const inc = function inc(v) {
             interieur.v += v;
             return interieur.v;
@@ -4548,6 +4550,7 @@ export const testsSignalcnSeul = {
         const T = createModel(() => tombe);
         const t = T();
         assert.deepEqual(Object.getOwnPropertyNames(t), ["a"], "la clé supprimée sous le couvert d'un autre getter n'est pas parvenue au modèle");
+        log("l'accesseur reste un accesseur", String(descripteur.set === undefined));
         assert.equal(t.a, 0, "l'accesseur, lui, reste lisible");
     },
     // modele#38 — la mémoïsation. Un sous-arbre partagé garde UNE identité par toutes ses
@@ -4557,7 +4560,7 @@ export const testsSignalcnSeul = {
     // et une chez nous — et chez elle, la marche repasse sur le sous-arbre partagé et
     // re-enveloppe : deux remplacements comptés par un piège à setter là où la nôtre n'en fait
     // plus qu'un.
-    "shared-subtree-identity": async ({ createModel }) => {
+    "shared-subtree-identity": async ({ createModel, log }) => {
         const feuille = {
             v: 0,
             inc(v) {
@@ -4572,6 +4575,7 @@ export const testsSignalcnSeul = {
         assert.equal(m.A, arbre, "et le modèle est l'objet de la fabrique, muté en place");
         assert.equal(m.A.feuille, m.B.feuille, "le sous-arbre partagé, identique par les deux routes");
         assert.equal(m.A.feuille.inc(3), 3, "l'état passe par la première route");
+        log("deux routes, une instance", String(m.A === m.B));
         assert.equal(feuille.v, 3, "et c'est le même objet : aucun état ne se dédouble");
     },
     // modele#39 — `Symbol.dispose` absent ne produit aucune clé. Dans un realm NORMAL, les deux
@@ -4580,7 +4584,7 @@ export const testsSignalcnSeul = {
     // CJS du 16 octobre — porte sur CHAQUE modèle une clé `\"undefined\"` énumérable dont la
     // valeur est une fonction, et `getOwnPropertySymbols` n'y renvoie rien ; chez nous, rien
     // n'est posé. Le no-op de `using` qui en découle reste du côté de la baseline.
-    "no-stray-key-on-the-model": async ({ createModel }) => {
+    "no-stray-key-on-the-model": async ({ createModel, log }) => {
         const M = createModel(() => ({ a: 0, b: 1 }));
         const m = M();
         assert.deepEqual(Object.getOwnPropertyNames(m), ["a", "b"], "pas un nom de plus sur le modèle");
@@ -4589,6 +4593,7 @@ export const testsSignalcnSeul = {
         assert.equal(
         // biome-ignore lint/suspicious/noPrototypeBuiltins: la cible est ES2020 (`lib` du tsconfig) et `Object.hasOwn` est ES2022 — le correctif de la règle ferait tomber `tsc`.
         Object.prototype.hasOwnProperty.call(m, "undefined"), false, "aucune clé `\"undefined\"` — chez la baseline, il n'y en a qu'avec le symbole absent");
+        log("une clé undefined est posée", String(Object.getOwnPropertyNames(m).includes("undefined")));
     },
     // modele#40 — une fonction async enveloppée déclenche un AVERTISSEMENT. Le signal fait partie
     // de la correction, et un test ne peut rien en faire : il est émis à la CONSTRUCTION, et le
@@ -4597,7 +4602,7 @@ export const testsSignalcnSeul = {
     // côtés — le préfixe synchrone se vide sur place, l'écriture après le premier `await` dans
     // un second passage. L'avertissement est étouffé pendant la construction : sa
     // moitié-divergence reste en prose (ADR-0005).
-    "asynchronous-fn-drains-in-two-passes": async ({ signal: moteur, effect: effet, createModel, }) => {
+    "asynchronous-fn-drains-in-two-passes": async ({ signal: moteur, effect: effet, createModel, log, }) => {
         const avertir = console.warn;
         console.warn = () => { };
         try {
@@ -4619,6 +4624,7 @@ export const testsSignalcnSeul = {
             assert.ok(promesse instanceof Promise, "la méthode async retourne une promesse");
             journal.push("retour");
             await promesse;
+            log("les deux passages", journal.join(" "));
             assert.deepEqual(journal, ["e0", "debut", "apres1", "e1", "retour", "e2", "apres2"], "deux drainages : `e1` avant `retour`, `e2` après l'attente");
         }
         finally {
@@ -4636,10 +4642,11 @@ export const testsSignalcnSeul = {
     // tableau d'effets effacé dans un `finally` (chez elle, un dispose rejoué après un cleanup
     // qui lève fait rejouer le reste de la file — sonde du 16 octobre, `c3` refermée au second
     // dispose).
-    "null-factory-return-throws-on-first-use": async ({ createModel }) => {
+    "null-factory-return-throws-on-first-use": async ({ createModel, log }) => {
         const M = createModel(() => null);
         assert.throws(() => M(), TypeError, "une fabrique qui renvoie null lève : la garde chez nous, l'écriture du dispositeur chez elle");
         const N = createModel(() => 42);
+        log("une fabrique qui ne renvoie pas un objet", "lève TypeError");
         assert.throws(() => N(), TypeError, "un nombre non plus : une propriété sur une primitive lève en strict des deux côtés");
     },
     // ---- Les reconstitutions du chapitre de reconstruction ----------------------------------------------------------------
