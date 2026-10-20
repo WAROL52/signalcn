@@ -62,7 +62,7 @@ for (const scenario of scenarios) {
 
 // --- Les tests `signalcn-seul` rejouables contre le paquet installé ----------------------
 //
-// Vingt et un de ces trente et un tests ne lisent aucun interne minifié : ils ne parlent que l'API publique, ou
+// Vingt-quatre de ces trente-quatre tests ne lisent aucun interne minifié : ils ne parlent que l'API publique, ou
 // des symboles et des méthodes qui gardent leur nom dans l'artefact. Ceux-là ne sont PAS
 // « nôtres seulement » — ils sont simplement jamais joués, parce que le harnais ne jouait que la
 // table. Les rejouer est la seule façon de prouver que nos assertions y sont aussi celles de la

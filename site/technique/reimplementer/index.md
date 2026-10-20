@@ -10,7 +10,7 @@ réécriture, et il ne vit nulle part ailleurs.
    et la relecture qui ranime
 3. [l'invalidation](./l-invalidation) — les drapeaux, l'effacement avant l'exécution, et la
    déduplication dans une génération
-4. le computé
+4. [le computé](./le-compute) — le cache, la péremption, et le résultat identique qui se tait
 5. l'effet et le drainage
 6. le batch
 7. le cycle et la borne
