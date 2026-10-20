@@ -2,7 +2,8 @@
 
 Une fonction qui regroupe ses écritures et détache son corps du suivi courant : à chaque appel,
 les mutations attendent la sortie de la portée, et les lectures ne s'inscrivent nulle part. C'est
-la forme d'une mutation — celle que `createModel()` pose sur chaque méthode d'un modèle.
+la forme d'une mutation — celle que `createModel()` pose sur chaque fonction own énumérable d'un
+modèle.
 
 | Vous voulez | Allez à |
 | --- | --- |
@@ -17,13 +18,13 @@ aucun bloc de cette page n'est écrit à la main, aucun journal non plus.
 
 ## L'emballage
 
-`action` est exactement un `batch` autour d'un `untracked` : l'appel ouvre la portée, exécute
-`fn`, puis rend sa valeur. « `batch(fn)` regroupe les mutations et diffère la propagation
-observable jusqu'au drainage, qui est **synchrone** » — `SPEC.md` §9 —, et « seul le batch le plus
-externe draine » — `SPEC.md` §9.1 : l'action ne draine pas après chaque écriture, la propagation
-attend la sortie de la portée la plus externe. La seconde moitié est `untracked`, qui « exécute
-une lecture sans ajouter les signaux consultés aux dépendances du contexte réactif extérieur » —
-`SPEC.md` §10 : une action appelée depuis un effet ne l'abonne pas.
+`action` compose les deux primitives : l'appel ouvre un `batch` — « `batch(fn)` regroupe les
+mutations et diffère la propagation observable jusqu'au drainage, qui est **synchrone** » —
+`SPEC.md` §9 —, et il exécute `fn` sous `untracked` — « `untracked(fn)` exécute une lecture sans
+ajouter les signaux consultés aux dépendances du contexte réactif extérieur » — `SPEC.md` §10.
+La portée la plus externe est celle qui draine — « seul le batch le plus externe draine »,
+`SPEC.md` §9.1 — : l'action ne draine pas après chaque écriture, et une action appelée depuis un
+effet ne l'abonne pas.
 
 ```ts scenarios/action/batch-around-untracked
 ```
