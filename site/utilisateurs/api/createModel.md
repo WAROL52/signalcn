@@ -229,7 +229,7 @@ alors que la source externe continuait de changer.
 
 Un objet **cyclique** produit un `RangeError` après une mutation **partielle** — défaut figé —,
 une fabrique qui rend une primitive ou `null` lève `TypeError` — la garde du §16.6 —, et un
-getter n'est évalué qu'une fois à la construction — `SPEC.md` §16.2, §16.5 et §16.6.
+getter n'est évalué qu'une fois à la construction — `SPEC.md` §16.2 et §16.6.
 
 ```ts scenarios/model/cyclic-getter-and-primitives
 ```
