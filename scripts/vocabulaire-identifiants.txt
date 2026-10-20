@@ -154,6 +154,7 @@ observer
 of
 on
 once
+one
 only
 options
 order
@@ -172,6 +173,7 @@ queue
 reactivation
 read
 readonly
+reads
 recompute
 reconcile
 record

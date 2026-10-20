@@ -3570,17 +3570,17 @@ export const COUVERTURE = {
     "conv#15": "conversions/follow-the-dependency",
     // --- groupe `computed` : 27 entrées
     "computed#1": "computed/lazy-and-cache",
-    "computed#2": "computed/lazy-and-cache",
+    "computed#2": "computed/lazy-and-cache + signalcn-seul/three-reads-one-evaluation",
     "computed#3": "computed/no-subscriber",
     // computed#3b : une écriture NON liée ne fait pas réévaluer un computé nu, alors qu'une écriture
     // liée le fait (#3). Les deux ensemble disent ce que vaut « périmé » ; un seul laisserait la
     // moitié de la règle libre.
-    "computed#3b": "computed/unlinked-write-evaluation",
+    "computed#3b": "computed/unlinked-write-evaluation + signalcn-seul/unlinked-write-is-ignored",
     "computed#4": "computed/invalidation-and-recompute + signalcn-seul/invalidation-waits-for-the-read",
     // computed#5 et #6 : un résultat identique ne notifie pas les dépendants. Elles pointaient sur le
     // ticket #24, clos, et n'étaient couvertes par AUCUN test — un numéro de ticket est accepté comme
     // destination par `registre-complet`, donc le vide Passait pour une couverture. #38 est passé par là.
-    "computed#5": "computed/identical-value-reread",
+    "computed#5": "computed/identical-value-reread + signalcn-seul/identical-result-is-not-notified",
     "computed#6": "computed/identical-value-reread",
     "computed#7": "computed/invalidation-and-recompute",
     "computed#8": "computed/dynamic-dependencies + signalcn-seul/abandoned-dependency-skips-the-recompute",
@@ -4964,6 +4964,108 @@ export const testsSignalcnSeul = {
             "l'effet tourne, voit 7",
             "après une écriture neuve, tours 5",
         ], "l'écriture du run se pose avant l'exécution, et réveille dans le même drainage");
+    },
+    // ---- Les reconstitutions de la page « le computé », quatrième étape du chapitre -------------
+    //
+    // La mise en cache, la péremption et la réconciliation du résultat. Les trois tests ne lisent
+    // que l'API publique : le harnais les rejoue contre le paquet installé, et le journal de la
+    // page est celui de cette exécution.
+    // `computed#2` — la mise en cache de la SPEC §6 : rien avant la première lecture, puis TROIS
+    // lectures consécutives pour UNE évaluation. La dernière écriture ne change pas la source,
+    // donc l'identité la refuse et le cache reste servi sans repasser par le calcul.
+    "three-reads-one-evaluation": async ({ signal: moteur, computed, log }) => {
+        const source = moteur(1);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            log("le calcul lit", String(source.value));
+            return source.value * 10;
+        });
+        log("avant toute lecture, évaluations", String(evaluations));
+        log("1re lecture", String(c.value));
+        log("évaluations après la 1re lecture", String(evaluations));
+        log("2e lecture", String(c.value));
+        log("3e lecture", String(c.value));
+        log("évaluations après trois lectures", String(evaluations));
+        source.value = 1;
+        log("après une écriture identique, évaluations", String(evaluations));
+        log("4e lecture", String(c.value));
+        log("évaluations après la relecture", String(evaluations));
+        assert.deepEqual(log.entries, [
+            "avant toute lecture, évaluations 0",
+            "le calcul lit 1",
+            "1re lecture 10",
+            "évaluations après la 1re lecture 1",
+            "2e lecture 10",
+            "3e lecture 10",
+            "évaluations après trois lectures 1",
+            "après une écriture identique, évaluations 1",
+            "4e lecture 10",
+            "évaluations après la relecture 1",
+        ], "trois lectures consécutives tiennent dans une évaluation : le cache sert tant que rien ne change");
+    },
+    // `computed#3b` — la péremption ne suit pas le compteur global mais les sources lues : deux
+    // écritures sur une cellule étrangère n'expirent pas le cache, une écriture sur la source
+    // l'expire, et la lecture suivante paie le recalcul UNE fois.
+    "unlinked-write-is-ignored": async ({ signal: moteur, computed, log }) => {
+        const source = moteur(1);
+        const etrangere = moteur(0);
+        let evaluations = 0;
+        const c = computed(() => {
+            evaluations++;
+            return source.value + 1;
+        });
+        log("1re lecture", `${c.value}, évaluations ${evaluations}`);
+        etrangere.value = 1;
+        etrangere.value = 2;
+        log("après deux écritures non liées, évaluations", String(evaluations));
+        log("relecture", `${c.value}, évaluations ${evaluations}`);
+        source.value = 10;
+        log("après une écriture liée, sans lecture, évaluations", String(evaluations));
+        log("relecture après l'écriture liée", `${c.value}, évaluations ${evaluations}`);
+        log("dernière relecture", `${c.value}, évaluations ${evaluations}`);
+        assert.deepEqual(log.entries, [
+            "1re lecture 2, évaluations 1",
+            "après deux écritures non liées, évaluations 1",
+            "relecture 2, évaluations 1",
+            "après une écriture liée, sans lecture, évaluations 1",
+            "relecture après l'écriture liée 11, évaluations 2",
+            "dernière relecture 11, évaluations 2",
+        ], "le cache n'expire que sur une source lue, et la lecture suivante le repaie une fois");
+    },
+    // `computed#5` — la réconciliation du résultat, par identité stricte : une écriture de même
+    // parité fait repartir le calcul, mais le résultat est le MÊME, donc l'effet n'est pas
+    // notifié ; une écriture de parité opposée change le résultat et l'effet tourne. Le dernier
+    // retour vérifie que la règle vaut dans les deux sens.
+    "identical-result-is-not-notified": async ({ signal: moteur, computed, effect, log }) => {
+        const source = moteur(2);
+        let evaluations = 0;
+        let runs = 0;
+        const c = computed(() => {
+            evaluations++;
+            return source.value % 2;
+        });
+        effect(() => {
+            runs++;
+            log("l'effet lit", String(c.value));
+        });
+        log("à la pose", `évaluations:${evaluations} tours:${runs}`);
+        source.value = 4;
+        log("après une écriture de même parité", `évaluations:${evaluations} tours:${runs}`);
+        source.value = 3;
+        log("après une écriture de parité opposée", `évaluations:${evaluations} tours:${runs}`);
+        source.value = 5;
+        log("après un retour à la même parité", `évaluations:${evaluations} tours:${runs}`);
+        log("relire ne recalcule pas", `${c.value} évaluations:${evaluations}`);
+        assert.deepEqual(log.entries, [
+            "l'effet lit 0",
+            "à la pose évaluations:1 tours:1",
+            "après une écriture de même parité évaluations:2 tours:1",
+            "l'effet lit 1",
+            "après une écriture de parité opposée évaluations:3 tours:2",
+            "après un retour à la même parité évaluations:4 tours:2",
+            "relire ne recalcule pas 1 évaluations:4",
+        ], "un résultat identique par identité stricte ne notifie pas ; un résultat neuf notifie");
     },
 };
 /**
